@@ -386,6 +386,13 @@ DB = "agenda.db"
 import os
 st.write(f"🔍 DEBUG Cliente - Banco existe? {os.path.exists(DB)}")
 st.write(f"📁 DEBUG Cliente - Caminho: {os.path.abspath(DB)}")
+# NOVO DEBUG: Contar agendamentos
+conn = sqlite3.connect(DB)
+c = conn.cursor()
+c.execute("SELECT COUNT(*) FROM agendamentos")
+total = c.fetchone()[0]
+conn.close()
+st.write(f"📊 DEBUG Admin - Total de agendamentos no banco: {total}")
 
 def conectar():
     return sqlite3.connect(DB)
