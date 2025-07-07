@@ -443,6 +443,13 @@ DB = "agenda.db"
 import os
 st.write(f"🔍 DEBUG Admin - Banco existe? {os.path.exists(DB)}")
 st.write(f"📁 DEBUG Admin - Caminho: {os.path.abspath(DB)}")
+# NOVO DEBUG: Contar agendamentos
+conn = sqlite3.connect(DB)
+c = conn.cursor()
+c.execute("SELECT COUNT(*) FROM agendamentos")
+total = c.fetchone()[0]
+conn.close()
+st.write(f"📊 DEBUG Admin - Total de agendamentos no banco: {total}")
 
 # Senha segura via Streamlit Secrets
 try:
