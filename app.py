@@ -590,6 +590,7 @@ def interface_cliente():
     """, unsafe_allow_html=True)
 
 def interface_admin():
+    interface_admin_avancada()
     st.markdown("""
     <div class="admin-header">
         <h1>🔐 Painel Administrativo</h1>
@@ -661,3 +662,472 @@ def interface_admin():
 # Executar aplicação
 if __name__ == "__main__":
     main()
+# Funções avançadas para bloqueios e emails
+def salvar_dias_uteis(dias):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("DELETE FROM dias_uteis")
+    for dia in dias:
+        c.execute("INSERT INTO dias_uteis (dia) VALUES (?)", (dia,))
+    conn.commit()
+    conn.close()
+
+def adicionar_bloqueio(data):
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO bloqueios (data) VALUES (?)", (data,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+def remover_bloqueio(data):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("DELETE FROM bloqueios WHERE data=?", (data,))
+    conn.commit()
+    conn.close()
+
+def obter_bloqueios():
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT data FROM bloqueios ORDER BY data")
+        datas = [linha[0] for linha in c.fetchall()]
+    except:
+        datas = []
+    conn.close()
+    return datas
+
+def adicionar_bloqueio_permanente(horario_inicio, horario_fim, dias_semana, descricao):
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        dias_str = ",".join(dias_semana)
+        c.execute("INSERT INTO bloqueios_permanentes (horario_inicio, horario_fim, dias_semana, descricao) VALUES (?, ?, ?, ?)", 
+                  (horario_inicio, horario_fim, dias_str, descricao))
+        conn.commit()
+        return True
+    except Exception as e:
+        return False
+    finally:
+        conn.close()
+
+def obter_bloqueios_permanentes():
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT id, horario_inicio, horario_fim, dias_semana, descricao FROM bloqueios_permanentes ORDER BY horario_inicio")
+        bloqueios = c.fetchall()
+        return bloqueios
+    except:
+        return []
+    finally:
+        conn.close()
+
+def remover_bloqueio_permanente(bloqueio_id):
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("DELETE FROM bloqueios_permanentes WHERE id=?", (bloqueio_id,))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
+
+def enviar_email_confirmacao(agendamento_id, cliente_nome, cliente_email, data, horario):
+    if not obter_configuracao("envio_automatico", False):
+        return False
+    
+    try:
+        email_sistema = obter_configuracao("email_sistema", "")
+        senha_email = obter_configuracao("senha_email", "")
+        servidor_smtp = obter_configuracao("servidor_smtp", "smtp.gmail.com")
+        porta_smtp = obter_configuracao("porta_smtp", 587)
+        
+        if not email_sistema or not senha_email:
+            return False
+        
+        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+        telefone_contato = obter_configuracao("telefone_contato", "(11) 3333-4444")
+        endereco = obter_configuracao("endereco", "Rua das Flores, 123")
+        
+        data_obj = datetime.strptime(data, "%Y-%m-%d")
+        data_formatada = data_obj.strftime("%d/%m/%Y - %A")
+        data_formatada = data_formatada.replace('Monday', 'Segunda-feira')\
+            .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
+            .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
+            .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
+        
+        msg = MIMEMultipart()
+        msg['From'] = email_sistema
+        msg['To'] = cliente_email
+        msg['Subject'] = f"✅ Agendamento Confirmado - {nome_profissional}"
+        
+        corpo = f"""
+Olá {cliente_nome}!
+
+Seu agendamento foi CONFIRMADO com sucesso!
+
+📅 Data: {data_formatada}
+⏰ Horário: {horario}
+🏥 Local: {nome_clinica}
+📍 Endereço: {endereco}
+📞 Contato: {telefone_contato}
+
+Aguardamos você!
+
+Atenciosamente,
+{nome_profissional}
+{nome_clinica}
+"""
+        
+        msg.attach(MIMEText(corpo, 'plain', 'utf-8'))
+        
+        server = smtplib.SMTP(servidor_smtp, porta_smtp)
+        server.starttls()
+        server.login(email_sistema, senha_email)
+        server.send_message(msg)
+        server.quit()
+        
+        return True
+        
+    except Exception as e:
+        return False
+
+def cancelar_agendamento(nome, telefone, data):
+    conn = conectar()
+    c = conn.cursor()
+    
+    # Buscar o agendamento
+    try:
+        c.execute("SELECT email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        resultado = c.fetchone()
+    except:
+        c.execute("SELECT horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        resultado_horario = c.fetchone()
+        resultado = ('', resultado_horario[0]) if resultado_horario else None
+    
+    if resultado:
+        c.execute("DELETE FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        conn.commit()
+        conn.close()
+        return True
+    else:
+        conn.close()
+        return False
+
+def deletar_agendamento(agendamento_id):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("DELETE FROM agendamentos WHERE id=?", (agendamento_id,))
+    conn.commit()
+    conn.close()
+
+# Melhorar a interface admin com mais funcionalidades
+def interface_admin_avancada():
+    st.markdown("""
+    <div class="admin-header">
+        <h1>🔐 Painel Administrativo</h1>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Verificação de senha
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    
+    if not st.session_state.authenticated:
+        st.markdown('<div class="main-card">', unsafe_allow_html=True)
+        st.subheader("🔒 Acesso Restrito")
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            senha = st.text_input("Senha de administrador:", type="password")
+            
+            if st.button("🚪 Entrar", type="primary"):
+                if senha == SENHA_ADMIN:
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("❌ Senha incorreta!")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+    
+    # Sidebar para navegação
+    with st.sidebar:
+        st.markdown("### 🔧 Menu Administrativo")
+        if st.button("🚪 Sair", use_container_width=True):
+            st.session_state.authenticated = False
+            st.rerun()
+        
+        st.markdown("---")
+        
+        opcao = st.selectbox(
+            "Escolha uma opção:",
+            ["📊 Dashboard", "👥 Lista de Agendamentos", "⚙️ Configurações", "🗓️ Bloqueios", "📅 Configurar Agenda"],
+            key="menu_opcao"
+        )
+    
+    # Carregar dados
+    agendamentos = buscar_agendamentos()
+    bloqueios = obter_bloqueios()
+    
+    # Estatísticas
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    agendamentos_hoje = [a for a in agendamentos if a[1] == hoje]
+    agendamentos_mes = [a for a in agendamentos if a[1].startswith(datetime.now().strftime("%Y-%m"))]
+    
+    # Cards de estatísticas
+    st.markdown(f"""
+    <div class="stats-container">
+        <div class="stat-card">
+            <div class="stat-number">{len(agendamentos_hoje)}</div>
+            <div class="stat-label">Agendamentos Hoje</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{len(agendamentos_mes)}</div>
+            <div class="stat-label">Total Este Mês</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{len(bloqueios)}</div>
+            <div class="stat-label">Datas Bloqueadas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{len(agendamentos)}</div>
+            <div class="stat-label">Total de Agendamentos</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Conteúdo baseado na opção
+    if opcao == "📊 Dashboard":
+        dashboard_view(agendamentos)
+    elif opcao == "👥 Lista de Agendamentos":
+        lista_agendamentos_view(agendamentos)
+    elif opcao == "⚙️ Configurações":
+        configuracoes_view()
+    elif opcao == "🗓️ Bloqueios":
+        bloqueios_view()
+    elif opcao == "📅 Configurar Agenda":
+        configurar_agenda_view()
+
+def dashboard_view(agendamentos):
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.subheader("📊 Dashboard")
+    
+    if agendamentos:
+        # Próximos agendamentos
+        st.subheader("📋 Próximos Agendamentos")
+        hoje = datetime.now().date()
+        
+        for agendamento in agendamentos[:10]:
+            if len(agendamento) >= 5:
+                id_ag, data, horario, nome, telefone = agendamento[:5]
+                data_obj = datetime.strptime(data, "%Y-%m-%d").date()
+                
+                if data_obj >= hoje:
+                    st.markdown(f"""
+                    <div class="appointment-item">
+                        <div style="display: flex; justify-content: space-between;">
+                            <div>
+                                <strong>👤 {nome}</strong><br>
+                                📅 {data} • 🕐 {horario}<br>
+                                📱 {telefone}
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+    else:
+        st.info("📊 Ainda não há dados suficientes para exibir estatísticas.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def lista_agendamentos_view(agendamentos):
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.subheader("👥 Lista de Agendamentos")
+    
+    if agendamentos:
+        for agendamento in agendamentos:
+            if len(agendamento) == 7:
+                agendamento_id, data, horario, nome, telefone, email, status = agendamento
+            else:
+                agendamento_id, data, horario, nome, telefone = agendamento[:5]
+                email = agendamento[5] if len(agendamento) > 5 else "N/A"
+                status = agendamento[6] if len(agendamento) > 6 else "pendente"
+            
+            col1, col2 = st.columns([4, 1])
+            
+            with col1:
+                st.markdown(f"""
+                <div class="appointment-item">
+                    <strong>👤 {nome}</strong><br>
+                    📅 {data} • 🕐 {horario}<br>
+                    📱 {telefone} • 📧 {email}<br>
+                    Status: {status}
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                if status == "pendente":
+                    if st.button("✅", key=f"confirm_{agendamento_id}"):
+                        atualizar_status_agendamento(agendamento_id, "confirmado")
+                        st.rerun()
+                
+                if st.button("🗑️", key=f"delete_{agendamento_id}"):
+                    deletar_agendamento(agendamento_id)
+                    st.rerun()
+    else:
+        st.info("📅 Nenhum agendamento encontrado.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def configuracoes_view():
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.subheader("⚙️ Configurações")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        nome_profissional = st.text_input("Nome do profissional:", 
+                                          value=obter_configuracao("nome_profissional", "Dr. João Silva"))
+        nome_clinica = st.text_input("Nome da clínica:", 
+                                    value=obter_configuracao("nome_clinica", "Clínica São Lucas"))
+    
+    with col2:
+        telefone_contato = st.text_input("Telefone:", 
+                                       value=obter_configuracao("telefone_contato", "(11) 3333-4444"))
+        endereco = st.text_input("Endereço:", 
+                               value=obter_configuracao("endereco", "Rua das Flores, 123"))
+    
+    confirmacao_automatica = st.checkbox("Confirmação automática", 
+                                       value=obter_configuracao("confirmacao_automatica", False))
+    
+    if st.button("💾 Salvar", type="primary"):
+        salvar_configuracao("nome_profissional", nome_profissional)
+        salvar_configuracao("nome_clinica", nome_clinica)
+        salvar_configuracao("telefone_contato", telefone_contato)
+        salvar_configuracao("endereco", endereco)
+        salvar_configuracao("confirmacao_automatica", confirmacao_automatica)
+        st.success("✅ Configurações salvas!")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def bloqueios_view():
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.subheader("🗓️ Gerenciar Bloqueios")
+    
+    # Bloquear data
+    st.markdown("### 📅 Bloquear Data")
+    data_bloqueio = st.date_input("Data para bloquear:", min_value=datetime.today())
+    
+    if st.button("🚫 Bloquear Data"):
+        data_str = data_bloqueio.strftime("%Y-%m-%d")
+        if adicionar_bloqueio(data_str):
+            st.success("Data bloqueada!")
+            st.rerun()
+        else:
+            st.warning("Data já bloqueada.")
+    
+    # Lista de bloqueios
+    st.markdown("### 📋 Datas Bloqueadas")
+    bloqueios = obter_bloqueios()
+    
+    if bloqueios:
+        for data in bloqueios:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"🚫 {data}")
+            with col2:
+                if st.button("🗑️", key=f"remove_{data}"):
+                    remover_bloqueio(data)
+                    st.rerun()
+    else:
+        st.info("Nenhuma data bloqueada.")
+    
+    # Bloqueios permanentes
+    st.markdown("---")
+    st.markdown("### ⏰ Bloqueios Permanentes")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        horario_inicio = st.time_input("Horário início:")
+    with col2:
+        horario_fim = st.time_input("Horário fim:")
+    
+    descricao = st.text_input("Descrição:", placeholder="Ex: Horário de Almoço")
+    
+    # Dias da semana
+    dias_opcoes = {
+        "Monday": "Segunda", "Tuesday": "Terça", "Wednesday": "Quarta",
+        "Thursday": "Quinta", "Friday": "Sexta", "Saturday": "Sábado", "Sunday": "Domingo"
+    }
+    
+    cols = st.columns(4)
+    dias_selecionados = []
+    
+    for i, (dia_en, dia_pt) in enumerate(dias_opcoes.items()):
+        with cols[i % 4]:
+            if st.checkbox(dia_pt, key=f"dia_{dia_en}"):
+                dias_selecionados.append(dia_en)
+    
+    if st.button("💾 Salvar Bloqueio Permanente"):
+        if horario_inicio and horario_fim and dias_selecionados and descricao:
+            inicio_str = horario_inicio.strftime("%H:%M")
+            fim_str = horario_fim.strftime("%H:%M")
+            
+            if adicionar_bloqueio_permanente(inicio_str, fim_str, dias_selecionados, descricao):
+                st.success("Bloqueio permanente criado!")
+                st.rerun()
+            else:
+                st.error("Erro ao criar bloqueio.")
+        else:
+            st.warning("Preencha todos os campos.")
+    
+    # Lista de bloqueios permanentes
+    bloqueios_perm = obter_bloqueios_permanentes()
+    if bloqueios_perm:
+        st.markdown("### 📋 Bloqueios Permanentes Ativos")
+        for bloqueio in bloqueios_perm:
+            id_bloq, inicio, fim, dias, desc = bloqueio
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.write(f"⏰ **{desc}** - {inicio} às {fim}")
+            with col2:
+                if st.button("🗑️", key=f"remove_perm_{id_bloq}"):
+                    remover_bloqueio_permanente(id_bloq)
+                    st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def configurar_agenda_view():
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.subheader("📅 Configurar Agenda")
+    
+    dias_opcoes = {
+        "Monday": "Segunda", "Tuesday": "Terça", "Wednesday": "Quarta",
+        "Thursday": "Quinta", "Friday": "Sexta", "Saturday": "Sábado", "Sunday": "Domingo"
+    }
+    
+    dias_atuais = obter_dias_uteis()
+    
+    st.markdown("Selecione os dias de atendimento:")
+    cols = st.columns(4)
+    dias_selecionados = []
+    
+    for i, (dia_en, dia_pt) in enumerate(dias_opcoes.items()):
+        with cols[i % 4]:
+            if st.checkbox(dia_pt, value=(dia_en in dias_atuais), key=f"config_dia_{dia_en}"):
+                dias_selecionados.append(dia_en)
+    
+    if st.button("💾 Salvar Configuração"):
+        salvar_dias_uteis(dias_selecionados)
+        st.success("Configuração salva!")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
