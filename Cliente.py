@@ -387,6 +387,11 @@ def conectar():
     return sqlite3.connect(DB)
 
 def init_db():
+    # DEBUG: Verificar banco
+import os
+st.write(f"🔍 DEBUG Cliente - Banco existe? {os.path.exists(DB)}")
+st.write(f"📁 DEBUG Cliente - Caminho: {os.path.abspath(DB)}")
+
     conn = conectar()
     c = conn.cursor()
     
