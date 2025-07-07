@@ -387,13 +387,13 @@ def conectar():
     return sqlite3.connect(DB)
 
 def init_db():
+    import os
+st.write(f"DEBUG Cliente - Banco existe? {os.path.exists(DB)}")
+st.write(f"DEBUG Cliente - Caminho: {os.path.abspath(DB)}")
     conn = conectar()
     c = conn.cursor()
 # DEBUG: Mostrar caminho do banco
 st.write(f"DEBUG: Banco em: {os.path.abspath(DB)}")
-import os
-st.write(f"DEBUG Cliente - Banco existe? {os.path.exists(DB)}")
-st.write(f"DEBUG Cliente - Caminho: {os.path.abspath(DB)}")
     
     # Criar tabela agendamentos (estrutura antiga primeiro)
     c.execute('''
