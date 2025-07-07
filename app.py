@@ -200,8 +200,7 @@ except:
     SENHA_ADMIN = "1234"
 
 # VERIFICAR SE É MODO ADMIN
-query_params = st.query_params
-is_admin = query_params.get("admin") == ["2025"]
+is_admin = st.query_params.get("admin") == "2025"
 
 # Funções do banco (TODAS as funções completas)
 def conectar():
@@ -590,7 +589,6 @@ def interface_cliente():
     """, unsafe_allow_html=True)
 
 def interface_admin():
-    interface_admin_avancada()
     st.markdown("""
     <div class="admin-header">
         <h1>🔐 Painel Administrativo</h1>
