@@ -11,14 +11,15 @@ st.set_page_config(
     page_title="Sistema de Agendamento",
     page_icon="📅",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# CSS (versão simplificada)
+# CSS COMPLETO E MODERNO
 st.markdown("""
 <style>
     .main .block-container {
         padding-top: 2rem;
+        padding-bottom: 2rem;
         max-width: 1400px;
     }
     
@@ -28,18 +29,26 @@ st.markdown("""
     
     .stApp {
         background: #f8f9fa;
+        min-height: 100vh;
     }
     
-    .main-header {
+    .main-header, .admin-header {
         background: white;
         border-radius: 12px;
         padding: 2rem;
         margin-bottom: 2rem;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
         text-align: center;
     }
     
-    .main-header h1 {
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .main-header h1, .admin-header h1 {
         color: #1f2937;
         font-size: 2.5rem;
         margin-bottom: 0.5rem;
@@ -55,23 +64,128 @@ st.markdown("""
         border: 1px solid #e9ecef;
     }
     
-    .alert {
-        padding: 16px 20px;
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: white;
         border-radius: 12px;
-        margin: 16px 0;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        color: #6b7280;
+        font-size: 1rem;
         font-weight: 500;
     }
     
+    .stButton > button {
+        border-radius: 8px !important;
+        padding: 12px 24px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
+    }
+    
+    .alert {
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin: 16px 0;
+        font-weight: 500;
+        border-left: 4px solid;
+    }
+    
     .alert-success {
-        background: #d4f6dc;
-        color: #0f5132;
-        border-left: 4px solid #10b981;
+        background: #ecfdf5;
+        color: #047857;
+        border-left-color: #10b981;
+    }
+    
+    .alert-error {
+        background: #fef2f2;
+        color: #b91c1c;
+        border-left-color: #ef4444;
     }
     
     .alert-warning {
-        background: #fff3cd;
-        color: #856404;
-        border-left: 4px solid #f59e0b;
+        background: #fffbeb;
+        color: #b45309;
+        border-left-color: #f59e0b;
+    }
+    
+    .alert-info {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-left-color: #3b82f6;
+    }
+    
+    .appointment-item {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+    }
+    
+    .appointment-summary {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        padding: 24px;
+        border-radius: 15px;
+        margin: 20px 0;
+        border-left: 5px solid #667eea;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .appointment-summary h3 {
+        color: #667eea;
+        margin-bottom: 16px;
+        font-size: 1.3rem;
+    }
+    
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        padding: 8px 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .summary-item:last-child {
+        border-bottom: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -79,13 +193,17 @@ st.markdown("""
 # Configurações do banco
 DB = "agenda.db"
 
-# Senha do admin
+# Senha do admin via secrets
 try:
     SENHA_ADMIN = st.secrets["ADMIN_PASSWORD"]
 except:
-    SENHA_ADMIN = "1234"  # Senha padrão
+    SENHA_ADMIN = "1234"
 
-# Funções do banco
+# VERIFICAR SE É MODO ADMIN
+query_params = st.query_params
+is_admin = query_params.get("admin") == ["2025"]
+
+# Funções do banco (TODAS as funções completas)
 def conectar():
     return sqlite3.connect(DB)
 
@@ -93,7 +211,7 @@ def init_db():
     conn = conectar()
     c = conn.cursor()
     
-    # Tabelas básicas
+    # Tabela agendamentos
     c.execute('''
         CREATE TABLE IF NOT EXISTS agendamentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,6 +233,7 @@ def init_db():
     except sqlite3.OperationalError:
         c.execute("ALTER TABLE agendamentos ADD COLUMN status TEXT DEFAULT 'pendente'")
     
+    # Outras tabelas
     c.execute('''
         CREATE TABLE IF NOT EXISTS configuracoes (
             chave TEXT PRIMARY KEY,
@@ -156,7 +275,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Funções auxiliares
 def obter_configuracao(chave, padrao=None):
     conn = conectar()
     c = conn.cursor()
@@ -193,9 +311,10 @@ def horario_disponivel(data, horario):
     conn = conectar()
     c = conn.cursor()
     
-    # Verificar agendamentos
+    # Verificar se há agendamento neste horário
     c.execute("SELECT * FROM agendamentos WHERE data=? AND horario=?", (data, horario))
-    if c.fetchone():
+    ocupado = c.fetchone()
+    if ocupado:
         conn.close()
         return False
     
@@ -205,6 +324,22 @@ def horario_disponivel(data, horario):
         if c.fetchone():
             conn.close()
             return False
+    except:
+        pass
+    
+    # Verificar bloqueios permanentes
+    try:
+        data_obj = datetime.strptime(data, "%Y-%m-%d")
+        dia_semana = data_obj.strftime("%A")
+        
+        c.execute("SELECT horario_inicio, horario_fim, dias_semana FROM bloqueios_permanentes")
+        bloqueios = c.fetchall()
+        
+        for inicio, fim, dias in bloqueios:
+            if dia_semana in dias.split(","):
+                if inicio <= horario <= fim:
+                    conn.close()
+                    return False
     except:
         pass
     
@@ -259,41 +394,25 @@ def obter_dias_uteis():
     conn.close()
     return dias
 
+def atualizar_status_agendamento(agendamento_id, novo_status):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("UPDATE agendamentos SET status = ? WHERE id = ?", (novo_status, agendamento_id))
+    conn.commit()
+    conn.close()
+
 # Inicializar banco
 init_db()
 
 # INTERFACE PRINCIPAL
 def main():
-    # Sidebar SEMPRE visível
-    with st.sidebar:
-        st.markdown("# 📅 Sistema de Agendamento")
-        st.markdown("---")
-        
-        # Usar session_state para garantir persistência
-        if "area_escolhida" not in st.session_state:
-            st.session_state.area_escolhida = "👥 Área do Cliente"
-        
-        opcao = st.radio(
-            "**Escolha uma opção:**",
-            ["👥 Área do Cliente", "🔐 Painel Administrativo"],
-            index=0 if st.session_state.area_escolhida == "👥 Área do Cliente" else 1,
-            key="opcao_navegacao"
-        )
-        
-        # Atualizar session_state
-        st.session_state.area_escolhida = opcao
-        
-        st.markdown("---")
-        st.markdown("💡 **Dica:** Use este menu para alternar entre as áreas.")
-    
-    # Executar interface baseada na escolha
-    if opcao == "👥 Área do Cliente":
-        interface_cliente()
-    else:
+    if is_admin:
         interface_admin()
+    else:
+        interface_cliente()
 
 def interface_cliente():
-    # Configurações
+    # Obter configurações dinâmicas
     nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
     nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
     telefone_contato = obter_configuracao("telefone_contato", "(11) 3333-4444")
@@ -308,6 +427,7 @@ def interface_cliente():
     
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
     
+    # Tabs
     tab_agendar, tab_cancelar = st.tabs(["📅 Agendar Horário", "❌ Cancelar Agendamento"])
     
     with tab_agendar:
@@ -379,6 +499,37 @@ def interface_cliente():
                     
                     if horario and nome and telefone and email:
                         if "@" in email and "." in email.split("@")[-1]:
+                            # Resumo
+                            st.markdown(f"""
+                            <div class="appointment-summary">
+                                <h3>📋 Resumo do Agendamento</h3>
+                                <div class="summary-item">
+                                    <span>👤 Nome:</span>
+                                    <strong>{nome}</strong>
+                                </div>
+                                <div class="summary-item">
+                                    <span>📱 Telefone:</span>
+                                    <strong>{telefone}</strong>
+                                </div>
+                                <div class="summary-item">
+                                    <span>📧 E-mail:</span>
+                                    <strong>{email}</strong>
+                                </div>
+                                <div class="summary-item">
+                                    <span>📅 Data:</span>
+                                    <strong>{data_selecionada.strftime('%d/%m/%Y')}</strong>
+                                </div>
+                                <div class="summary-item">
+                                    <span>⏰ Horário:</span>
+                                    <strong>{horario}</strong>
+                                </div>
+                                <div class="summary-item">
+                                    <span>🏥 Local:</span>
+                                    <strong>{nome_clinica}</strong>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
                             if st.button("✅ Confirmar Agendamento", type="primary"):
                                 try:
                                     status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
@@ -386,13 +537,15 @@ def interface_cliente():
                                     if status_inicial == "confirmado":
                                         st.markdown("""
                                         <div class="alert alert-success">
-                                            ✅ <strong>Agendamento confirmado automaticamente!</strong>
+                                            ✅ <strong>Agendamento confirmado automaticamente!</strong><br>
+                                            Seu horário está garantido.
                                         </div>
                                         """, unsafe_allow_html=True)
                                     else:
                                         st.markdown("""
                                         <div class="alert alert-success">
-                                            ✅ <strong>Agendamento solicitado com sucesso!</strong>
+                                            ✅ <strong>Agendamento solicitado com sucesso!</strong><br>
+                                            Aguarde a confirmação.
                                         </div>
                                         """, unsafe_allow_html=True)
                                 except Exception as e:
@@ -437,17 +590,17 @@ def interface_cliente():
     """, unsafe_allow_html=True)
 
 def interface_admin():
-    # Autenticação
+    st.markdown("""
+    <div class="admin-header">
+        <h1>🔐 Painel Administrativo</h1>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Verificação de senha
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     
     if not st.session_state.authenticated:
-        st.markdown("""
-        <div class="main-header">
-            <h1>🔐 Painel Administrativo</h1>
-        </div>
-        """, unsafe_allow_html=True)
-        
         st.markdown('<div class="main-card">', unsafe_allow_html=True)
         st.subheader("🔒 Acesso Restrito")
         
@@ -465,120 +618,46 @@ def interface_admin():
         st.markdown('</div>', unsafe_allow_html=True)
         return
     
-    # Interface admin autenticada
-    st.markdown("""
-    <div class="main-header">
-        <h1>🔐 Painel Administrativo</h1>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Menu admin
-    opcao_admin = st.selectbox(
-        "Menu Administrativo:",
-        ["📊 Dashboard", "👥 Lista de Agendamentos", "⚙️ Configurações"],
-        key="menu_admin"
-    )
+    # Interface admin básica
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.subheader("🔐 Painel Administrativo")
     
     if st.button("🚪 Sair"):
         st.session_state.authenticated = False
         st.rerun()
     
-    # Carregar dados
+    # Carregar agendamentos
     agendamentos = buscar_agendamentos()
     
-    if opcao_admin == "📊 Dashboard":
-        st.markdown('<div class="main-card">', unsafe_allow_html=True)
-        st.subheader("📊 Dashboard")
-        
-        # Estatísticas básicas
-        hoje = datetime.now().strftime("%Y-%m-%d")
-        agendamentos_hoje = [a for a in agendamentos if a[1] == hoje]
-        agendamentos_mes = [a for a in agendamentos if a[1].startswith(datetime.now().strftime("%Y-%m"))]
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Hoje", len(agendamentos_hoje))
-        with col2:
-            st.metric("Este Mês", len(agendamentos_mes))
-        with col3:
-            st.metric("Total", len(agendamentos))
-        
-        if agendamentos:
-            st.subheader("📋 Próximos Agendamentos")
-            for agendamento in agendamentos[:5]:
-                nome = agendamento[3] if len(agendamento) > 3 else "N/A"
-                data = agendamento[1] if len(agendamento) > 1 else "N/A"
-                horario = agendamento[2] if len(agendamento) > 2 else "N/A"
-                st.write(f"👤 {nome} - 📅 {data} às {horario}")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Estatísticas básicas
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    agendamentos_hoje = [a for a in agendamentos if a[1] == hoje]
     
-    elif opcao_admin == "👥 Lista de Agendamentos":
-        st.markdown('<div class="main-card">', unsafe_allow_html=True)
-        st.subheader("👥 Lista de Agendamentos")
-        
-        if agendamentos:
-            for agendamento in agendamentos:
-                if len(agendamento) >= 7:
-                    agendamento_id, data, horario, nome, telefone, email, status = agendamento
-                else:
-                    agendamento_id, data, horario, nome, telefone = agendamento[:5]
-                    email = agendamento[5] if len(agendamento) > 5 else "N/A"
-                    status = agendamento[6] if len(agendamento) > 6 else "pendente"
-                
-                col1, col2 = st.columns([4, 1])
-                
-                with col1:
-                    st.write(f"**{nome}** - {data} às {horario}")
-                    st.write(f"📱 {telefone} • 📧 {email} • Status: {status}")
-                
-                with col2:
-                    if status == "pendente":
-                        if st.button("✅", key=f"confirm_{agendamento_id}"):
-                            conn = conectar()
-                            c = conn.cursor()
-                            c.execute("UPDATE agendamentos SET status = ? WHERE id = ?", ("confirmado", agendamento_id))
-                            conn.commit()
-                            conn.close()
-                            st.rerun()
-                
-                st.markdown("---")
-        else:
-            st.info("Nenhum agendamento encontrado.")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="stats-container">
+        <div class="stat-card">
+            <div class="stat-number">{len(agendamentos_hoje)}</div>
+            <div class="stat-label">Agendamentos Hoje</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{len(agendamentos)}</div>
+            <div class="stat-label">Total de Agendamentos</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    elif opcao_admin == "⚙️ Configurações":
-        st.markdown('<div class="main-card">', unsafe_allow_html=True)
-        st.subheader("⚙️ Configurações")
-        
-        # Configurações básicas
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            nome_profissional = st.text_input("Nome do profissional:", 
-                                              value=obter_configuracao("nome_profissional", "Dr. João Silva"))
-            nome_clinica = st.text_input("Nome da clínica:", 
-                                        value=obter_configuracao("nome_clinica", "Clínica São Lucas"))
-        
-        with col2:
-            telefone_contato = st.text_input("Telefone:", 
-                                           value=obter_configuracao("telefone_contato", "(11) 3333-4444"))
-            endereco = st.text_input("Endereço:", 
-                                   value=obter_configuracao("endereco", "Rua das Flores, 123"))
-        
-        confirmacao_automatica = st.checkbox("Confirmação automática", 
-                                           value=obter_configuracao("confirmacao_automatica", False))
-        
-        if st.button("💾 Salvar", type="primary"):
-            salvar_configuracao("nome_profissional", nome_profissional)
-            salvar_configuracao("nome_clinica", nome_clinica)
-            salvar_configuracao("telefone_contato", telefone_contato)
-            salvar_configuracao("endereco", endereco)
-            salvar_configuracao("confirmacao_automatica", confirmacao_automatica)
-            st.success("✅ Configurações salvas!")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Lista básica de agendamentos
+    if agendamentos:
+        st.subheader("📋 Agendamentos")
+        for agendamento in agendamentos[:10]:  # Mostrar só os primeiros 10
+            if len(agendamento) >= 5:
+                id_ag, data, horario, nome, telefone = agendamento[:5]
+                st.write(f"**{nome}** - {data} às {horario} - {telefone}")
+    else:
+        st.info("Nenhum agendamento encontrado.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
+# Executar aplicação
 if __name__ == "__main__":
     main()
