@@ -389,6 +389,8 @@ def conectar():
 def init_db():
     conn = conectar()
     c = conn.cursor()
+# DEBUG: Mostrar caminho do banco
+st.write(f"DEBUG: Banco em: {os.path.abspath(DB)}")
     
     # Criar tabela agendamentos (estrutura antiga primeiro)
     c.execute('''
