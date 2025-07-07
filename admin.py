@@ -443,8 +443,7 @@ DB = "agenda.db"
 import os
 st.write(f"🔍 DEBUG Admin - Banco existe? {os.path.exists(DB)}")
 st.write(f"📁 DEBUG Admin - Caminho: {os.path.abspath(DB)}")
-# Garantir que o banco existe
-init_config()
+
 # Senha segura via Streamlit Secrets
 try:
     SENHA_CORRETA = st.secrets["ADMIN_PASSWORD"]
