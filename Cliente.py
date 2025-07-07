@@ -382,6 +382,10 @@ st.markdown("""
 
 # Configurações do banco
 DB = "agenda.db"
+# DEBUG: Verificar banco
+import os
+st.write(f"🔍 DEBUG Cliente - Banco existe? {os.path.exists(DB)}")
+st.write(f"📁 DEBUG Cliente - Caminho: {os.path.abspath(DB)}")
 
 def conectar():
     return sqlite3.connect(DB)
