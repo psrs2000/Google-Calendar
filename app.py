@@ -988,32 +988,233 @@ def lista_agendamentos_view(agendamentos):
 
 def configuracoes_view():
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
-    st.subheader("⚙️ Configurações")
+    st.subheader("⚙️ Configurações Gerais")
+    
+    # Configurações de agenda
+    st.markdown("### 📅 Configurações de Agendamento")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        nome_profissional = st.text_input("Nome do profissional:", 
-                                          value=obter_configuracao("nome_profissional", "Dr. João Silva"))
-        nome_clinica = st.text_input("Nome da clínica:", 
-                                    value=obter_configuracao("nome_clinica", "Clínica São Lucas"))
+        st.markdown("**📆 Período de Agendamento**")
+        
+        # Dias futuros disponíveis
+        dias_futuros_atual = obter_configuracao("dias_futuros", 30)
+        dias_futuros = st.slider(
+            "Quantos dias no futuro a agenda ficará aberta:",
+            min_value=7,
+            max_value=120,
+            value=dias_futuros_atual,
+            step=1,
+            help="Defina até quantos dias no futuro os clientes podem agendar"
+        )
+        
+        # Antecedência mínima
+        antecedencia_atual = obter_configuracao("antecedencia_minima", 2)
+        antecedencia_opcoes = {
+            "30 minutos": 0.5,
+            "1 hora": 1,
+            "2 horas": 2,
+            "4 horas": 4,
+            "12 horas": 12,
+            "24 horas": 24
+        }
+        
+        antecedencia_texto = "2 horas"  # padrão
+        for texto, horas in antecedencia_opcoes.items():
+            if horas == antecedencia_atual:
+                antecedencia_texto = texto
+                break
+        
+        antecedencia_selecionada = st.selectbox(
+            "Antecedência mínima para agendamento:",
+            list(antecedencia_opcoes.keys()),
+            index=list(antecedencia_opcoes.keys()).index(antecedencia_texto),
+            help="Tempo mínimo necessário entre o agendamento e a consulta"
+        )
+        
+        antecedencia_valor = antecedencia_opcoes[antecedencia_selecionada]
     
     with col2:
-        telefone_contato = st.text_input("Telefone:", 
-                                       value=obter_configuracao("telefone_contato", "(11) 3333-4444"))
-        endereco = st.text_input("Endereço:", 
-                               value=obter_configuracao("endereco", "Rua das Flores, 123"))
+        st.markdown("**🕐 Horários de Funcionamento**")
+        
+        # Horário de início
+        horario_inicio_atual = obter_configuracao("horario_inicio", "09:00")
+        try:
+            time_inicio = datetime.strptime(horario_inicio_atual, "%H:%M").time()
+        except:
+            time_inicio = datetime.strptime("09:00", "%H:%M").time()
+        
+        horario_inicio = st.time_input(
+            "Horário de início:",
+            value=time_inicio,
+            help="Primeiro horário disponível para agendamento"
+        )
+        
+        # Horário de fim
+        horario_fim_atual = obter_configuracao("horario_fim", "18:00")
+        try:
+            time_fim = datetime.strptime(horario_fim_atual, "%H:%M").time()
+        except:
+            time_fim = datetime.strptime("18:00", "%H:%M").time()
+        
+        horario_fim = st.time_input(
+            "Horário de término:",
+            value=time_fim,
+            help="Último horário disponível para agendamento"
+        )
+        
+        # Intervalo entre consultas
+        intervalo_atual = obter_configuracao("intervalo_consultas", 60)
+        intervalo_opcoes = {
+            "15 minutos": 15,
+            "30 minutos": 30,
+            "45 minutos": 45,
+            "1 hora": 60,
+            "1h 30min": 90,
+            "2 horas": 120
+        }
+        
+        intervalo_texto = "1 hora"  # padrão
+        for texto, minutos in intervalo_opcoes.items():
+            if minutos == intervalo_atual:
+                intervalo_texto = texto
+                break
+        
+        intervalo_selecionado = st.selectbox(
+            "Duração de cada agendamento:",
+            list(intervalo_opcoes.keys()),
+            index=list(intervalo_opcoes.keys()).index(intervalo_texto),
+            help="Tempo padrão reservado para cada agendamento"
+        )
+        
+        intervalo_valor = intervalo_opcoes[intervalo_selecionado]
     
-    confirmacao_automatica = st.checkbox("Confirmação automática", 
-                                       value=obter_configuracao("confirmacao_automatica", False))
+    # Configuração de confirmação automática
+    st.markdown("---")
+    st.markdown("### 🔄 Modo de Confirmação")
+    confirmacao_automatica = st.checkbox(
+        "Confirmação automática de agendamentos",
+        value=obter_configuracao("confirmacao_automatica", False),
+        help="Se ativado, agendamentos são confirmados automaticamente."
+    )
+
+    st.markdown("---")
+    st.markdown("### 📞 Informações de Contato")
     
-    if st.button("💾 Salvar", type="primary"):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        nome_profissional = st.text_input(
+            "Nome do profissional:",
+            value=obter_configuracao("nome_profissional", "Dr. João Silva"),
+            help="Nome que aparecerá no sistema"
+        )
+        
+        nome_clinica = st.text_input(
+            "Nome da clínica/estabelecimento:",
+            value=obter_configuracao("nome_clinica", "Clínica São Lucas"),
+            help="Nome do local de atendimento"
+        )
+    
+    with col2:
+        telefone_contato = st.text_input(
+            "Telefone de contato:",
+            value=obter_configuracao("telefone_contato", "(11) 3333-4444"),
+            help="Telefone que aparecerá no sistema"
+        )
+        
+        endereco = st.text_input(
+            "Endereço:",
+            value=obter_configuracao("endereco", "Rua das Flores, 123"),
+            help="Endereço do local de atendimento"
+        )
+    
+    # Configurações de email
+    st.markdown("---")
+    st.markdown("### 📧 Configurações de Email")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        email_sistema = st.text_input(
+            "Email do sistema:",
+            value=obter_configuracao("email_sistema", ""),
+            placeholder="sistema@clinica.com",
+            help="Email que enviará as confirmações automáticas"
+        )
+        
+        servidor_smtp = st.text_input(
+            "Servidor SMTP:",
+            value=obter_configuracao("servidor_smtp", "smtp.gmail.com"),
+            help="Para Gmail: smtp.gmail.com"
+        )
+    
+    with col2:
+        senha_email = st.text_input(
+            "Senha do email:",
+            value=obter_configuracao("senha_email", ""),
+            type="password",
+            help="Para Gmail: use senha de app (não a senha normal)"
+        )
+        
+        porta_smtp = st.number_input(
+            "Porta SMTP:",
+            value=obter_configuracao("porta_smtp", 587),
+            help="Para Gmail: 587"
+        )
+    
+    # Checkbox para ativar envio automático
+    envio_automatico = st.checkbox(
+        "Envio automático de confirmação por email",
+        value=obter_configuracao("envio_automatico", False),
+        help="Se ativado, enviará email automaticamente quando confirmar agendamento"
+    )
+    
+    # Botão para salvar
+    st.markdown("---")
+    if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
+        # Salvar todas as configurações
+        salvar_configuracao("dias_futuros", dias_futuros)
+        salvar_configuracao("antecedencia_minima", antecedencia_valor)
+        salvar_configuracao("horario_inicio", horario_inicio.strftime("%H:%M"))
+        salvar_configuracao("horario_fim", horario_fim.strftime("%H:%M"))
+        salvar_configuracao("intervalo_consultas", intervalo_valor)
+        salvar_configuracao("confirmacao_automatica", confirmacao_automatica)
         salvar_configuracao("nome_profissional", nome_profissional)
         salvar_configuracao("nome_clinica", nome_clinica)
         salvar_configuracao("telefone_contato", telefone_contato)
         salvar_configuracao("endereco", endereco)
-        salvar_configuracao("confirmacao_automatica", confirmacao_automatica)
-        st.success("✅ Configurações salvas!")
+        salvar_configuracao("email_sistema", email_sistema)
+        salvar_configuracao("senha_email", senha_email)
+        salvar_configuracao("servidor_smtp", servidor_smtp)
+        salvar_configuracao("porta_smtp", porta_smtp)
+        salvar_configuracao("envio_automatico", envio_automatico)
+        
+        st.markdown("""
+        <div class="alert alert-success">
+            ✅ <strong>Configurações salvas com sucesso!</strong><br>
+            Todas as alterações foram aplicadas ao sistema.
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Preview das configurações atuais
+    st.markdown("---")
+    st.markdown("### 👁️ Resumo das Configurações Atuais")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("📅 Dias Futuros", f"{dias_futuros} dias")
+        st.metric("⏰ Antecedência Mínima", antecedencia_selecionada)
+    
+    with col2:
+        st.metric("🕐 Horário de Funcionamento", f"{horario_inicio.strftime('%H:%M')} - {horario_fim.strftime('%H:%M')}")
+        st.metric("⏱️ Duração por Agendamento", intervalo_selecionado)
+    
+    with col3:
+        st.metric("👨‍⚕️ Profissional", nome_profissional)
+        st.metric("🏥 Local", nome_clinica)
     
     st.markdown('</div>', unsafe_allow_html=True)
 
