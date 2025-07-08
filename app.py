@@ -11,15 +11,23 @@ from email.mime.multipart import MIMEMultipart
 try:
     # Streamlit versão mais nova (local)
     query_params = st.query_params
-    is_admin = query_params.get("admin") == "Xota@717"
+    admin_param = query_params.get("admin", "")
+    is_admin = admin_param == "Rota@717"
 except:
     try:
         # Streamlit Cloud (versão mais antiga)
         query_params = st.experimental_get_query_params()
-        is_admin = query_params.get("admin", [""])[0] == "Xota@717"
+        admin_param = query_params.get("admin", [""])[0]
+        is_admin = admin_param == "Rota@717"
     except:
         # Fallback se nenhum funcionar
+        admin_param = ""
         is_admin = False
+
+# DEBUG TEMPORÁRIO - REMOVER DEPOIS
+st.write(f"DEBUG: Parâmetro admin recebido: '{admin_param}'")
+st.write(f"DEBUG: É admin? {is_admin}")
+st.write(f"DEBUG: Senha esperada: 'Rota@717'")
 
 # Configuração da página
 if is_admin:
