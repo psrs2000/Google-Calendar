@@ -11,12 +11,12 @@ from email.mime.multipart import MIMEMultipart
 try:
     # Streamlit versão mais nova (local)
     query_params = st.query_params
-    is_admin = query_params.get("admin") == "Rota@717"
+    is_admin = query_params.get("admin") == "Xota@717"
 except:
     try:
         # Streamlit Cloud (versão mais antiga)
         query_params = st.experimental_get_query_params()
-        is_admin = query_params.get("admin", [""])[0] == "Rota@717"
+        is_admin = query_params.get("admin", [""])[0] == "Xota@717"
     except:
         # Fallback se nenhum funcionar
         is_admin = False
@@ -1001,6 +1001,13 @@ if is_admin:
         st.markdown('</div>', unsafe_allow_html=True)
     else:
         # Interface administrativa autenticada
+        
+        # Botão para mostrar/esconder sidebar sempre visível
+        col1, col2, col3 = st.columns([1, 8, 1])
+        with col1:
+            if st.button("📋 Menu", help="Mostrar/Esconder menu lateral"):
+                pass  # O clique já força a sidebar a aparecer
+        
         with st.sidebar:
             st.markdown("### 🔧 Menu Administrativo")
             if st.button("🚪 Sair", use_container_width=True):
