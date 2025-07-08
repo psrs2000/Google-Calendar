@@ -1001,13 +1001,6 @@ if is_admin:
         st.markdown('</div>', unsafe_allow_html=True)
     else:
         # Interface administrativa autenticada
-        
-        # Botão para mostrar/esconder sidebar sempre visível
-        col1, col2, col3 = st.columns([1, 8, 1])
-        with col1:
-            if st.button("📋 Menu", help="Mostrar/Esconder menu lateral"):
-                pass  # O clique já força a sidebar a aparecer
-        
         with st.sidebar:
             st.markdown("### 🔧 Menu Administrativo")
             if st.button("🚪 Sair", use_container_width=True):
@@ -1019,6 +1012,10 @@ if is_admin:
                 "Escolha uma opção:",
                 ["⚙️ Configurações Gerais", "📅 Configurar Agenda", "🗓️ Gerenciar Bloqueios", "👥 Lista de Agendamentos"]
             )
+        
+        # Botão para mostrar sidebar no conteúdo principal (mais discreto)
+        if st.button("📋", help="Mostrar menu lateral", key="show_sidebar_btn"):
+            st.sidebar.write("")  # Força sidebar a aparecer
         
         # Estatísticas
         agendamentos = buscar_agendamentos()
