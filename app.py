@@ -34,7 +34,7 @@ else:
         page_title="Agendamento Online",
         page_icon="💆‍♀️",
         layout="wide",
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="collapsed"
     )
 
 # CSS UNIFICADO
@@ -966,7 +966,77 @@ Atenciosamente,
     except Exception as e:
         print(f"Erro ao enviar email de cancelamento: {e}")
         return False
+# ========================================
+# 2. ADICIONAR ESTAS FUNÇÕES ANTES DA LINHA "# Inicializar banco":
+# ========================================
 
+def criar_menu_horizontal():
+    """Cria menu horizontal responsivo para admin"""
+    
+    # Inicializar opção padrão se não existir
+    if 'menu_opcao' not in st.session_state:
+        st.session_state.menu_opcao = "⚙️ Configurações Gerais"
+    
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <h3 style="color: white; text-align: center; margin: 0 0 1.5rem 0; font-size: 1.3rem;">🔧 Menu Administrativo</h3>
+    """, unsafe_allow_html=True)
+    
+    # Menu responsivo
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        if st.button("⚙️ **Configurações**", 
+                    key="btn_config", 
+                    use_container_width=True,
+                    help="Configurações gerais do sistema"):
+            st.session_state.menu_opcao = "⚙️ Configurações Gerais"
+            st.rerun()
+    
+    with col2:
+        if st.button("📅 **Agenda**", 
+                    key="btn_agenda", 
+                    use_container_width=True,
+                    help="Configurar dias úteis"):
+            st.session_state.menu_opcao = "📅 Configurar Agenda"
+            st.rerun()
+    
+    with col3:
+        if st.button("🗓️ **Bloqueios**", 
+                    key="btn_bloqueios", 
+                    use_container_width=True,
+                    help="Gerenciar bloqueios de datas/horários"):
+            st.session_state.menu_opcao = "🗓️ Gerenciar Bloqueios"
+            st.rerun()
+    
+    with col4:
+        if st.button("👥 **Agendamentos**", 
+                    key="btn_agendamentos", 
+                    use_container_width=True,
+                    help="Lista de todos os agendamentos"):
+            st.session_state.menu_opcao = "👥 Lista de Agendamentos"
+            st.rerun()
+    
+    with col5:
+        if st.button("🚪 **Sair**", 
+                    key="btn_sair", 
+                    use_container_width=True,
+                    help="Fazer logout do painel admin"):
+            st.session_state.authenticated = False
+            st.session_state.menu_opcao = "⚙️ Configurações Gerais"  # Reset
+            st.rerun()
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Mostrar opção atual selecionada
+    st.markdown(f"""
+    <div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+        <span style="color: #667eea; font-weight: 600;">📍 Seção atual: {st.session_state.menu_opcao}</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    return st.session_state.menu_opcao
+    
 # Inicializar banco
 init_config()
 
@@ -1000,18 +1070,6 @@ if is_admin:
         
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        # Interface administrativa autenticada
-        with st.sidebar:
-            st.markdown("### 🔧 Menu Administrativo")
-            if st.button("🚪 Sair", use_container_width=True):
-                st.session_state.authenticated = False
-                st.rerun()
-            
-            st.markdown("---")
-            opcao = st.selectbox(
-                "Escolha uma opção:",
-                ["⚙️ Configurações Gerais", "📅 Configurar Agenda", "🗓️ Gerenciar Bloqueios", "👥 Lista de Agendamentos"]
-            )
         
         # Estatísticas
         agendamentos = buscar_agendamentos()
@@ -1043,7 +1101,12 @@ if is_admin:
         """.format(len(agendamentos_hoje), len(agendamentos_mes), len(bloqueios), len(agendamentos)), unsafe_allow_html=True)
         
         # Conteúdo baseado na opção
+                # Interface administrativa autenticada com menu horizontal
+        opcao = criar_menu_horizontal()
+        
+        # Conteúdo baseado na opção
         if opcao == "⚙️ Configurações Gerais":
+
             st.markdown('<div class="main-card">', unsafe_allow_html=True)
             st.markdown('<div class="card-header"><h2 class="card-title">⚙️ Configurações Gerais</h2></div>', unsafe_allow_html=True)
             
