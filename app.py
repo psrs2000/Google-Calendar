@@ -11,12 +11,14 @@ from email.mime.multipart import MIMEMultipart
 try:
     # Streamlit versão mais nova (local)
     query_params = st.query_params
-    is_admin = query_params.get("admin") == "Xota@717"
+    admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
+    is_admin = query_params.get("admin") == admin_key
 except:
     try:
         # Streamlit Cloud (versão mais antiga)
         query_params = st.experimental_get_query_params()
-        is_admin = query_params.get("admin", [""])[0] == "Xota@717"
+        admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
+        is_admin = query_params.get("admin") == admin_key
     except:
         # Fallback se nenhum funcionar
         is_admin = False
@@ -324,10 +326,8 @@ st.markdown("""
 
 # Configurações
 DB = "agenda.db"
-try:
-    SENHA_CORRETA = st.secrets["ADMIN_PASSWORD"]
-except:
-    SENHA_CORRETA = "admin123"
+SENHA_CORRETA = st.secrets.get("ADMIN_PASSWORD", "admin123")
+
 
 # Funções do banco
 def conectar():
