@@ -11,14 +11,12 @@ from email.mime.multipart import MIMEMultipart
 try:
     # Streamlit versão mais nova (local)
     query_params = st.query_params
-    admin_param = query_params.get("admin", "")
-    is_admin = admin_param == "Rota@717"
+    is_admin = query_params.get("admin") == "Xota@717"
 except:
     try:
         # Streamlit Cloud (versão mais antiga)
         query_params = st.experimental_get_query_params()
-        admin_param = query_params.get("admin", [""])[0]
-        is_admin = admin_param == "Rota@717"
+        is_admin = query_params.get("admin", [""])[0] == "Xota@717"
     except:
         # Fallback se nenhum funcionar
         is_admin = False
@@ -1014,10 +1012,6 @@ if is_admin:
                 "Escolha uma opção:",
                 ["⚙️ Configurações Gerais", "📅 Configurar Agenda", "🗓️ Gerenciar Bloqueios", "👥 Lista de Agendamentos"]
             )
-        
-        # Botão para mostrar sidebar no conteúdo principal (mais discreto)
-        if st.button("📋", help="Mostrar menu lateral", key="show_sidebar_btn"):
-            st.sidebar.write("")  # Força sidebar a aparecer
         
         # Estatísticas
         agendamentos = buscar_agendamentos()
