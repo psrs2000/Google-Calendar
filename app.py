@@ -1015,9 +1015,14 @@ if is_admin:
                 ["⚙️ Configurações Gerais", "📅 Configurar Agenda", "🗓️ Gerenciar Bloqueios", "👥 Lista de Agendamentos"]
             )
         
-        # Botão para mostrar sidebar no conteúdo principal (mais discreto)
-        if st.button("📋", help="Mostrar menu lateral", key="show_sidebar_btn"):
-            st.sidebar.write("")  # Força sidebar a aparecer
+        # Botão FORA da sidebar para reabri-la se necessário
+        if "sidebar_visible" not in st.session_state:
+            st.session_state.sidebar_visible = True
+            
+        if not st.session_state.sidebar_visible:
+            if st.button("📋 Menu", help="Mostrar menu lateral"):
+                st.session_state.sidebar_visible = True
+                st.rerun()
         
         # Estatísticas
         agendamentos = buscar_agendamentos()
