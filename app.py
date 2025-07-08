@@ -1015,12 +1015,14 @@ if is_admin:
                 ["⚙️ Configurações Gerais", "📅 Configurar Agenda", "🗓️ Gerenciar Bloqueios", "👥 Lista de Agendamentos"]
             )
         
-        # Instrução simples para reabrir menu (sem botão problemático)
-        st.markdown("""
-        <div style="position: fixed; top: 10px; left: 10px; background: rgba(102, 126, 234, 0.9); color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 1000;">
-            💡 Menu sumiu? Tecle <strong>Ctrl+Shift+M</strong> (ou Cmd+Shift+M no Mac)
-        </div>
-        """, unsafe_allow_html=True)
+        # Botão FORA da sidebar para reabri-la se necessário
+        if "sidebar_visible" not in st.session_state:
+            st.session_state.sidebar_visible = True
+            
+        if not st.session_state.sidebar_visible:
+            if st.button("📋 Menu", help="Mostrar menu lateral"):
+                st.session_state.sidebar_visible = True
+                st.rerun()
         
         # Estatísticas
         agendamentos = buscar_agendamentos()
