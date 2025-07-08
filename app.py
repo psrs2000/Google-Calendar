@@ -7,8 +7,19 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # Verificar se é modo admin através do parâmetro da URL
-query_params = st.query_params
-is_admin = query_params.get("admin") == "Xota@717"
+# Compatibilidade com Streamlit Cloud e versões locais
+try:
+    # Streamlit versão mais nova (local)
+    query_params = st.query_params
+    is_admin = query_params.get("admin") == "Xota@717"
+except:
+    try:
+        # Streamlit Cloud (versão mais antiga)
+        query_params = st.experimental_get_query_params()
+        is_admin = query_params.get("admin", [""])[0] == "Xota@717"
+    except:
+        # Fallback se nenhum funcionar
+        is_admin = False
 
 # Configuração da página
 if is_admin:
