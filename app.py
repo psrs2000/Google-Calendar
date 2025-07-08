@@ -11,12 +11,12 @@ from email.mime.multipart import MIMEMultipart
 try:
     # Streamlit versão mais nova (local)
     query_params = st.query_params
-    is_admin = query_params.get("admin") == "Xota@717"
+    is_admin = query_params.get("admin") == "Rota@717"
 except:
     try:
         # Streamlit Cloud (versão mais antiga)
         query_params = st.experimental_get_query_params()
-        is_admin = query_params.get("admin", [""])[0] == "Xota@717"
+        is_admin = query_params.get("admin", [""])[0] == "Rota@717"
     except:
         # Fallback se nenhum funcionar
         is_admin = False
