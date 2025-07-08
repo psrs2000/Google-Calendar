@@ -34,7 +34,7 @@ else:
         page_title="Agendamento Online",
         page_icon="💆‍♀️",
         layout="wide",
-        initial_sidebar_state="collapsed"
+        initial_sidebar_state="expanded"
     )
 
 # CSS UNIFICADO
