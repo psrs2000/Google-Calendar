@@ -2306,7 +2306,7 @@ else:
                     st.session_state.mes_atual = hoje.month
                     st.session_state.ano_atual = hoje.year
 
-                # Criar lista de meses disponíveis baseado nas datas válidas
+                # Criar lista de meses disponíveis
                 meses_disponiveis = {}
                 for data in datas_validas:
                     chave_mes = f"{data.year}-{data.month:02d}"
@@ -2319,7 +2319,6 @@ else:
 
                 with col_prev:
                     if st.button("◀️", key="prev_month", help="Mês anterior"):
-                        # Encontrar mês anterior disponível
                         chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
                         chaves_ordenadas = sorted(meses_disponiveis.keys())
                         try:
@@ -2335,14 +2334,13 @@ else:
 
                 with col_mes:
                     st.markdown(f"""
-                    <div style="text-align: center; font-size: 1.2rem; font-weight: 600; color: #1f2937; padding: 0.5rem;">
+                    <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.5rem;">
                         📅 {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
                     </div>
                     """, unsafe_allow_html=True)
 
                 with col_next:
                     if st.button("▶️", key="next_month", help="Próximo mês"):
-                        # Encontrar próximo mês disponível
                         chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
                         chaves_ordenadas = sorted(meses_disponiveis.keys())
                         try:
@@ -2356,160 +2354,143 @@ else:
                         except ValueError:
                             pass
 
-                # Gerar calendário
-                cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
-
-                # CSS para o calendário
+                # CSS específico para mobile
                 st.markdown("""
                 <style>
-                .calendar-container {
+                .mobile-calendar {
+                    width: 100%;
+                    max-width: 400px;
+                    margin: 0 auto;
                     background: white;
                     border-radius: 12px;
                     padding: 1rem;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    margin: 1rem 0;
                 }
 
-                .calendar-header {
+                .calendar-grid {
                     display: grid;
                     grid-template-columns: repeat(7, 1fr);
-                    gap: 4px;
-                    margin-bottom: 8px;
+                    gap: 2px;
+                    width: 100%;
                 }
 
-                .calendar-day-header {
-                    background: #f8f9fa;
-                    color: #6b7280;
+                .calendar-header-day {
+                    background: #f1f5f9;
+                    color: #64748b;
                     text-align: center;
-                    padding: 8px 4px;
+                    padding: 6px 2px;
                     font-weight: 600;
-                    font-size: 0.8rem;
+                    font-size: 0.7rem;
                     border-radius: 4px;
-                }
-
-                .calendar-week {
-                    display: grid;
-                    grid-template-columns: repeat(7, 1fr);
-                    gap: 4px;
-                    margin-bottom: 4px;
-                }
-
-                .calendar-day {
-                    aspect-ratio: 1;
+                    min-height: 25px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    border-radius: 8px;
-                    font-weight: 500;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    min-height: 40px;
-                    font-size: 0.9rem;
                 }
 
-                .calendar-day-empty {
-                    background: transparent;
-                }
-
-                .calendar-day-disabled {
-                    background: #f9fafb;
-                    color: #d1d5db;
-                    cursor: not-allowed;
-                }
-
-                .calendar-day-available {
-                    background: #eff6ff;
-                    color: #1d4ed8;
-                    border: 2px solid #e5e7eb;
-                }
-
-                .calendar-day-available:hover {
-                    background: #dbeafe;
-                    border-color: #3b82f6;
-                    transform: scale(1.05);
-                }
-
-                .calendar-day-selected {
-                    background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
-                    color: white !important;
-                    border: 2px solid #1e40af !important;
-                    font-weight: 700 !important;
-                    box-shadow: 0 4px 12px rgba(59,130,246,0.3) !important;
+                .calendar-day-cell {
+                    aspect-ratio: 1;
+                    min-height: 35px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    position: relative;
                 }
 
                 @media (max-width: 768px) {
-                    .calendar-day {
-                        min-height: 35px;
-                        font-size: 0.8rem;
+                    .mobile-calendar {
+                        padding: 0.5rem;
+                        margin: 0.5rem 0;
+                    }
+                    
+                    .calendar-grid {
+                        gap: 1px;
+                    }
+                    
+                    .calendar-header-day {
+                        font-size: 0.6rem;
+                        min-height: 20px;
+                        padding: 4px 1px;
+                    }
+                    
+                    .calendar-day-cell {
+                        min-height: 30px;
                     }
                 }
                 </style>
                 """, unsafe_allow_html=True)
 
                 # Container do calendário
-                st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
+                st.markdown('<div class="mobile-calendar">', unsafe_allow_html=True)
 
-                # Cabeçalho dos dias da semana usando st.columns
-                cols_header = st.columns(7)
-                dias_semana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-                for i, dia in enumerate(dias_semana):
-                    with cols_header[i]:
-                        st.markdown(f"""
-                        <div style="
-                            background: #f8f9fa; 
-                            color: #6b7280; 
-                            text-align: center; 
-                            padding: 8px 4px; 
-                            font-weight: 600; 
-                            font-size: 0.8rem; 
-                            border-radius: 4px;
-                            margin-bottom: 4px;
-                        ">{dia}</div>
-                        """, unsafe_allow_html=True)
+                # Gerar calendário do mês
+                cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
 
-                # Gerar semanas do calendário
+                # Cabeçalho + semanas em uma só tabela HTML
+                dias_semana = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']  # Abreviado para mobile
+
+                # Montar HTML do calendário completo
+                html_calendar = '<div class="calendar-grid">'
+
+                # Cabeçalho
+                for dia_nome in dias_semana:
+                    html_calendar += f'<div class="calendar-header-day">{dia_nome}</div>'
+
+                # Semanas
                 for semana in cal:
-                    cols = st.columns(7)
-                    for i, dia in enumerate(semana):
-                        with cols[i]:
-                            if dia == 0:
-                                # Dia vazio
-                                st.markdown('<div class="calendar-day calendar-day-empty"></div>', unsafe_allow_html=True)
-                            else:
-                                # Verificar se data está disponível
-                                try:
-                                    data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
-                                    data_disponivel = data_atual in datas_validas
-                                    data_selecionada_atual = st.session_state.data_selecionada_cal == data_atual
-                                    
-                                    if data_disponivel:
-                                        # Data disponível
-                                        css_class = "calendar-day-selected" if data_selecionada_atual else "calendar-day-available"
-                                        
-                                        if st.button(
-                                            str(dia),
-                                            key=f"cal_day_{dia}_{st.session_state.mes_atual}_{st.session_state.ano_atual}",
-                                            help=f"Agendar para {data_atual.strftime('%d/%m/%Y')}"
-                                        ):
-                                            st.session_state.data_selecionada_cal = data_atual
-                                            st.rerun()
-                                        
-                                        # Aplicar CSS via JavaScript (hack para Streamlit)
-                                        if data_selecionada_atual:
-                                            st.markdown(f"""
-                                            <script>
-                                            document.querySelector('[data-testid="stButton"][key="cal_day_{dia}_{st.session_state.mes_atual}_{st.session_state.ano_atual}"] button').className += ' calendar-day-selected';
-                                            </script>
-                                            """, unsafe_allow_html=True)
-                                    else:
-                                        # Data indisponível
-                                        st.markdown(f'<div class="calendar-day calendar-day-disabled">{dia}</div>', unsafe_allow_html=True)
-                                        
-                                except ValueError:
-                                    # Data inválida
-                                    st.markdown(f'<div class="calendar-day calendar-day-disabled">{dia}</div>', unsafe_allow_html=True)
+                    for dia in semana:
+                        html_calendar += '<div class="calendar-day-cell">'
+                        if dia == 0:
+                            # Célula vazia
+                            html_calendar += '<div style="width: 100%; height: 100%;"></div>'
+                        else:
+                            # Verificar se data está disponível
+                            try:
+                                data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
+                                data_disponivel = data_atual in datas_validas
+                                
+                                if data_disponivel:
+                                    # Criar ID único para o botão
+                                    button_id = f"btn_{dia}_{st.session_state.mes_atual}_{st.session_state.ano_atual}"
+                                    html_calendar += f'<div id="{button_id}" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">{dia}</div>'
+                                else:
+                                    # Data indisponível
+                                    html_calendar += f'<div style="color: #cbd5e1; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">{dia}</div>'
+                            except ValueError:
+                                html_calendar += f'<div style="color: #cbd5e1; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">{dia}</div>'
+                        
+                        html_calendar += '</div>'
+
+                html_calendar += '</div>'
+
+                # Exibir calendário
+                st.markdown(html_calendar, unsafe_allow_html=True)
 
                 st.markdown('</div>', unsafe_allow_html=True)
+
+                # Lista de botões abaixo do calendário (backup mobile-friendly)
+                st.markdown("**Ou escolha da lista:**")
+
+                # Mostrar primeiras 7 datas em botões simples para mobile
+                datas_limitadas = datas_validas[:7] if len(datas_validas) > 7 else datas_validas
+
+                for data in datas_limitadas:
+                    data_formatada = data.strftime("%a, %d/%m/%Y").replace("Mon", "Seg")\
+                        .replace("Tue", "Ter").replace("Wed", "Qua")\
+                        .replace("Thu", "Qui").replace("Fri", "Sex")\
+                        .replace("Sat", "Sáb").replace("Sun", "Dom")
+                    
+                    is_selected = st.session_state.data_selecionada_cal == data
+                    button_type = "primary" if is_selected else "secondary"
+                    
+                    if st.button(
+                        f"📅 {data_formatada}",
+                        key=f"mobile_date_{data}",
+                        type=button_type,
+                        use_container_width=True
+                    ):
+                        st.session_state.data_selecionada_cal = data
+                        st.rerun()
 
                 # Mostrar data selecionada
                 if st.session_state.data_selecionada_cal:
