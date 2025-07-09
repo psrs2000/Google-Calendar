@@ -1021,8 +1021,8 @@ def criar_menu_horizontal():
         st.session_state.menu_opcao = "⚙️ Configurações Gerais"
     
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #8b9dc3, #a8b5d1); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-        <h4 style="color: white; text-align: center; margin: 0 0 1rem 0; font-size: 1rem; font-weight: 500;">🔧 Menu Administrativo</h4>
+    <div style="background: #f0f0f0; padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem; border: 1px solid #ccc;">
+        <p style="color: #666; text-align: center; margin: 0; font-size: 0.8rem;">🔧 Menu Administrativo</p>
     """, unsafe_allow_html=True)
     
     # Menu responsivo
