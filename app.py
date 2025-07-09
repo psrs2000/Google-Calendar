@@ -2299,8 +2299,7 @@ else:
                 st.subheader("📅 Escolha a Data")
                 # Substitua a seção do calendário (a partir de "st.subheader("📅 Escolha a Data")") por este código:
 
-                st.subheader("📅 Escolha a Data")
-
+                
                 # Inicializar estado do calendário
                 if 'data_selecionada_cal' not in st.session_state:
                     st.session_state.data_selecionada_cal = datas_validas[0] if datas_validas else None
