@@ -2297,60 +2297,98 @@ else:
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
                 
                 st.subheader("📅 Escolha a Data")
-                # Usar o date_input nativo do Streamlit!
-                data_minima = datetime.today().date() + timedelta(days=1)
-                data_maxima = datetime.today().date() + timedelta(days=obter_configuracao("dias_futuros", 30))
+                # Organizar datas disponíveis por mês
+                datas_por_mes = {}
+                for data in datas_validas:
+                    mes_ano = data.strftime("%B %Y")
+                    mes_ano = mes_ano.replace("January", "Janeiro").replace("February", "Fevereiro")\
+                        .replace("March", "Março").replace("April", "Abril").replace("May", "Maio")\
+                        .replace("June", "Junho").replace("July", "Julho").replace("August", "Agosto")\
+                        .replace("September", "Setembro").replace("October", "Outubro")\
+                        .replace("November", "Novembro").replace("December", "Dezembro")
+                    
+                    if mes_ano not in datas_por_mes:
+                        datas_por_mes[mes_ano] = []
+                    datas_por_mes[mes_ano].append(data)
 
-                # Filtrar apenas datas válidas
-                todas_datas = pd.date_range(data_minima, data_maxima).date.tolist()
-                datas_bloqueadas_set = set(datetime.strptime(d, "%Y-%m-%d").date() for d in datas_bloqueadas)
+                # Inicializar data selecionada
+                if 'data_selecionada' not in st.session_state:
+                    st.session_state.data_selecionada = None
 
-                # Função para validar se uma data é válida
-                def data_valida(data):
-                    if data in datas_bloqueadas_set:
-                        return False
-                    if data.strftime("%A") not in dias_uteis:
-                        return False
-                    return True
+                # CSS para os botões de data
+                st.markdown("""
+                <style>
+                .stButton > button {
+                    background-color: #f0f2f6;
+                    color: #262730;
+                }
+                .stButton > button:hover {
+                    background-color: #e0e2e6;
+                }
+                .stButton > button[kind="primary"] {
+                    background-color: #ff4b4b;
+                    color: white;
+                }
+                </style>
+                """, unsafe_allow_html=True)
 
-                # Widget de seleção de data nativo
-                data_selecionada = st.date_input(
-                    "Selecione a data do agendamento:",
-                    min_value=data_minima,
-                    max_value=data_maxima,
-                    value=None,
-                    help="Clique para abrir o calendário",
-                    format="DD/MM/YYYY",
-                    key="data_agendamento"
-                )
-
-                # Validar se a data selecionada é válida
-                if data_selecionada:
-                    if not data_valida(data_selecionada):
-                        st.error("❌ Esta data não está disponível para agendamento. Por favor, selecione outra data.")
-                        data_selecionada = None
-                    else:
-                        # Formatar e mostrar a data selecionada
-                        data_formatada = data_selecionada.strftime("%A, %d de %B de %Y").replace("Monday", "Segunda-feira")\
-                            .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
-                            .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
-                            .replace("Saturday", "Sábado").replace("Sunday", "Domingo")\
-                            .replace("January", "Janeiro").replace("February", "Fevereiro").replace("March", "Março")\
-                            .replace("April", "Abril").replace("May", "Maio").replace("June", "Junho")\
-                            .replace("July", "Julho").replace("August", "Agosto").replace("September", "Setembro")\
-                            .replace("October", "Outubro").replace("November", "Novembro").replace("December", "Dezembro")
+                # Mostrar datas por mês
+                for mes_ano, datas_mes in datas_por_mes.items():
+                    st.markdown(f"### 📅 {mes_ano}")
+                    
+                    # Criar colunas para os botões (4 por linha para melhor visualização em mobile)
+                    num_colunas = 4
+                    for i in range(0, len(datas_mes), num_colunas):
+                        cols = st.columns(num_colunas)
                         
-                        st.success(f"✅ **Data selecionada:** {data_formatada}")
+                        for j in range(num_colunas):
+                            if i + j < len(datas_mes):
+                                data = datas_mes[i + j]
+                                
+                                # Formatar dia da semana abreviado
+                                dia_semana = data.strftime("%a").replace("Mon", "Seg").replace("Tue", "Ter")\
+                                    .replace("Wed", "Qua").replace("Thu", "Qui").replace("Fri", "Sex")\
+                                    .replace("Sat", "Sáb").replace("Sun", "Dom")
+                                
+                                with cols[j]:
+                                    # Verificar se é a data selecionada
+                                    is_selected = st.session_state.data_selecionada == data
+                                    button_type = "primary" if is_selected else "secondary"
+                                    
+                                    # Criar botão com dia e dia da semana
+                                    label = f"{data.day}\n{dia_semana}"
+                                    
+                                    if st.button(
+                                        label,
+                                        key=f"data_{data.strftime('%Y%m%d')}",
+                                        type=button_type,
+                                        use_container_width=True,
+                                        help=data.strftime("%d/%m/%Y")
+                                    ):
+                                        st.session_state.data_selecionada = data
+                                        st.rerun()
+                    
+                    st.markdown("---")
 
-                # Mostrar informações sobre disponibilidade
-                with st.expander("📅 Ver dias disponíveis"):
-                    st.info(f"""
-                    **Dias de atendimento:** {', '.join([d.replace('Monday', 'Segunda').replace('Tuesday', 'Terça').replace('Wednesday', 'Quarta').replace('Thursday', 'Quinta').replace('Friday', 'Sexta').replace('Saturday', 'Sábado').replace('Sunday', 'Domingo') for d in dias_uteis])}
+                # Mostrar data selecionada
+                if st.session_state.data_selecionada:
+                    data_formatada = st.session_state.data_selecionada.strftime("%A, %d de %B de %Y")\
+                        .replace("Monday", "Segunda-feira").replace("Tuesday", "Terça-feira")\
+                        .replace("Wednesday", "Quarta-feira").replace("Thursday", "Quinta-feira")\
+                        .replace("Friday", "Sexta-feira").replace("Saturday", "Sábado")\
+                        .replace("Sunday", "Domingo").replace("January", "Janeiro")\
+                        .replace("February", "Fevereiro").replace("March", "Março")\
+                        .replace("April", "Abril").replace("May", "Maio")\
+                        .replace("June", "Junho").replace("July", "Julho")\
+                        .replace("August", "Agosto").replace("September", "Setembro")\
+                        .replace("October", "Outubro").replace("November", "Novembro")\
+                        .replace("December", "Dezembro")
                     
-                    **Período disponível:** Próximos {obter_configuracao("dias_futuros", 30)} dias
-                    
-                    **Datas bloqueadas:** {len(datas_bloqueadas)} dia(s)
-                    """)
+                    st.success(f"✅ **Data selecionada:** {data_formatada}")
+                    data_selecionada = st.session_state.data_selecionada
+                else:
+                    st.info("👆 Selecione uma data disponível acima")
+                    data_selecionada = None
                 
                 if data_selecionada:
                     st.subheader("⏰ Horários Disponíveis")
