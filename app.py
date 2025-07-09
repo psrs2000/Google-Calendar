@@ -2297,294 +2297,248 @@ else:
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
                 
                 st.subheader("📅 Escolha a Data")
-                # Detectar se é mobile (aproximado - Streamlit não tem detecção nativa)
-                # Vamos criar duas versões: uma compacta e uma normal
-                usar_layout_mobile = st.checkbox("📱 Usar layout mobile", value=False, help="Ative se estiver usando celular")
+                # Inicializar estado do calendário
+                if 'data_selecionada_cal' not in st.session_state:
+                    st.session_state.data_selecionada_cal = datas_validas[0] if datas_validas else None
 
-                if usar_layout_mobile:
-                    # LAYOUT MOBILE - Lista de datas em vez de calendário
-                    st.markdown("""
-                    <style>
-                    .date-button-mobile {
-                        width: 100%;
-                        margin: 0.5rem 0;
-                        padding: 1rem;
-                        background: white;
-                        border: 2px solid #e9ecef;
-                        border-radius: 12px;
-                        text-align: left;
-                        transition: all 0.3s ease;
-                    }
-                    .date-button-mobile:hover {
-                        border-color: #667eea;
-                        transform: translateY(-2px);
-                        box-shadow: 0 4px 12px rgba(102,126,234,0.2);
-                    }
-                    .date-button-mobile.selected {
-                        background: linear-gradient(135deg, #667eea, #764ba2);
-                        color: white;
-                        border-color: #667eea;
-                    }
-                    .month-header-mobile {
-                        background: #f8f9fa;
-                        padding: 1rem;
-                        border-radius: 12px;
-                        margin-bottom: 1rem;
-                        text-align: center;
-                        font-weight: 600;
-                        color: #1f2937;
-                    }
-                    </style>
+                if 'mes_atual' not in st.session_state:
+                    hoje = datetime.now()
+                    st.session_state.mes_atual = hoje.month
+                    st.session_state.ano_atual = hoje.year
+
+                # Criar lista de meses disponíveis
+                meses_disponiveis = {}
+                for data in datas_validas:
+                    chave_mes = f"{data.year}-{data.month:02d}"
+                    nome_mes = f"{calendar.month_name[data.month]} {data.year}"
+                    if chave_mes not in meses_disponiveis:
+                        meses_disponiveis[chave_mes] = nome_mes
+
+                # Navegação entre meses
+                col_prev, col_mes, col_next = st.columns([1, 3, 1])
+
+                with col_prev:
+                    if st.button("◀️", key="prev_month", help="Mês anterior"):
+                        chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
+                        chaves_ordenadas = sorted(meses_disponiveis.keys())
+                        try:
+                            indice_atual = chaves_ordenadas.index(chave_atual)
+                            if indice_atual > 0:
+                                nova_chave = chaves_ordenadas[indice_atual - 1]
+                                ano, mes = nova_chave.split("-")
+                                st.session_state.ano_atual = int(ano)
+                                st.session_state.mes_atual = int(mes)
+                                st.rerun()
+                        except ValueError:
+                            pass
+
+                with col_mes:
+                    st.markdown(f"""
+                    <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.5rem;">
+                        📅 {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
+                    </div>
                     """, unsafe_allow_html=True)
-                    
-                    # Agrupar datas por mês
-                    datas_por_mes = {}
-                    for data in datas_validas:
-                        chave_mes = f"{data.year}-{data.month:02d}"
-                        nome_mes = f"{calendar.month_name[data.month]} {data.year}"
-                        if chave_mes not in datas_por_mes:
-                            datas_por_mes[chave_mes] = {
-                                'nome': nome_mes,
-                                'datas': []
-                            }
-                        datas_por_mes[chave_mes]['datas'].append(data)
-                    
-                    # Seletor de mês simplificado
-                    meses_lista = [(k, v['nome']) for k, v in sorted(datas_por_mes.items())]
-                    mes_selecionado = st.selectbox(
-                        "Selecione o mês:",
-                        options=[m[0] for m in meses_lista],
-                        format_func=lambda x: next(m[1] for m in meses_lista if m[0] == x),
-                        key="mes_mobile"
-                    )
-                    
-                    # Mostrar datas do mês selecionado como botões
-                    if mes_selecionado in datas_por_mes:
-                        st.markdown(f"""
-                        <div class="month-header-mobile">
-                            📅 {datas_por_mes[mes_selecionado]['nome']}
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Criar botões para cada data disponível
-                        for data in datas_por_mes[mes_selecionado]['datas']:
-                            # Formatar data
-                            dia_semana = data.strftime("%A").replace("Monday", "Segunda")\
-                                .replace("Tuesday", "Terça").replace("Wednesday", "Quarta")\
-                                .replace("Thursday", "Quinta").replace("Friday", "Sexta")\
-                                .replace("Saturday", "Sábado").replace("Sunday", "Domingo")
-                            
-                            # Verificar se é a data selecionada
-                            is_selected = st.session_state.get('data_selecionada_cal') == data
-                            
-                            # Criar botão
-                            col1, col2 = st.columns([4, 1])
-                            
-                            with col1:
-                                button_text = f"📅 {dia_semana}, {data.day:02d}/{data.month:02d}"
-                                if is_selected:
-                                    st.markdown(f"""
-                                    <div class="date-button-mobile selected">
-                                        <strong>{button_text}</strong> ✅
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                else:
-                                    st.markdown(f"""
-                                    <div class="date-button-mobile">
-                                        {button_text}
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                            
-                            with col2:
-                                if st.button("Selecionar", key=f"mobile_date_{data}", use_container_width=True):
-                                    st.session_state.data_selecionada_cal = data
-                                    st.rerun()
-                    
-                    # Mostrar data selecionada
-                    if 'data_selecionada_cal' in st.session_state and st.session_state.data_selecionada_cal:
-                        data_formatada = st.session_state.data_selecionada_cal.strftime("%d/%m/%Y")
-                        st.success(f"✅ **Data selecionada:** {data_formatada}")
-                        data_selecionada = st.session_state.data_selecionada_cal
 
-                else:
-                    # LAYOUT DESKTOP - Calendário original
-                    # Inicializar estado do calendário
-                    if 'data_selecionada_cal' not in st.session_state:
-                        st.session_state.data_selecionada_cal = datas_validas[0] if datas_validas else None
+                with col_next:
+                    if st.button("▶️", key="next_month", help="Próximo mês"):
+                        chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
+                        chaves_ordenadas = sorted(meses_disponiveis.keys())
+                        try:
+                            indice_atual = chaves_ordenadas.index(chave_atual)
+                            if indice_atual < len(chaves_ordenadas) - 1:
+                                nova_chave = chaves_ordenadas[indice_atual + 1]
+                                ano, mes = nova_chave.split("-")
+                                st.session_state.ano_atual = int(ano)
+                                st.session_state.mes_atual = int(mes)
+                                st.rerun()
+                        except ValueError:
+                            pass
 
-                    if 'mes_atual' not in st.session_state:
-                        hoje = datetime.now()
-                        st.session_state.mes_atual = hoje.month
-                        st.session_state.ano_atual = hoje.year
+                # CSS para calendário TOTALMENTE responsivo
+                st.markdown("""
+                <style>
+                /* Container principal do calendário */
+                .calendar-wrapper {
+                    width: 100%;
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
+                    margin: 1rem 0;
+                }
 
-                    # Criar lista de meses disponíveis
-                    meses_disponiveis = {}
-                    for data in datas_validas:
-                        chave_mes = f"{data.year}-{data.month:02d}"
-                        nome_mes = f"{calendar.month_name[data.month]} {data.year}"
-                        if chave_mes not in meses_disponiveis:
-                            meses_disponiveis[chave_mes] = nome_mes
+                .calendar-container {
+                    width: 100%;
+                    max-width: 350px;
+                    margin: 0 auto;
+                    background: white;
+                    border-radius: 12px;
+                    padding: 1rem;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
 
-                    # Navegação entre meses
-                    col_prev, col_mes, col_next = st.columns([1, 3, 1])
-
-                    with col_prev:
-                        if st.button("◀️", key="prev_month", help="Mês anterior"):
-                            chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
-                            chaves_ordenadas = sorted(meses_disponiveis.keys())
-                            try:
-                                indice_atual = chaves_ordenadas.index(chave_atual)
-                                if indice_atual > 0:
-                                    nova_chave = chaves_ordenadas[indice_atual - 1]
-                                    ano, mes = nova_chave.split("-")
-                                    st.session_state.ano_atual = int(ano)
-                                    st.session_state.mes_atual = int(mes)
-                                    st.rerun()
-                            except ValueError:
-                                pass
-
-                    with col_mes:
-                        st.markdown(f"""
-                        <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.5rem;">
-                            📅 {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    with col_next:
-                        if st.button("▶️", key="next_month", help="Próximo mês"):
-                            chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
-                            chaves_ordenadas = sorted(meses_disponiveis.keys())
-                            try:
-                                indice_atual = chaves_ordenadas.index(chave_atual)
-                                if indice_atual < len(chaves_ordenadas) - 1:
-                                    nova_chave = chaves_ordenadas[indice_atual + 1]
-                                    ano, mes = nova_chave.split("-")
-                                    st.session_state.ano_atual = int(ano)
-                                    st.session_state.mes_atual = int(mes)
-                                    st.rerun()
-                            except ValueError:
-                                pass
-
-                    # CSS para calendário responsivo
-                    st.markdown("""
-                    <style>
+                /* Ajustes para mobile portrait */
+                @media (max-width: 480px) and (orientation: portrait) {
                     .calendar-container {
-                        width: 100%;
+                        padding: 0.5rem;
+                        max-width: 100%;
+                    }
+                    
+                    /* Ajustar botões do Streamlit em mobile */
+                    .stButton > button {
+                        min-height: 2.5rem !important;
+                        font-size: 0.9rem !important;
+                        padding: 0.25rem !important;
+                        margin: 1px !important;
+                    }
+                    
+                    /* Ajustar colunas */
+                    .row-widget.stColumns {
+                        gap: 2px !important;
+                    }
+                    
+                    .row-widget.stColumns > div {
+                        padding: 0 !important;
+                        min-width: 0 !important;
+                    }
+                    
+                    /* Dias da semana menores */
+                    .day-header {
+                        font-size: 0.65rem !important;
+                        padding: 2px !important;
+                    }
+                    
+                    /* Células do calendário */
+                    .calendar-day {
+                        font-size: 0.85rem !important;
+                        height: 2.5rem !important;
+                    }
+                }
+
+                /* Tablets e desktop */
+                @media (min-width: 481px) {
+                    .calendar-container {
                         max-width: 350px;
-                        margin: 1rem auto;
-                        background: white;
-                        border-radius: 12px;
-                        padding: 1rem;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                     }
+                }
 
-                    @media (max-width: 768px) {
-                        .calendar-container {
-                            max-width: 100%;
-                            padding: 0.5rem;
-                            margin: 0.5rem 0;
-                        }
+                /* Ajustes para landscape */
+                @media (orientation: landscape) {
+                    .calendar-container {
+                        max-width: 350px;
                     }
-                    </style>
-                    """, unsafe_allow_html=True)
+                }
+                </style>
+                """, unsafe_allow_html=True)
 
-                    # Container do calendário
-                    st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
+                # Container do calendário com wrapper para scroll se necessário
+                st.markdown('<div class="calendar-wrapper"><div class="calendar-container">', unsafe_allow_html=True)
 
-                    # Cabeçalho dos dias da semana usando HTML + Streamlit columns
-                    dias_semana_completos = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+                # Dias da semana - versão reduzida para mobile
+                dias_semana_mobile = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
+                dias_semana_desktop = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-                    # Cabeçalho
-                    cols_header = st.columns(7)
-                    for i, dia_nome in enumerate(dias_semana_completos):
-                        with cols_header[i]:
-                            st.markdown(f"""
-                            <div style="
-                                background: #f1f5f9; 
-                                color: #64748b; 
-                                text-align: center; 
-                                padding: 4px; 
-                                font-weight: 600; 
-                                font-size: 0.7rem; 
-                                border-radius: 4px;
-                                margin-bottom: 2px;
-                            ">{dia_nome}</div>
-                            """, unsafe_allow_html=True)
+                # Detectar aproximadamente se é mobile baseado no container
+                # Usar dias abreviados sempre para melhor compatibilidade
+                dias_semana = dias_semana_mobile
 
-                    # Gerar calendário do mês
-                    cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
+                # Cabeçalho dos dias
+                cols_header = st.columns(7)
+                for i, dia_nome in enumerate(dias_semana):
+                    with cols_header[i]:
+                        st.markdown(f"""
+                        <div class="day-header" style="
+                            background: #f1f5f9; 
+                            color: #64748b; 
+                            text-align: center; 
+                            padding: 4px; 
+                            font-weight: 600; 
+                            font-size: 0.75rem; 
+                            border-radius: 4px;
+                            margin-bottom: 2px;
+                        ">{dia_nome}</div>
+                        """, unsafe_allow_html=True)
 
-                    # Gerar cada semana do calendário
-                    for semana_idx, semana in enumerate(cal):
-                        cols = st.columns(7)
-                        for dia_idx, dia in enumerate(semana):
-                            with cols[dia_idx]:
-                                if dia == 0:
-                                    # Célula vazia
-                                    st.markdown('<div style="height: 35px;"></div>', unsafe_allow_html=True)
-                                else:
-                                    # Verificar se data está disponível
-                                    try:
-                                        data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
-                                        data_disponivel = data_atual in datas_validas
-                                        data_selecionada_atual = st.session_state.data_selecionada_cal == data_atual
+                # Gerar calendário do mês
+                cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
+
+                # Gerar cada semana do calendário
+                for semana_idx, semana in enumerate(cal):
+                    cols = st.columns(7)
+                    for dia_idx, dia in enumerate(semana):
+                        with cols[dia_idx]:
+                            if dia == 0:
+                                # Célula vazia
+                                st.markdown('<div class="calendar-day" style="height: 2.5rem;"></div>', unsafe_allow_html=True)
+                            else:
+                                # Verificar se data está disponível
+                                try:
+                                    data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
+                                    data_disponivel = data_atual in datas_validas
+                                    data_selecionada_atual = st.session_state.data_selecionada_cal == data_atual
+                                    
+                                    if data_disponivel:
+                                        # Data disponível - botão clicável
+                                        button_type = "primary" if data_selecionada_atual else "secondary"
                                         
-                                        if data_disponivel:
-                                            # Data disponível - botão clicável
-                                            button_type = "primary" if data_selecionada_atual else "secondary"
-                                            
-                                            if st.button(
-                                                str(dia),
-                                                key=f"cal_{semana_idx}_{dia_idx}_{dia}",
-                                                type=button_type,
-                                                help=f"Selecionar {data_atual.strftime('%d/%m/%Y')}",
-                                                use_container_width=True
-                                            ):
-                                                st.session_state.data_selecionada_cal = data_atual
-                                                st.rerun()
-                                        else:
-                                            # Data indisponível - só visual
-                                            st.markdown(f"""
-                                            <div style="
-                                                height: 35px; 
-                                                display: flex; 
-                                                align-items: center; 
-                                                justify-content: center;
-                                                color: #cbd5e1;
-                                                font-size: 0.9rem;
-                                            ">{dia}</div>
-                                            """, unsafe_allow_html=True)
-                                            
-                                    except ValueError:
-                                        # Data inválida
+                                        # Usar label mais curta no mobile
+                                        if st.button(
+                                            str(dia),
+                                            key=f"cal_{semana_idx}_{dia_idx}_{dia}",
+                                            type=button_type,
+                                            help=f"{data_atual.strftime('%d/%m')}",
+                                            use_container_width=True
+                                        ):
+                                            st.session_state.data_selecionada_cal = data_atual
+                                            st.rerun()
+                                    else:
+                                        # Data indisponível - só visual
                                         st.markdown(f"""
-                                        <div style="
-                                            height: 35px; 
+                                        <div class="calendar-day" style="
+                                            height: 2.5rem; 
                                             display: flex; 
                                             align-items: center; 
                                             justify-content: center;
                                             color: #cbd5e1;
-                                            font-size: 0.9rem;
+                                            font-size: 0.85rem;
                                         ">{dia}</div>
                                         """, unsafe_allow_html=True)
+                                        
+                                except ValueError:
+                                    # Data inválida
+                                    st.markdown(f"""
+                                    <div class="calendar-day" style="
+                                        height: 2.5rem; 
+                                        display: flex; 
+                                        align-items: center; 
+                                        justify-content: center;
+                                        color: #cbd5e1;
+                                        font-size: 0.85rem;
+                                    ">{dia}</div>
+                                    """, unsafe_allow_html=True)
 
-                    st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div></div>', unsafe_allow_html=True)
 
-                    # Mostrar data selecionada
-                    if st.session_state.data_selecionada_cal:
-                        data_formatada = st.session_state.data_selecionada_cal.strftime("%A, %d de %B de %Y").replace("Monday", "Segunda-feira")\
-                            .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
-                            .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
-                            .replace("Saturday", "Sábado").replace("Sunday", "Domingo")\
-                            .replace("January", "Janeiro").replace("February", "Fevereiro").replace("March", "Março")\
-                            .replace("April", "Abril").replace("May", "Maio").replace("June", "Junho")\
-                            .replace("July", "Julho").replace("August", "Agosto").replace("September", "Setembro")\
-                            .replace("October", "Outubro").replace("November", "Novembro").replace("December", "Dezembro")
-                        
-                        st.success(f"📅 **Data selecionada:** {data_formatada}")
+                # Adicionar dica visual para mobile
+                st.markdown("""
+                <div style="text-align: center; color: #6b7280; font-size: 0.85rem; margin-top: 0.5rem;">
+                    💡 Toque no dia desejado para selecionar
+                </div>
+                """, unsafe_allow_html=True)
 
-                    # Definir data selecionada para o resto do código
-                    data_selecionada = st.session_state.data_selecionada_cal
+                # Mostrar data selecionada
+                if st.session_state.data_selecionada_cal:
+                    data_formatada = st.session_state.data_selecionada_cal.strftime("%A, %d de %B de %Y").replace("Monday", "Segunda-feira")\
+                        .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
+                        .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
+                        .replace("Saturday", "Sábado").replace("Sunday", "Domingo")\
+                        .replace("January", "Janeiro").replace("February", "Fevereiro").replace("March", "Março")\
+                        .replace("April", "Abril").replace("May", "Maio").replace("June", "Junho")\
+                        .replace("July", "Julho").replace("August", "Agosto").replace("September", "Setembro")\
+                        .replace("October", "Outubro").replace("November", "Novembro").replace("December", "Dezembro")
+                    
+                    st.success(f"📅 **Data selecionada:** {data_formatada}")
+
+                # Definir data selecionada para o resto do código
+                data_selecionada = st.session_state.data_selecionada_cal
                 
                 if data_selecionada:
                     st.subheader("⏰ Horários Disponíveis")
