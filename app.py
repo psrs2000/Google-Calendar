@@ -966,6 +966,49 @@ Atenciosamente,
     except Exception as e:
         print(f"Erro ao enviar email de cancelamento: {e}")
         return False
+
+def exportar_agendamentos_csv():
+    """Exporta todos os agendamentos para CSV"""
+    import csv
+    import io
+    
+    try:
+        # Buscar todos os agendamentos
+        agendamentos = buscar_agendamentos()
+        
+        if not agendamentos:
+            return None
+        
+        # Criar buffer em memória
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Cabeçalho
+        writer.writerow(['ID', 'Data', 'Horário', 'Nome', 'Telefone', 'Email', 'Status'])
+        
+        # Dados
+        for agendamento in agendamentos:
+            if len(agendamento) == 7:
+                writer.writerow(agendamento)
+            elif len(agendamento) == 6:
+                # Adicionar status padrão se não existir
+                row = list(agendamento) + ['pendente']
+                writer.writerow(row)
+            else:
+                # Formato antigo sem email
+                row = list(agendamento) + ['Não informado', 'pendente']
+                writer.writerow(row)
+        
+        # Retornar conteúdo do CSV
+        csv_data = output.getvalue()
+        output.close()
+        
+        return csv_data
+        
+    except Exception as e:
+        st.error(f"Erro ao exportar: {e}")
+        return None
+
 # ========================================
 # 2. ADICIONAR ESTAS FUNÇÕES ANTES DA LINHA "# Inicializar banco":
 # ========================================
@@ -1154,7 +1197,7 @@ if is_admin:
                         "Antecedência mínima para agendamento:",
                         list(antecedencia_opcoes.keys()),
                         index=list(antecedencia_opcoes.keys()).index(antecedencia_texto),
-                        help="Tempo mínimo necessário entre o agendamento e 00:00 hora do dia da consulta"
+                        help="Tempo mínimo necessário entre o agendamento e a consulta"
                     )
                 
                 with col2:
@@ -1859,6 +1902,46 @@ Sistema de Agendamento Online
         elif opcao == "👥 Lista de Agendamentos":
             st.markdown('<div class="main-card fade-in">', unsafe_allow_html=True)
             st.markdown('<div class="card-header"><h2 class="card-title">👥 Lista de Agendamentos</h2></div>', unsafe_allow_html=True)
+            
+            # Botão de exportação
+            st.markdown("---")
+            col_export, col_info = st.columns([2, 3])
+            
+            with col_export:
+                if st.button("📥 Exportar Agendamentos (CSV)", 
+                            help="Baixar todos os agendamentos em formato CSV",
+                            use_container_width=True):
+                    
+                    csv_data = exportar_agendamentos_csv()
+                    
+                    if csv_data:
+                        # Gerar nome do arquivo com data atual
+                        from datetime import datetime
+                        data_atual = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        nome_arquivo = f"agendamentos_backup_{data_atual}.csv"
+                        
+                        # Botão de download
+                        st.download_button(
+                            label="⬇️ Baixar Arquivo CSV",
+                            data=csv_data,
+                            file_name=nome_arquivo,
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                        
+                        st.success(f"✅ Backup gerado: {nome_arquivo}")
+                    else:
+                        st.warning("⚠️ Nenhum agendamento para exportar")
+
+            with col_info:
+                st.info("""
+                💾 **Backup dos Agendamentos**
+                
+                • Exporta todos os dados em CSV
+                • Formato compatível com Excel
+                • Inclui: nome, telefone, email, data, horário e status
+                • Nome do arquivo inclui data/hora atual
+                """)            
             
             if agendamentos:
                 # Filtros avançados
