@@ -2354,167 +2354,110 @@ else:
                         except ValueError:
                             pass
 
-                # CSS do calendário
+                # CSS para calendário responsivo
                 st.markdown("""
                 <style>
-                .calendario-html {
+                .calendar-container {
                     width: 100%;
-                    max-width: 400px;
+                    max-width: 350px;
                     margin: 1rem auto;
                     background: white;
                     border-radius: 12px;
-                    padding: 0.5rem;
+                    padding: 1rem;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 }
 
-                .calendario-grid {
-                    display: grid;
-                    grid-template-columns: repeat(7, 1fr);
-                    gap: 2px;
-                }
-
-                .dia-semana {
-                    text-align: center;
-                    font-size: 0.7rem;
-                    font-weight: 600;
-                    color: #64748b;
-                    background: #f1f5f9;
-                    padding: 4px;
-                    border-radius: 4px;
-                }
-
-                .dia-mes {
-                    aspect-ratio: 1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 0.9rem;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-
-                .dia-disponivel {
-                    background: #f0f9ff;
-                    color: #0369a1;
-                    border: 1px solid #bae6fd;
-                }
-
-                .dia-disponivel:hover {
-                    background: #0ea5e9;
-                    color: white;
-                    transform: scale(1.05);
-                }
-
-                .dia-selecionado {
-                    background: #7c3aed !important;
-                    color: white !important;
-                    font-weight: 600;
-                    border: 2px solid #5b21b6 !important;
-                }
-
-                .dia-indisponivel {
-                    color: #d1d5db;
-                    cursor: not-allowed;
-                }
-
-                .dia-vazio {
-                    visibility: hidden;
-                }
-
-                @media (max-width: 400px) {
-                    .calendario-html {
-                        padding: 0.3rem;
-                    }
-                    
-                    .dia-mes {
-                        font-size: 0.8rem;
-                    }
-                    
-                    .dia-semana {
-                        font-size: 0.65rem;
-                        padding: 3px;
+                @media (max-width: 768px) {
+                    .calendar-container {
+                        max-width: 100%;
+                        padding: 0.5rem;
+                        margin: 0.5rem 0;
                     }
                 }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # Gerar calendário em HTML puro
+                # Container do calendário
+                st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
+
+                # Cabeçalho dos dias da semana usando HTML + Streamlit columns
+                dias_semana_completos = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+                # Cabeçalho
+                cols_header = st.columns(7)
+                for i, dia_nome in enumerate(dias_semana_completos):
+                    with cols_header[i]:
+                        st.markdown(f"""
+                        <div style="
+                            background: #f1f5f9; 
+                            color: #64748b; 
+                            text-align: center; 
+                            padding: 4px; 
+                            font-weight: 600; 
+                            font-size: 0.7rem; 
+                            border-radius: 4px;
+                            margin-bottom: 2px;
+                        ">{dia_nome}</div>
+                        """, unsafe_allow_html=True)
+
+                # Gerar calendário do mês
                 cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
-                dias_semana = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
-                # Construir HTML do calendário
-                html_calendario = '<div class="calendario-html"><div class="calendario-grid">'
-
-                # Cabeçalho dos dias
-                for dia in dias_semana:
-                    html_calendario += f'<div class="dia-semana">{dia}</div>'
-
-                # Dias do mês
-                for semana in cal:
-                    for dia in semana:
-                        if dia == 0:
-                            html_calendario += '<div class="dia-vazio"></div>'
-                        else:
-                            try:
-                                data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
-                                
-                                if data_atual in datas_validas:
-                                    classe = "dia-disponivel"
-                                    if st.session_state.data_selecionada_cal == data_atual:
-                                        classe += " dia-selecionado"
-                                    html_calendario += f'<div class="dia-mes {classe}" id="dia_{dia}">{dia}</div>'
-                                else:
-                                    html_calendario += f'<div class="dia-mes dia-indisponivel">{dia}</div>'
-                            except:
-                                html_calendario += f'<div class="dia-mes dia-indisponivel">{dia}</div>'
-
-                html_calendario += '</div></div>'
-
-                # Mostrar calendário
-                st.markdown(html_calendario, unsafe_allow_html=True)
-
-                # Criar botões invisíveis para cada dia disponível
-                dias_disponiveis = [d for d in datas_validas if d.month == st.session_state.mes_atual and d.year == st.session_state.ano_atual]
-
-                # Container invisível para os botões
-                st.markdown('<div style="display: none;">', unsafe_allow_html=True)
-
-                # Criar um botão para cada dia disponível
-                for data_disponivel in dias_disponiveis:
-                    if st.button(f"Selecionar {data_disponivel.day}", key=f"btn_dia_{data_disponivel.day}"):
-                        st.session_state.data_selecionada_cal = data_disponivel
-                        st.rerun()
+                # Gerar cada semana do calendário
+                for semana_idx, semana in enumerate(cal):
+                    cols = st.columns(7)
+                    for dia_idx, dia in enumerate(semana):
+                        with cols[dia_idx]:
+                            if dia == 0:
+                                # Célula vazia
+                                st.markdown('<div style="height: 35px;"></div>', unsafe_allow_html=True)
+                            else:
+                                # Verificar se data está disponível
+                                try:
+                                    data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
+                                    data_disponivel = data_atual in datas_validas
+                                    data_selecionada_atual = st.session_state.data_selecionada_cal == data_atual
+                                    
+                                    if data_disponivel:
+                                        # Data disponível - botão clicável
+                                        button_type = "primary" if data_selecionada_atual else "secondary"
+                                        
+                                        if st.button(
+                                            str(dia),
+                                            key=f"cal_{semana_idx}_{dia_idx}_{dia}",
+                                            type=button_type,
+                                            help=f"Selecionar {data_atual.strftime('%d/%m/%Y')}",
+                                            use_container_width=True
+                                        ):
+                                            st.session_state.data_selecionada_cal = data_atual
+                                            st.rerun()
+                                    else:
+                                        # Data indisponível - só visual
+                                        st.markdown(f"""
+                                        <div style="
+                                            height: 35px; 
+                                            display: flex; 
+                                            align-items: center; 
+                                            justify-content: center;
+                                            color: #cbd5e1;
+                                            font-size: 0.9rem;
+                                        ">{dia}</div>
+                                        """, unsafe_allow_html=True)
+                                        
+                                except ValueError:
+                                    # Data inválida
+                                    st.markdown(f"""
+                                    <div style="
+                                        height: 35px; 
+                                        display: flex; 
+                                        align-items: center; 
+                                        justify-content: center;
+                                        color: #cbd5e1;
+                                        font-size: 0.9rem;
+                                    ">{dia}</div>
+                                    """, unsafe_allow_html=True)
 
                 st.markdown('</div>', unsafe_allow_html=True)
-
-                # Instruções para o usuário
-                st.markdown("""
-                <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin: 1rem 0; text-align: center;">
-                    <strong>📅 Para selecionar uma data:</strong><br>
-                    Use os botões abaixo para escolher o dia desejado
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Criar botões visíveis em grade para os dias disponíveis
-                if dias_disponiveis:
-                    # Agrupar por semana
-                    cols = st.columns(7)
-                    for idx, data_disponivel in enumerate(dias_disponiveis):
-                        col_idx = idx % 7
-                        with cols[col_idx]:
-                            is_selected = st.session_state.data_selecionada_cal == data_disponivel
-                            button_type = "primary" if is_selected else "secondary"
-                            
-                            if st.button(
-                                f"{data_disponivel.day}",
-                                key=f"visible_dia_{data_disponivel.day}",
-                                type=button_type,
-                                use_container_width=True,
-                                help=f"{data_disponivel.strftime('%d/%m/%Y')}"
-                            ):
-                                st.session_state.data_selecionada_cal = data_disponivel
-                                st.rerun()
 
                 # Mostrar data selecionada
                 if st.session_state.data_selecionada_cal:
