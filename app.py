@@ -2297,40 +2297,155 @@ else:
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
                 
                 st.subheader("📅 Escolha a Data")
-                # Criar uma lista simples de datas em formato de radio buttons
-                # Radio buttons não abrem teclado e funcionam bem em mobile!
-
-                # Formatar as datas disponíveis
-                opcoes_datas = []
-                for data in datas_validas[:30]:  # Limitar a 30 dias para não ficar muito longo
-                    dia_semana = data.strftime("%A").replace("Monday", "Segunda-feira")\
-                        .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
-                        .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
-                        .replace("Saturday", "Sábado").replace("Sunday", "Domingo")
+                # Organizar datas por mês/ano
+                meses_disponiveis = {}
+                for data in datas_validas:
+                    chave_mes = data.strftime("%Y-%m")
+                    nome_mes = data.strftime("%B/%Y").replace("January", "Janeiro").replace("February", "Fevereiro")\
+                        .replace("March", "Março").replace("April", "Abril").replace("May", "Maio")\
+                        .replace("June", "Junho").replace("July", "Julho").replace("August", "Agosto")\
+                        .replace("September", "Setembro").replace("October", "Outubro")\
+                        .replace("November", "Novembro").replace("December", "Dezembro")
                     
-                    opcao = f"{data.strftime('%d/%m/%Y')} - {dia_semana}"
-                    opcoes_datas.append((opcao, data))
+                    if chave_mes not in meses_disponiveis:
+                        meses_disponiveis[chave_mes] = {
+                            'nome': nome_mes,
+                            'datas': []
+                        }
+                    meses_disponiveis[chave_mes]['datas'].append(data)
 
-                # Radio buttons para seleção
-                if opcoes_datas:
-                    # Criar o radio button
-                    opcao_selecionada = st.radio(
-                        "Selecione a data desejada:",
-                        options=[opt[0] for opt in opcoes_datas],
-                        index=None,
-                        key="radio_data"
+                # Seletor de mês
+                if meses_disponiveis:
+                    mes_selecionado = st.selectbox(
+                        "📅 Selecione o mês:",
+                        options=list(meses_disponiveis.keys()),
+                        format_func=lambda x: meses_disponiveis[x]['nome'],
+                        key="mes_filtro"
                     )
                     
-                    # Encontrar a data correspondente
+                    # Datas do mês selecionado
+                    datas_do_mes = meses_disponiveis[mes_selecionado]['datas']
+                    
+                    # CSS para melhorar visual
+                    st.markdown("""
+                    <style>
+                    .date-selector {
+                        padding: 0.5rem;
+                        background: #f8f9fa;
+                        border-radius: 8px;
+                        margin: 0.5rem 0;
+                    }
+                    div[data-testid="stRadio"] > label {
+                        font-weight: 600;
+                        color: #1f2937;
+                        margin-bottom: 1rem;
+                    }
+                    div[data-testid="stRadio"] > div {
+                        background: white;
+                        padding: 0.5rem;
+                        border-radius: 8px;
+                        border: 1px solid #e5e7eb;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown('<div class="date-selector">', unsafe_allow_html=True)
+                    
+                    # Preparar opções para radio em 3 colunas
+                    opcoes_formatadas = []
+                    for data in datas_do_mes:
+                        # Dia da semana com 3 letras
+                        dia_semana = data.strftime("%a").upper()
+                        dia_semana = dia_semana.replace("MON", "SEG").replace("TUE", "TER")\
+                            .replace("WED", "QUA").replace("THU", "QUI").replace("FRI", "SEX")\
+                            .replace("SAT", "SÁB").replace("SUN", "DOM")
+                        
+                        # Formato: "15 - SEG"
+                        opcao = f"{data.day:02d} - {dia_semana}"
+                        opcoes_formatadas.append((opcao, data))
+                    
+                    # Criar 3 colunas
+                    col1, col2, col3 = st.columns(3)
+                    
+                    # Dividir opções entre as colunas
+                    terco = len(opcoes_formatadas) // 3
+                    resto = len(opcoes_formatadas) % 3
+                    
+                    # Ajustar divisão para distribuir melhor
+                    fim_col1 = terco + (1 if resto > 0 else 0)
+                    fim_col2 = fim_col1 + terco + (1 if resto > 1 else 0)
+                    
+                    opcoes_col1 = opcoes_formatadas[:fim_col1]
+                    opcoes_col2 = opcoes_formatadas[fim_col1:fim_col2]
+                    opcoes_col3 = opcoes_formatadas[fim_col2:]
+                    
+                    # Radio button único dividido visualmente em 3 colunas
+                    todas_opcoes = [opt[0] for opt in opcoes_formatadas]
+                    
+                    # Container para o radio
+                    container = st.container()
+                    
+                    with container:
+                        opcao_selecionada = st.radio(
+                            "Selecione o dia:",
+                            options=todas_opcoes,
+                            index=None,
+                            key="radio_data_mes",
+                            horizontal=False,
+                            label_visibility="collapsed"
+                        )
+                    
+                    # Mostrar preview das datas em 3 colunas para referência visual
+                    st.markdown("**📆 Dias disponíveis:**")
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        for opcao, data in opcoes_col1:
+                            if opcao == opcao_selecionada:
+                                st.markdown(f"**✅ {opcao}**")
+                            else:
+                                st.markdown(f"◻️ {opcao}")
+                    
+                    with col2:
+                        for opcao, data in opcoes_col2:
+                            if opcao == opcao_selecionada:
+                                st.markdown(f"**✅ {opcao}**")
+                            else:
+                                st.markdown(f"◻️ {opcao}")
+                    
+                    with col3:
+                        for opcao, data in opcoes_col3:
+                            if opcao == opcao_selecionada:
+                                st.markdown(f"**✅ {opcao}**")
+                            else:
+                                st.markdown(f"◻️ {opcao}")
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # Processar seleção
                     data_selecionada = None
                     if opcao_selecionada:
-                        for opcao, data in opcoes_datas:
+                        for opcao, data in opcoes_formatadas:
                             if opcao == opcao_selecionada:
                                 data_selecionada = data
+                                
+                                # Formatar data completa
+                                data_formatada = data.strftime("%A, %d de %B de %Y")\
+                                    .replace("Monday", "Segunda-feira").replace("Tuesday", "Terça-feira")\
+                                    .replace("Wednesday", "Quarta-feira").replace("Thursday", "Quinta-feira")\
+                                    .replace("Friday", "Sexta-feira").replace("Saturday", "Sábado")\
+                                    .replace("Sunday", "Domingo").replace("January", "Janeiro")\
+                                    .replace("February", "Fevereiro").replace("March", "Março")\
+                                    .replace("April", "Abril").replace("May", "Maio")\
+                                    .replace("June", "Junho").replace("July", "Julho")\
+                                    .replace("August", "Agosto").replace("September", "Setembro")\
+                                    .replace("October", "Outubro").replace("November", "Novembro")\
+                                    .replace("December", "Dezembro")
+                                
+                                st.success(f"✅ **Data selecionada:** {data_formatada}")
                                 break
-                        
-                        if data_selecionada:
-                            st.success(f"✅ Data selecionada: {opcao_selecionada}")
+                    else:
+                        st.info("👆 Selecione uma data acima")
                 else:
                     st.warning("⚠️ Nenhuma data disponível no momento.")
                     data_selecionada = None
