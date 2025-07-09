@@ -1022,7 +1022,7 @@ def criar_menu_horizontal():
     
     st.markdown("""
     <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(59,130,246,0.2);">
-        <p style="color: white; text-align: center; margin: 0; font-size: 0.9rem; font-weight: 400;">🔧 Menu Administrativo</p>
+        <p style="color: white; text-align: center; margin: 0; font-size: 1rem; font-weight: 400; letter-spacing: 1px;">🔧 Menu Administrativo</p>
     """, unsafe_allow_html=True)
     
     # Menu responsivo
