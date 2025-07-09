@@ -2299,12 +2299,10 @@ else:
                 data_selecionada = st.selectbox(
                     "Datas disponíveis:",
                     options=datas_validas,
-                    index=0,  # ← ADICIONAR ESTA LINHA!
                     format_func=lambda d: d.strftime("%A, %d/%m/%Y").replace("Monday", "Segunda-feira")\
                         .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
                         .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
-                        .replace("Saturday", "Sábado").replace("Sunday", "Domingo"),
-                    key="data_agendamento"  # ← ADICIONAR ESTA LINHA TAMBÉM!
+                        .replace("Saturday", "Sábado").replace("Sunday", "Domingo")
                 )
                 
                 if data_selecionada:
