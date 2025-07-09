@@ -2357,7 +2357,23 @@ else:
                 # Forçar colunas a não empilhar usando CSS
                 st.markdown("""
                 <style>
-                /* Forçar colunas a ficarem lado a lado SEMPRE */
+                /* Forçar TODAS as colunas do Streamlit a ficarem lado a lado no calendário */
+                div[data-testid="stHorizontalBlock"] {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    gap: 2px !important;
+                    width: 100% !important;
+                }
+
+                div[data-testid="stHorizontalBlock"] > div {
+                    flex: 1 1 14.28% !important;
+                    max-width: 14.28% !important;
+                    min-width: 0 !important;
+                    padding: 0 1px !important;
+                }
+
+                /* Forçar também pela classe */
                 .row-widget.stColumns {
                     display: flex !important;
                     flex-direction: row !important;
@@ -2371,6 +2387,13 @@ else:
                     max-width: 14.28% !important;
                     min-width: 0 !important;
                     padding: 0 1px !important;
+                }
+
+                /* Prevenir quebra em qualquer nível */
+                div[data-testid="column"] {
+                    flex: 1 1 14.28% !important;
+                    max-width: 14.28% !important;
+                    min-width: 0 !important;
                 }
 
                 /* Container do calendário */
@@ -2403,6 +2426,19 @@ else:
                     
                     .calendar-container {
                         padding: 0.3rem;
+                    }
+                }
+
+                /* Forçar layout horizontal mesmo em mobile */
+                @media (max-width: 768px) {
+                    div[data-testid="stHorizontalBlock"] {
+                        display: flex !important;
+                        flex-direction: row !important;
+                    }
+                    
+                    div[data-testid="column"] {
+                        flex: 1 1 14.28% !important;
+                        max-width: 14.28% !important;
                     }
                 }
                 </style>
