@@ -2297,97 +2297,42 @@ else:
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
                 
                 st.subheader("📅 Escolha a Data")
-                # Organizar datas disponíveis por mês
-                datas_por_mes = {}
-                for data in datas_validas:
-                    mes_ano = data.strftime("%B %Y")
-                    mes_ano = mes_ano.replace("January", "Janeiro").replace("February", "Fevereiro")\
-                        .replace("March", "Março").replace("April", "Abril").replace("May", "Maio")\
-                        .replace("June", "Junho").replace("July", "Julho").replace("August", "Agosto")\
-                        .replace("September", "Setembro").replace("October", "Outubro")\
-                        .replace("November", "Novembro").replace("December", "Dezembro")
+                # Criar uma lista simples de datas em formato de radio buttons
+                # Radio buttons não abrem teclado e funcionam bem em mobile!
+
+                # Formatar as datas disponíveis
+                opcoes_datas = []
+                for data in datas_validas[:30]:  # Limitar a 30 dias para não ficar muito longo
+                    dia_semana = data.strftime("%A").replace("Monday", "Segunda-feira")\
+                        .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
+                        .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
+                        .replace("Saturday", "Sábado").replace("Sunday", "Domingo")
                     
-                    if mes_ano not in datas_por_mes:
-                        datas_por_mes[mes_ano] = []
-                    datas_por_mes[mes_ano].append(data)
+                    opcao = f"{data.strftime('%d/%m/%Y')} - {dia_semana}"
+                    opcoes_datas.append((opcao, data))
 
-                # Inicializar data selecionada
-                if 'data_selecionada' not in st.session_state:
-                    st.session_state.data_selecionada = None
-
-                # CSS para os botões de data
-                st.markdown("""
-                <style>
-                .stButton > button {
-                    background-color: #f0f2f6;
-                    color: #262730;
-                }
-                .stButton > button:hover {
-                    background-color: #e0e2e6;
-                }
-                .stButton > button[kind="primary"] {
-                    background-color: #ff4b4b;
-                    color: white;
-                }
-                </style>
-                """, unsafe_allow_html=True)
-
-                # Mostrar datas por mês
-                for mes_ano, datas_mes in datas_por_mes.items():
-                    st.markdown(f"### 📅 {mes_ano}")
+                # Radio buttons para seleção
+                if opcoes_datas:
+                    # Criar o radio button
+                    opcao_selecionada = st.radio(
+                        "Selecione a data desejada:",
+                        options=[opt[0] for opt in opcoes_datas],
+                        index=None,
+                        key="radio_data"
+                    )
                     
-                    # Criar colunas para os botões (4 por linha para melhor visualização em mobile)
-                    num_colunas = 4
-                    for i in range(0, len(datas_mes), num_colunas):
-                        cols = st.columns(num_colunas)
+                    # Encontrar a data correspondente
+                    data_selecionada = None
+                    if opcao_selecionada:
+                        for opcao, data in opcoes_datas:
+                            if opcao == opcao_selecionada:
+                                data_selecionada = data
+                                break
                         
-                        for j in range(num_colunas):
-                            if i + j < len(datas_mes):
-                                data = datas_mes[i + j]
-                                
-                                # Formatar dia da semana abreviado
-                                dia_semana = data.strftime("%a").replace("Mon", "Seg").replace("Tue", "Ter")\
-                                    .replace("Wed", "Qua").replace("Thu", "Qui").replace("Fri", "Sex")\
-                                    .replace("Sat", "Sáb").replace("Sun", "Dom")
-                                
-                                with cols[j]:
-                                    # Verificar se é a data selecionada
-                                    is_selected = st.session_state.data_selecionada == data
-                                    button_type = "primary" if is_selected else "secondary"
-                                    
-                                    # Criar botão com dia e dia da semana
-                                    label = f"{data.day}\n{dia_semana}"
-                                    
-                                    if st.button(
-                                        label,
-                                        key=f"data_{data.strftime('%Y%m%d')}",
-                                        type=button_type,
-                                        use_container_width=True,
-                                        help=data.strftime("%d/%m/%Y")
-                                    ):
-                                        st.session_state.data_selecionada = data
-                                        st.rerun()
-                    
-                    st.markdown("---")
-
-                # Mostrar data selecionada
-                if st.session_state.data_selecionada:
-                    data_formatada = st.session_state.data_selecionada.strftime("%A, %d de %B de %Y")\
-                        .replace("Monday", "Segunda-feira").replace("Tuesday", "Terça-feira")\
-                        .replace("Wednesday", "Quarta-feira").replace("Thursday", "Quinta-feira")\
-                        .replace("Friday", "Sexta-feira").replace("Saturday", "Sábado")\
-                        .replace("Sunday", "Domingo").replace("January", "Janeiro")\
-                        .replace("February", "Fevereiro").replace("March", "Março")\
-                        .replace("April", "Abril").replace("May", "Maio")\
-                        .replace("June", "Junho").replace("July", "Julho")\
-                        .replace("August", "Agosto").replace("September", "Setembro")\
-                        .replace("October", "Outubro").replace("November", "Novembro")\
-                        .replace("December", "Dezembro")
-                    
-                    st.success(f"✅ **Data selecionada:** {data_formatada}")
-                    data_selecionada = st.session_state.data_selecionada
+                        if data_selecionada:
+                            st.success(f"✅ Data selecionada: {opcao_selecionada}")
                 else:
-                    st.info("👆 Selecione uma data disponível acima")
+                    st.warning("⚠️ Nenhuma data disponível no momento.")
                     data_selecionada = None
                 
                 if data_selecionada:
