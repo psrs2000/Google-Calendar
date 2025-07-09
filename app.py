@@ -2288,10 +2288,10 @@ else:
             else:
                 st.subheader("📋 Dados do Cliente")
                 
-                col0, col0 = st.columns(2)
-                with col0:
+                col1, col2 = st.columns(2)
+                with col1:
                     nome = st.text_input("Nome completo *", placeholder="Digite seu nome")
-                with col0:
+                with col2:
                     telefone = st.text_input("Telefone *", placeholder="(11) 99999-9999")
                 
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
