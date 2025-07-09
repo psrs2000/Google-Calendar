@@ -2354,110 +2354,184 @@ else:
                         except ValueError:
                             pass
 
-                # CSS para calendário responsivo
+                # CSS forçado para mobile
                 st.markdown("""
                 <style>
-                .calendar-container {
-                    width: 100%;
-                    max-width: 350px;
-                    margin: 1rem auto;
-                    background: white;
-                    border-radius: 12px;
-                    padding: 1rem;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                .force-calendar {
+                    width: 100% !important;
+                    max-width: 320px !important;
+                    margin: 1rem auto !important;
+                    background: white !important;
+                    border-radius: 12px !important;
+                    padding: 0.8rem !important;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
                 }
 
+                .force-grid {
+                    display: grid !important;
+                    grid-template-columns: repeat(7, 1fr) !important;
+                    gap: 2px !important;
+                    width: 100% !important;
+                }
+
+                .force-header {
+                    background: #f1f5f9 !important;
+                    color: #64748b !important;
+                    text-align: center !important;
+                    padding: 6px 2px !important;
+                    font-weight: 600 !important;
+                    font-size: 10px !important;
+                    border-radius: 4px !important;
+                    min-height: 25px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                }
+
+                .force-day {
+                    aspect-ratio: 1 !important;
+                    min-height: 32px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    background: #eff6ff !important;
+                    color: #1d4ed8 !important;
+                    border: 1px solid #e5e7eb !important;
+                    border-radius: 6px !important;
+                    cursor: pointer !important;
+                    font-weight: 500 !important;
+                    font-size: 12px !important;
+                    transition: all 0.2s ease !important;
+                    margin: 1px !important;
+                }
+
+                .force-day:hover {
+                    background: #dbeafe !important;
+                    border-color: #3b82f6 !important;
+                    transform: scale(1.05) !important;
+                }
+
+                .force-day-selected {
+                    background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+                    color: white !important;
+                    border-color: #1e40af !important;
+                    font-weight: 700 !important;
+                }
+
+                .force-day-disabled {
+                    background: #f9fafb !important;
+                    color: #d1d5db !important;
+                    cursor: not-allowed !important;
+                    border-color: #f3f4f6 !important;
+                }
+
+                .force-day-empty {
+                    background: transparent !important;
+                    border: none !important;
+                    cursor: default !important;
+                }
+
+                /* Forçar no mobile */
                 @media (max-width: 768px) {
-                    .calendar-container {
-                        max-width: 100%;
-                        padding: 0.5rem;
-                        margin: 0.5rem 0;
+                    .force-calendar {
+                        max-width: 300px !important;
+                        padding: 0.5rem !important;
+                    }
+                    
+                    .force-grid {
+                        gap: 1px !important;
+                    }
+                    
+                    .force-header {
+                        font-size: 9px !important;
+                        min-height: 20px !important;
+                    }
+                    
+                    .force-day {
+                        min-height: 28px !important;
+                        font-size: 11px !important;
                     }
                 }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # Container do calendário
-                st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
-
-                # Cabeçalho dos dias da semana usando HTML + Streamlit columns
-                dias_semana_completos = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
-                # Cabeçalho
-                cols_header = st.columns(7)
-                for i, dia_nome in enumerate(dias_semana_completos):
-                    with cols_header[i]:
-                        st.markdown(f"""
-                        <div style="
-                            background: #f1f5f9; 
-                            color: #64748b; 
-                            text-align: center; 
-                            padding: 4px; 
-                            font-weight: 600; 
-                            font-size: 0.7rem; 
-                            border-radius: 4px;
-                            margin-bottom: 2px;
-                        ">{dia_nome}</div>
-                        """, unsafe_allow_html=True)
-
                 # Gerar calendário do mês
                 cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
 
-                # Gerar cada semana do calendário
-                for semana_idx, semana in enumerate(cal):
-                    cols = st.columns(7)
-                    for dia_idx, dia in enumerate(semana):
-                        with cols[dia_idx]:
-                            if dia == 0:
-                                # Célula vazia
-                                st.markdown('<div style="height: 35px;"></div>', unsafe_allow_html=True)
-                            else:
-                                # Verificar se data está disponível
-                                try:
-                                    data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
-                                    data_disponivel = data_atual in datas_validas
-                                    data_selecionada_atual = st.session_state.data_selecionada_cal == data_atual
-                                    
-                                    if data_disponivel:
-                                        # Data disponível - botão clicável
-                                        button_type = "primary" if data_selecionada_atual else "secondary"
-                                        
-                                        if st.button(
-                                            str(dia),
-                                            key=f"cal_{semana_idx}_{dia_idx}_{dia}",
-                                            type=button_type,
-                                            help=f"Selecionar {data_atual.strftime('%d/%m/%Y')}",
-                                            use_container_width=True
-                                        ):
-                                            st.session_state.data_selecionada_cal = data_atual
-                                            st.rerun()
-                                    else:
-                                        # Data indisponível - só visual
-                                        st.markdown(f"""
-                                        <div style="
-                                            height: 35px; 
-                                            display: flex; 
-                                            align-items: center; 
-                                            justify-content: center;
-                                            color: #cbd5e1;
-                                            font-size: 0.9rem;
-                                        ">{dia}</div>
-                                        """, unsafe_allow_html=True)
-                                        
-                                except ValueError:
-                                    # Data inválida
-                                    st.markdown(f"""
-                                    <div style="
-                                        height: 35px; 
-                                        display: flex; 
-                                        align-items: center; 
-                                        justify-content: center;
-                                        color: #cbd5e1;
-                                        font-size: 0.9rem;
-                                    ">{dia}</div>
-                                    """, unsafe_allow_html=True)
+                # Dias da semana
+                dias_semana = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
-                st.markdown('</div>', unsafe_allow_html=True)
+                # Montar HTML completo do calendário
+                html_completo = '<div class="force-calendar"><div class="force-grid">'
+
+                # Cabeçalho
+                for dia_nome in dias_semana:
+                    html_completo += f'<div class="force-header">{dia_nome}</div>'
+
+                # Dias do mês
+                for semana in cal:
+                    for dia in semana:
+                        if dia == 0:
+                            # Célula vazia
+                            html_completo += '<div class="force-day force-day-empty"></div>'
+                        else:
+                            # Verificar se data está disponível
+                            try:
+                                data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
+                                data_disponivel = data_atual in datas_validas
+                                data_selecionada_atual = st.session_state.data_selecionada_cal == data_atual
+                                
+                                if data_disponivel:
+                                    css_class = "force-day force-day-selected" if data_selecionada_atual else "force-day"
+                                    onclick = f"window.parent.postMessage({{type: 'select_date', date: '{data_atual}'}}, '*')"
+                                    html_completo += f'<div class="{css_class}" onclick="{onclick}">{dia}</div>'
+                                else:
+                                    html_completo += f'<div class="force-day force-day-disabled">{dia}</div>'
+                            except ValueError:
+                                html_completo += f'<div class="force-day force-day-disabled">{dia}</div>'
+
+                html_completo += '</div></div>'
+
+                # Exibir calendário
+                st.markdown(html_completo, unsafe_allow_html=True)
+
+                # JavaScript para capturar cliques (ALTERNATIVA MAIS SIMPLES)
+                # Como JavaScript é complicado no Streamlit, vamos usar botões backup para mobile
+
+                # CALENDÁRIO BACKUP PARA MOBILE (só aparece se for mobile)
+                st.markdown("""
+                <script>
+                if (window.innerWidth <= 768) {
+                    document.querySelector('.force-calendar').style.display = 'none';
+                }
+                </script>
+                """, unsafe_allow_html=True)
+
+                # Botões backup para mobile (layout especial)
+                with st.expander("📱 Selecionar data (mobile)", expanded=False):
+                    st.markdown("**Toque na data desejada:**")
+                    
+                    # Agrupar datas por semana para mobile
+                    datas_por_semana = []
+                    for i in range(0, len(datas_validas), 7):
+                        datas_por_semana.append(datas_validas[i:i+7])
+                    
+                    for semana_datas in datas_por_semana:
+                        cols = st.columns(len(semana_datas))
+                        for i, data in enumerate(semana_datas):
+                            with cols[i]:
+                                data_formatada = data.strftime("%d/%m")
+                                is_selected = st.session_state.data_selecionada_cal == data
+                                button_type = "primary" if is_selected else "secondary"
+                                
+                                if st.button(
+                                    data_formatada,
+                                    key=f"mobile_backup_{data}",
+                                    type=button_type,
+                                    use_container_width=True
+                                ):
+                                    st.session_state.data_selecionada_cal = data
+                                    st.rerun()
 
                 # Mostrar data selecionada
                 if st.session_state.data_selecionada_cal:
@@ -2473,7 +2547,7 @@ else:
                     st.success(f"📅 **Data selecionada:** {data_formatada}")
 
                 # Definir data selecionada para o resto do código
-                data_selecionada = st.session_state.data_selecionada_cal
+                data_selecionada = st.session_state.data_selecionada_call
                 
                 if data_selecionada:
                     st.subheader("⏰ Horários Disponíveis")
