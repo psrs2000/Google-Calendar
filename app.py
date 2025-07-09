@@ -2358,7 +2358,7 @@ else:
                 st.markdown("""
                 <style>
                 /* Container do calendário */
-                .calendar-container {
+                #calendario-agendamento {
                     width: 100%;
                     max-width: 400px;
                     margin: 1rem auto;
@@ -2368,8 +2368,10 @@ else:
                     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 }
 
-                /* CSS específico APENAS para o calendário */
-                .calendar-container div[data-testid="stHorizontalBlock"] {
+                /* Forçar colunas dentro do calendário */
+                #calendario-agendamento .row-widget.stColumns,
+                #calendario-agendamento div[data-testid="stHorizontalBlock"],
+                #calendario-agendamento .element-container:has(.row-widget.stColumns) {
                     display: flex !important;
                     flex-direction: row !important;
                     flex-wrap: nowrap !important;
@@ -2377,37 +2379,20 @@ else:
                     width: 100% !important;
                 }
 
-                .calendar-container div[data-testid="stHorizontalBlock"] > div {
-                    flex: 1 1 14.28% !important;
-                    max-width: 14.28% !important;
+                #calendario-agendamento .row-widget.stColumns > div,
+                #calendario-agendamento div[data-testid="stHorizontalBlock"] > div,
+                #calendario-agendamento div[data-testid="column"] {
+                    flex: 1 1 auto !important;
+                    width: calc(100% / 7) !important;
+                    max-width: calc(100% / 7) !important;
                     min-width: 0 !important;
                     padding: 0 1px !important;
-                }
-
-                .calendar-container .row-widget.stColumns {
-                    display: flex !important;
-                    flex-direction: row !important;
-                    flex-wrap: nowrap !important;
-                    gap: 2px !important;
-                }
-
-                .calendar-container .row-widget.stColumns > div {
-                    flex: 1 1 14.28% !important;
-                    max-width: 14.28% !important;
-                    min-width: 0 !important;
-                    padding: 0 1px !important;
-                }
-
-                .calendar-container div[data-testid="column"] {
-                    flex: 1 1 14.28% !important;
-                    max-width: 14.28% !important;
-                    min-width: 0 !important;
                 }
 
                 /* Ajustar botões APENAS dentro do calendário */
-                .calendar-container .stButton > button {
+                #calendario-agendamento button {
                     width: 100% !important;
-                    padding: 0.25rem !important;
+                    padding: 0.25rem 0.1rem !important;
                     min-height: 2rem !important;
                     font-size: 0.8rem !important;
                     margin: 1px 0 !important;
@@ -2415,34 +2400,38 @@ else:
 
                 /* Em telas muito pequenas */
                 @media (max-width: 400px) {
-                    .calendar-container .stButton > button {
-                        font-size: 0.75rem !important;
-                        padding: 0.2rem !important;
+                    #calendario-agendamento button {
+                        font-size: 0.7rem !important;
+                        padding: 0.2rem 0 !important;
                         min-height: 1.8rem !important;
                     }
                     
-                    .calendar-container {
+                    #calendario-agendamento {
                         padding: 0.3rem;
                     }
                 }
 
-                /* Forçar layout horizontal do calendário mesmo em mobile */
-                @media (max-width: 768px) {
-                    .calendar-container div[data-testid="stHorizontalBlock"] {
+                /* Garantir que funcione em todos os tamanhos de tela */
+                @media screen and (max-width: 768px) {
+                    #calendario-agendamento .row-widget.stColumns,
+                    #calendario-agendamento div[data-testid="stHorizontalBlock"] {
                         display: flex !important;
                         flex-direction: row !important;
+                        flex-wrap: nowrap !important;
                     }
                     
-                    .calendar-container div[data-testid="column"] {
-                        flex: 1 1 14.28% !important;
-                        max-width: 14.28% !important;
+                    #calendario-agendamento .row-widget.stColumns > div,
+                    #calendario-agendamento div[data-testid="column"] {
+                        flex: 1 !important;
+                        width: auto !important;
+                        max-width: none !important;
                     }
                 }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # Container do calendário
-                st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
+                # Container do calendário com ID único
+                st.markdown('<div class="calendar-container" id="calendario-agendamento">', unsafe_allow_html=True)
 
                 # Gerar calendário do mês
                 cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
