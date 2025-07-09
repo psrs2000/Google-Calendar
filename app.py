@@ -5,6 +5,7 @@ import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import calendar
 
 # Verificar se é modo admin através do parâmetro da URL
 # Compatibilidade com Streamlit Cloud e versões locais
