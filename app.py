@@ -2474,23 +2474,47 @@ else:
                 # Mostrar calendário
                 st.markdown(html_calendario, unsafe_allow_html=True)
 
-                # Campo hidden para capturar cliques (workaround)
-                dia_selecionado = st.selectbox(
-                    "Selecione o dia:",
-                    options=[d.day for d in datas_validas if d.month == st.session_state.mes_atual and d.year == st.session_state.ano_atual],
-                    index=None,
-                    placeholder="Clique em um dia disponível acima",
-                    key="dia_select"
-                )
+                # Criar botões invisíveis para cada dia disponível
+                dias_disponiveis = [d for d in datas_validas if d.month == st.session_state.mes_atual and d.year == st.session_state.ano_atual]
 
-                if dia_selecionado:
-                    try:
-                        nova_data = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia_selecionado).date()
-                        if nova_data in datas_validas:
-                            st.session_state.data_selecionada_cal = nova_data
-                            st.rerun()
-                    except:
-                        pass
+                # Container invisível para os botões
+                st.markdown('<div style="display: none;">', unsafe_allow_html=True)
+
+                # Criar um botão para cada dia disponível
+                for data_disponivel in dias_disponiveis:
+                    if st.button(f"Selecionar {data_disponivel.day}", key=f"btn_dia_{data_disponivel.day}"):
+                        st.session_state.data_selecionada_cal = data_disponivel
+                        st.rerun()
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                # Instruções para o usuário
+                st.markdown("""
+                <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin: 1rem 0; text-align: center;">
+                    <strong>📅 Para selecionar uma data:</strong><br>
+                    Use os botões abaixo para escolher o dia desejado
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Criar botões visíveis em grade para os dias disponíveis
+                if dias_disponiveis:
+                    # Agrupar por semana
+                    cols = st.columns(7)
+                    for idx, data_disponivel in enumerate(dias_disponiveis):
+                        col_idx = idx % 7
+                        with cols[col_idx]:
+                            is_selected = st.session_state.data_selecionada_cal == data_disponivel
+                            button_type = "primary" if is_selected else "secondary"
+                            
+                            if st.button(
+                                f"{data_disponivel.day}",
+                                key=f"visible_dia_{data_disponivel.day}",
+                                type=button_type,
+                                use_container_width=True,
+                                help=f"{data_disponivel.strftime('%d/%m/%Y')}"
+                            ):
+                                st.session_state.data_selecionada_cal = data_disponivel
+                                st.rerun()
 
                 # Mostrar data selecionada
                 if st.session_state.data_selecionada_cal:
