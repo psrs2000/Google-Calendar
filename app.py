@@ -1288,12 +1288,7 @@ if is_admin:
                         help="Limite máximo de agendamentos aceitos por dia"
                     )
                 
-                with col2:
-                    permitir_feriados = st.checkbox(
-                        "Permitir agendamentos em feriados",
-                        value=obter_configuracao("permitir_feriados", False),
-                        help="Se desativado, feriados nacionais serão automaticamente bloqueados"
-                    )
+
             
             with tab2:
                 st.subheader("📞 Informações de Contato e Local")
@@ -1434,11 +1429,7 @@ if is_admin:
                             help="Envia email quando agendamento é confirmado"
                         )
                         
-                        enviar_lembrete = st.checkbox(
-                            "Enviar lembrete 24h antes",
-                            value=obter_configuracao("enviar_lembrete", False),
-                            help="Envia lembrete automático um dia antes do agendamento"
-                        )
+
                     
                     with col2:
                         enviar_cancelamento = st.checkbox(
@@ -1447,11 +1438,6 @@ if is_admin:
                             help="Envia email quando agendamento é cancelado"
                         )
                         
-                        enviar_reagendamento = st.checkbox(
-                            "Enviar email de reagendamento",
-                            value=obter_configuracao("enviar_reagendamento", False),
-                            help="Envia email quando agendamento é alterado"
-                        )
                     
                     # Template de email
                     st.markdown("---")
@@ -1544,8 +1530,7 @@ Sistema de Agendamento Online
                 salvar_configuracao("intervalo_consultas", intervalo_opcoes[intervalo_selecionado])
                 salvar_configuracao("confirmacao_automatica", confirmacao_automatica)
                 salvar_configuracao("max_agendamentos_dia", max_agendamentos_dia)
-                salvar_configuracao("permitir_feriados", permitir_feriados)
-                
+                                
                 # Salvar configurações da tab 2
                 salvar_configuracao("nome_profissional", nome_profissional)
                 salvar_configuracao("especialidade", especialidade)
@@ -1567,9 +1552,7 @@ Sistema de Agendamento Online
                     salvar_configuracao("servidor_smtp", servidor_smtp)
                     salvar_configuracao("porta_smtp", porta_smtp)
                     salvar_configuracao("enviar_confirmacao", enviar_confirmacao)
-                    salvar_configuracao("enviar_lembrete", enviar_lembrete)
                     salvar_configuracao("enviar_cancelamento", enviar_cancelamento)
-                    salvar_configuracao("enviar_reagendamento", enviar_reagendamento)
                     salvar_configuracao("template_confirmacao", template_confirmacao)
                 
                 st.success("✅ Todas as configurações foram salvas com sucesso!")
