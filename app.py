@@ -2296,14 +2296,63 @@ else:
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
                 
                 st.subheader("📅 Escolha a Data")
-                data_selecionada = st.selectbox(
-                    "Datas disponíveis:",
-                    options=datas_validas,
-                    format_func=lambda d: d.strftime("%A, %d/%m/%Y").replace("Monday", "Segunda-feira")\
-                        .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
-                        .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
-                        .replace("Saturday", "Sábado").replace("Sunday", "Domingo")
-                )
+                # Inicializar data selecionada
+                if 'data_selecionada_btn' not in st.session_state:
+                    st.session_state.data_selecionada_btn = datas_validas[0] if datas_validas else None
+
+                # Mostrar datas como botões
+                st.markdown("**Clique na data desejada:**")
+
+                # Organizar botões em 2 colunas para mobile
+                for i in range(0, len(datas_validas), 2):
+                    col1, col2 = st.columns(2)
+                    
+                    # Primeira data da linha
+                    if i < len(datas_validas):
+                        data = datas_validas[i]
+                        data_formatada = data.strftime("%a, %d/%m").replace("Mon", "Seg")\
+                            .replace("Tue", "Ter").replace("Wed", "Qua")\
+                            .replace("Thu", "Qui").replace("Fri", "Sex")\
+                            .replace("Sat", "Sáb").replace("Sun", "Dom")
+                        
+                        with col1:
+                            # Verificar se está selecionada
+                            is_selected = st.session_state.data_selecionada_btn == data
+                            button_style = "primary" if is_selected else "secondary"
+                            
+                            if st.button(
+                                f"📅 {data_formatada}",
+                                key=f"data_btn_{i}",
+                                type=button_style,
+                                use_container_width=True
+                            ):
+                                st.session_state.data_selecionada_btn = data
+                                st.rerun()
+                    
+                    # Segunda data da linha
+                    if i + 1 < len(datas_validas):
+                        data = datas_validas[i + 1]
+                        data_formatada = data.strftime("%a, %d/%m").replace("Mon", "Seg")\
+                            .replace("Tue", "Ter").replace("Wed", "Qua")\
+                            .replace("Thu", "Qui").replace("Fri", "Sex")\
+                            .replace("Sat", "Sáb").replace("Sun", "Dom")
+                        
+                        with col2:
+                            # Verificar se está selecionada
+                            is_selected = st.session_state.data_selecionada_btn == data
+                            button_style = "primary" if is_selected else "secondary"
+                            
+                            if st.button(
+                                f"📅 {data_formatada}",
+                                key=f"data_btn_{i+1}",
+                                type=button_style,
+                                use_container_width=True
+                            ):
+                                st.session_state.data_selecionada_btn = data
+                                st.rerun()
+
+                # Definir data selecionada para o resto do código
+                data_selecionada = st.session_state.data_selecionada_btn
                 
                 if data_selecionada:
                     st.subheader("⏰ Horários Disponíveis")
