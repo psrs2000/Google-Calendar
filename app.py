@@ -2354,111 +2354,78 @@ else:
                         except ValueError:
                             pass
 
-                # CSS para calendário TOTALMENTE responsivo
+                # Forçar colunas a não empilhar usando CSS
                 st.markdown("""
                 <style>
-                /* Container principal do calendário */
-                .calendar-wrapper {
-                    width: 100%;
-                    overflow-x: auto;
-                    -webkit-overflow-scrolling: touch;
-                    margin: 1rem 0;
+                /* Forçar colunas a ficarem lado a lado SEMPRE */
+                .row-widget.stColumns {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    gap: 2px !important;
+                    width: 100% !important;
                 }
 
+                .row-widget.stColumns > div {
+                    flex: 1 1 14.28% !important;
+                    max-width: 14.28% !important;
+                    min-width: 0 !important;
+                    padding: 0 1px !important;
+                }
+
+                /* Container do calendário */
                 .calendar-container {
                     width: 100%;
-                    max-width: 350px;
-                    margin: 0 auto;
+                    max-width: 400px;
+                    margin: 1rem auto;
                     background: white;
                     border-radius: 12px;
-                    padding: 1rem;
+                    padding: 0.5rem;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 }
 
-                /* Ajustes para mobile portrait */
-                @media (max-width: 480px) and (orientation: portrait) {
-                    .calendar-container {
-                        padding: 0.5rem;
-                        max-width: 100%;
-                    }
-                    
-                    /* Ajustar botões do Streamlit em mobile */
+                /* Ajustar botões para serem menores em mobile */
+                .stButton > button {
+                    width: 100% !important;
+                    padding: 0.25rem !important;
+                    min-height: 2rem !important;
+                    font-size: 0.8rem !important;
+                    margin: 1px 0 !important;
+                }
+
+                /* Em telas muito pequenas, ajustar ainda mais */
+                @media (max-width: 400px) {
                     .stButton > button {
-                        min-height: 2.5rem !important;
-                        font-size: 0.9rem !important;
-                        padding: 0.25rem !important;
-                        margin: 1px !important;
+                        font-size: 0.75rem !important;
+                        padding: 0.2rem !important;
+                        min-height: 1.8rem !important;
                     }
                     
-                    /* Ajustar colunas */
-                    .row-widget.stColumns {
-                        gap: 2px !important;
-                    }
-                    
-                    .row-widget.stColumns > div {
-                        padding: 0 !important;
-                        min-width: 0 !important;
-                    }
-                    
-                    /* Dias da semana menores */
-                    .day-header {
-                        font-size: 0.65rem !important;
-                        padding: 2px !important;
-                    }
-                    
-                    /* Células do calendário */
-                    .calendar-day {
-                        font-size: 0.85rem !important;
-                        height: 2.5rem !important;
-                    }
-                }
-
-                /* Tablets e desktop */
-                @media (min-width: 481px) {
                     .calendar-container {
-                        max-width: 350px;
-                    }
-                }
-
-                /* Ajustes para landscape */
-                @media (orientation: landscape) {
-                    .calendar-container {
-                        max-width: 350px;
+                        padding: 0.3rem;
                     }
                 }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # Container do calendário com wrapper para scroll se necessário
-                st.markdown('<div class="calendar-wrapper"><div class="calendar-container">', unsafe_allow_html=True)
-
-                # Dias da semana - versão reduzida para mobile
-                dias_semana_mobile = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
-                dias_semana_desktop = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
-                # Detectar aproximadamente se é mobile baseado no container
-                # Usar dias abreviados sempre para melhor compatibilidade
-                dias_semana = dias_semana_mobile
-
-                # Cabeçalho dos dias
-                cols_header = st.columns(7)
-                for i, dia_nome in enumerate(dias_semana):
-                    with cols_header[i]:
-                        st.markdown(f"""
-                        <div class="day-header" style="
-                            background: #f1f5f9; 
-                            color: #64748b; 
-                            text-align: center; 
-                            padding: 4px; 
-                            font-weight: 600; 
-                            font-size: 0.75rem; 
-                            border-radius: 4px;
-                            margin-bottom: 2px;
-                        ">{dia_nome}</div>
-                        """, unsafe_allow_html=True)
+                # Container do calendário
+                st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
 
                 # Gerar calendário do mês
                 cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
+
+                # Dias da semana - bem curtos para mobile
+                st.markdown("""
+                <div style="display: flex; gap: 2px; margin-bottom: 4px;">
+                    <div style="flex: 1; text-align: center; font-size: 0.65rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">D</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.65rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">S</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.65rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">T</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.65rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">Q</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.65rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">Q</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.65rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">S</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.65rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">S</div>
+                </div>
+                """, unsafe_allow_html=True)
 
                 # Gerar cada semana do calendário
                 for semana_idx, semana in enumerate(cal):
@@ -2467,7 +2434,7 @@ else:
                         with cols[dia_idx]:
                             if dia == 0:
                                 # Célula vazia
-                                st.markdown('<div class="calendar-day" style="height: 2.5rem;"></div>', unsafe_allow_html=True)
+                                st.markdown('<div style="height: 2rem;"></div>', unsafe_allow_html=True)
                             else:
                                 # Verificar se data está disponível
                                 try:
@@ -2479,50 +2446,31 @@ else:
                                         # Data disponível - botão clicável
                                         button_type = "primary" if data_selecionada_atual else "secondary"
                                         
-                                        # Usar label mais curta no mobile
                                         if st.button(
                                             str(dia),
                                             key=f"cal_{semana_idx}_{dia_idx}_{dia}",
                                             type=button_type,
-                                            help=f"{data_atual.strftime('%d/%m')}",
                                             use_container_width=True
                                         ):
                                             st.session_state.data_selecionada_cal = data_atual
                                             st.rerun()
                                     else:
-                                        # Data indisponível - só visual
+                                        # Data indisponível
                                         st.markdown(f"""
-                                        <div class="calendar-day" style="
-                                            height: 2.5rem; 
+                                        <div style="
+                                            height: 2rem; 
                                             display: flex; 
                                             align-items: center; 
                                             justify-content: center;
                                             color: #cbd5e1;
-                                            font-size: 0.85rem;
+                                            font-size: 0.8rem;
                                         ">{dia}</div>
                                         """, unsafe_allow_html=True)
                                         
                                 except ValueError:
-                                    # Data inválida
-                                    st.markdown(f"""
-                                    <div class="calendar-day" style="
-                                        height: 2.5rem; 
-                                        display: flex; 
-                                        align-items: center; 
-                                        justify-content: center;
-                                        color: #cbd5e1;
-                                        font-size: 0.85rem;
-                                    ">{dia}</div>
-                                    """, unsafe_allow_html=True)
+                                    st.markdown('<div style="height: 2rem;"></div>', unsafe_allow_html=True)
 
-                st.markdown('</div></div>', unsafe_allow_html=True)
-
-                # Adicionar dica visual para mobile
-                st.markdown("""
-                <div style="text-align: center; color: #6b7280; font-size: 0.85rem; margin-top: 0.5rem;">
-                    💡 Toque no dia desejado para selecionar
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
                 # Mostrar data selecionada
                 if st.session_state.data_selecionada_cal:
