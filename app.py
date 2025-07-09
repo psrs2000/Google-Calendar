@@ -1942,7 +1942,7 @@ Sistema de Agendamento Online
                 • Inclui: nome, telefone, email, data, horário e status
                 • Nome do arquivo inclui data/hora atual
                 """)            
-            st.write("🧪 TESTE - Se você vê isso, a posição está certa!")
+            
             if agendamentos:
                 # Filtros avançados
                 st.subheader("🔍 Filtros e Busca")
