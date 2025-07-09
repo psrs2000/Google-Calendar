@@ -1154,7 +1154,7 @@ if is_admin:
                         "Antecedência mínima para agendamento:",
                         list(antecedencia_opcoes.keys()),
                         index=list(antecedencia_opcoes.keys()).index(antecedencia_texto),
-                        help="Tempo mínimo necessário entre o agendamento e a consulta"
+                        help="Tempo mínimo necessário entre o agendamento e 00:00 hora do dia da consulta"
                     )
                 
                 with col2:
