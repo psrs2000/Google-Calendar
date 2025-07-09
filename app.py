@@ -2449,12 +2449,23 @@ else:
                 # Container do calendário
                 st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
 
-                # Cabeçalho dos dias da semana
-                st.markdown('<div class="calendar-header">', unsafe_allow_html=True)
+                # Cabeçalho dos dias da semana usando st.columns
+                cols_header = st.columns(7)
                 dias_semana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-                for dia in dias_semana:
-                    st.markdown(f'<div class="calendar-day-header">{dia}</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                for i, dia in enumerate(dias_semana):
+                    with cols_header[i]:
+                        st.markdown(f"""
+                        <div style="
+                            background: #f8f9fa; 
+                            color: #6b7280; 
+                            text-align: center; 
+                            padding: 8px 4px; 
+                            font-weight: 600; 
+                            font-size: 0.8rem; 
+                            border-radius: 4px;
+                            margin-bottom: 4px;
+                        ">{dia}</div>
+                        """, unsafe_allow_html=True)
 
                 # Gerar semanas do calendário
                 for semana in cal:
