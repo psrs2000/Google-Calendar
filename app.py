@@ -457,6 +457,18 @@ def obter_config_secret(chave, padrao=""):
     # 3º: Se não encontrou em lugar nenhum, usar padrão
     return padrao
 
+def obter_config_bool(chave, padrao=False):
+    """Busca configuração boolean (para checkboxes)"""
+    valor = obter_config_secret(chave, str(padrao))
+    
+    # Converter para boolean
+    if isinstance(valor, bool):
+        return valor
+    elif isinstance(valor, str):
+        return valor.lower() in ['true', '1', 'yes', 'on']
+    else:
+        return padrao
+
 def salvar_config_secret(configs_dict):
     """Mostra como salvar nos secrets (só informativo)"""
     st.info(f"""
@@ -1385,7 +1397,7 @@ if is_admin:
                 with col1:
                     confirmacao_automatica = st.checkbox(
                         "Confirmação automática de agendamentos",
-                        value=obter_config_secret("confirmacao_automatica", "False") == "True",
+                        value=obter_config_bool("confirmacao_automatica", False),
                         help="Se ativado, agendamentos são confirmados automaticamente"
                     )
                 
@@ -1494,7 +1506,7 @@ if is_admin:
                 
                 envio_automatico = st.checkbox(
                     "Ativar envio automático de emails",
-                    value=obter_config_secret("envio_automatico", "False") == "True",
+                    value=obter_config_bool("envio_automatico", False),
                     help="Se ativado, emails serão enviados automaticamente"
                 )
                 
@@ -1541,14 +1553,13 @@ if is_admin:
                     with col1:
                         enviar_confirmacao = st.checkbox(
                             "Enviar email de confirmação",
-                            value=obter_config_secret("enviar_confirmacao", "True") == "True",
+                            value=obter_config_bool("enviar_confirmacao", True),
                             help="Envia email quando agendamento é confirmado"
                         )
                     
-                    with col2:
                         enviar_cancelamento = st.checkbox(
-                            "Enviar email de cancelamento",
-                            value=obter_config_secret("enviar_cancelamento", "True") == "True",
+                            "Enviar email de cancelamento", 
+                            value=obter_config_bool("enviar_cancelamento", True),
                             help="Envia email quando agendamento é cancelado"
                         )
                     
