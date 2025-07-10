@@ -2453,14 +2453,14 @@ else:
 
                 # Dias da semana - bem curtos para mobile
                 st.markdown("""
-                <div style="display: flex; gap: 2px; margin-bottom: 4px;">
-                    <div style="flex: 1; text-align: center; font-size: 0.6rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">SEG</div>
-                    <div style="flex: 1; text-align: center; font-size: 0.6rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">TER</div>
-                    <div style="flex: 1; text-align: center; font-size: 0.6rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">QUA</div>
-                    <div style="flex: 1; text-align: center; font-size: 0.6rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">QUI</div>
-                    <div style="flex: 1; text-align: center; font-size: 0.6rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">SEX</div>
-                    <div style="flex: 1; text-align: center; font-size: 0.6rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">SAB</div>
-                    <div style="flex: 1; text-align: center; font-size: 0.6rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 3px; border-radius: 4px;">DOM</div>
+                <div style="display: flex; gap: 2px; margin-bottom: 6px;">
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">SEG</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">TER</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">QUA</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">QUI</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">SEX</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">SAB</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">DOM</div>
                 </div>
                 """, unsafe_allow_html=True)
 
