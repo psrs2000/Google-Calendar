@@ -2806,9 +2806,8 @@ else:
             st.subheader("❌ Cancelar Agendamento")
             
             st.info("ℹ️ Informe os mesmos dados utilizados no agendamento.")
-            
             nome_cancel = st.text_input("Nome cadastrado:", placeholder="Nome usado no agendamento")
-
+ 
             telefone_cancel = st.text_input("Telefone cadastrado:", placeholder="(11) 99999-9999")
             
             data_cancel = st.date_input("Data do agendamento:", min_value=datetime.today().date())
