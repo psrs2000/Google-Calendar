@@ -2039,14 +2039,17 @@ Sistema de Agendamento Online
                             resultado = importar_agendamentos_csv(csv_content)
                             
                             if resultado['sucesso']:
-                                col1, col2, col3 = st.columns(3)
+                                st.success("🎉 Importação realizada com sucesso!")
                                 
-                                with col1:
-                                    st.metric("✅ Importados", resultado['importados'])
-                                with col2:
-                                    st.metric("⚠️ Duplicados", resultado['duplicados'])
-                                with col3:
-                                    st.metric("❌ Erros", resultado['erros'])
+                                # Mostrar estatísticas sem colunas aninhadas
+                                if resultado['importados'] > 0:
+                                    st.info(f"✅ **{resultado['importados']}** agendamento(s) importado(s)")
+                                
+                                if resultado['duplicados'] > 0:
+                                    st.warning(f"⚠️ **{resultado['duplicados']}** registro(s) já existiam (ignorados)")
+                                
+                                if resultado['erros'] > 0:
+                                    st.error(f"❌ **{resultado['erros']}** registro(s) com erro nos dados")
                                 
                                 if resultado['importados'] > 0:
                                     st.success(f"🎉 {resultado['importados']} agendamento(s) importado(s) com sucesso!")
