@@ -7,16 +7,32 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import calendar
 
-# Verificar se é modo admin (versão simplificada)
+# Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
 try:
+    # Primeiro, tentar obter a chave dos secrets
+    try:
+        admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
+    except:
+        admin_key = "desenvolvimento"  # Fallback para desenvolvimento local
+    
+    # Verificar query params (método novo)
     query_params = st.query_params
-    is_admin = query_params.get("admin") == "desenvolvimento"
+    is_admin = query_params.get("admin") == admin_key
+    
 except:
     try:
+        # Método antigo (Streamlit Cloud mais antigo)
+        try:
+            admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
+        except:
+            admin_key = "desenvolvimento"
+        
         query_params = st.experimental_get_query_params()
-        is_admin = query_params.get("admin", [None])[0] == "desenvolvimento"
+        is_admin = query_params.get("admin", [None])[0] == admin_key
+        
     except:
+        # Fallback final
         is_admin = False
 
 # Configuração da página (AGORA PODE SER PRIMEIRO!)
