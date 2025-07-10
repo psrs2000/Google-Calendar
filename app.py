@@ -1585,7 +1585,29 @@ if is_admin:
                 "enviar_cancelamento": str(enviar_cancelamento) if envio_automatico else "",
                 "template_confirmacao": template_confirmacao if envio_automatico else ""
             }
+            # DEBUG TEMPORÁRIO - adicionar antes dos botões de salvar
+            st.markdown("---")
+            st.markdown("**🔍 DEBUG - Remover depois**")
 
+            with st.expander("Ver dados que serão salvos"):
+                st.write("**configuracoes_atuais:**")
+                st.json(configuracoes_atuais)
+
+            with st.expander("Testar função salvar_configuracao"):
+                if st.button("🧪 Teste Salvar Uma Config"):
+                    try:
+                        salvar_configuracao("teste_debug", "valor_teste_123")
+                        st.success("✅ Função salvar_configuracao funciona!")
+                    except Exception as e:
+                        st.error(f"❌ Erro na função: {e}")
+
+            with st.expander("Testar função obter_configuracao"):
+                if st.button("🧪 Teste Buscar Config"):
+                    try:
+                        valor = obter_configuracao("teste_debug", "não encontrado")
+                        st.info(f"🔍 Valor encontrado: {valor}")
+                    except Exception as e:
+                        st.error(f"❌ Erro na função: {e}")
             col1, col2 = st.columns(2)
 
             with col1:
