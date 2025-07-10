@@ -1120,8 +1120,8 @@ def criar_menu_horizontal():
         <p style="color: white; text-align: center; margin: 0; font-size: 1rem; font-weight: 400; letter-spacing: 1px;">🔧 Menu Administrativo</p>
     """, unsafe_allow_html=True)
     
-    # Menu responsivo
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Menu responsivo ATUALIZADO com 6 colunas
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
         if st.button("⚙️ **Configurações**", 
@@ -1156,6 +1156,14 @@ def criar_menu_horizontal():
             st.rerun()
     
     with col5:
+        if st.button("💾 **Backup**", 
+                    key="btn_backup", 
+                    use_container_width=True,
+                    help="Backup e restauração de dados"):
+            st.session_state.menu_opcao = "💾 Backup & Restauração"
+            st.rerun()
+    
+    with col6:
         if st.button("🚪 **Sair**", 
                     key="btn_sair", 
                     use_container_width=True,
@@ -1985,122 +1993,6 @@ Sistema de Agendamento Online
             st.markdown("---")
             col_export, col_info = st.columns([2, 3])
             
-            with col_export:
-                if st.button("📥 Exportar Agendamentos (CSV)", 
-                            help="Baixar todos os agendamentos em formato CSV",
-                            use_container_width=True):
-                    
-                    csv_data = exportar_agendamentos_csv()
-                    
-                    if csv_data:
-                        # Gerar nome do arquivo com data atual
-                        from datetime import datetime
-                        data_atual = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        nome_arquivo = f"agendamentos_backup_{data_atual}.csv"
-                        
-                        # Botão de download
-                        st.download_button(
-                            label="⬇️ Baixar Arquivo CSV",
-                            data=csv_data,
-                            file_name=nome_arquivo,
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                        
-                        st.success(f"✅ Backup gerado: {nome_arquivo}")
-                    else:
-                        st.warning("⚠️ Nenhum agendamento para exportar")
-
-            with col_info:
-                st.info("""
-                💾 **Backup dos Agendamentos**
-                
-                • Exporta todos os dados em CSV
-                • Formato compatível com Excel
-                • Inclui: nome, telefone, email, data, horário e status
-                • Nome do arquivo inclui data/hora atual
-                """)            
-            
-                st.markdown("---")
-                st.subheader("📥 Importar Agendamentos")
-
-                col_info_import, col_upload = st.columns([2, 3])
-
-                with col_info_import:
-                    st.info("""
-                    📂 **Restaurar Backup**
-                    
-                    • Importe um arquivo CSV exportado anteriormente
-                    • Formato deve ser idêntico ao exportado
-                    • Duplicatas serão ignoradas automaticamente
-                    • Colunas necessárias: ID, Data, Horário, Nome, Telefone
-                    """)
-
-                with col_upload:
-                    uploaded_file = st.file_uploader(
-                        "Escolha um arquivo CSV de backup:",
-                        type=['csv'],
-                        help="Selecione um arquivo CSV exportado anteriormente do sistema"
-                    )
-                    
-                    if uploaded_file is not None:
-                        if st.button("📤 Importar Dados do CSV", 
-                                    type="primary", 
-                                    use_container_width=True):
-                            
-                            # Ler conteúdo do arquivo
-                            csv_content = uploaded_file.getvalue().decode('utf-8')
-                            
-                            # Importar dados
-                            resultado = importar_agendamentos_csv(csv_content)
-                            
-                            if resultado['sucesso']:
-                                st.success("🎉 Importação realizada com sucesso!")
-                                
-                                # Mostrar estatísticas sem colunas aninhadas
-                                if resultado['importados'] > 0:
-                                    st.info(f"✅ **{resultado['importados']}** agendamento(s) importado(s)")
-                                
-                                if resultado['duplicados'] > 0:
-                                    st.warning(f"⚠️ **{resultado['duplicados']}** registro(s) já existiam (ignorados)")
-                                
-                                if resultado['erros'] > 0:
-                                    st.error(f"❌ **{resultado['erros']}** registro(s) com erro nos dados")
-                                
-                                if resultado['importados'] > 0:
-                                    st.success(f"🎉 {resultado['importados']} agendamento(s) importado(s) com sucesso!")
-                                
-                                if resultado['duplicados'] > 0:
-                                    st.warning(f"⚠️ {resultado['duplicados']} registro(s) ignorado(s) (já existiam)")
-                                
-                                if resultado['erros'] > 0:
-                                    st.error(f"❌ {resultado['erros']} registro(s) com erro (dados incompletos)")
-                                
-                                # Atualizar a página para mostrar os novos dados
-                                if resultado['importados'] > 0:
-                                    st.balloons()
-                                    st.rerun()
-                                    
-                            else:
-                                st.error(f"❌ Erro na importação: {resultado.get('erro', 'Erro desconhecido')}")
-                    
-                    # Exemplo de formato
-                    with st.expander("📋 Ver formato esperado do CSV"):
-                        st.code("""
-            ID,Data,Horário,Nome,Telefone,Email,Status
-            1,2024-12-20,09:00,João Silva,(11) 99999-9999,joao@email.com,confirmado
-            2,2024-12-20,10:00,Maria Santos,(11) 88888-8888,maria@email.com,pendente
-            3,2024-12-21,14:00,Pedro Costa,(11) 77777-7777,pedro@email.com,atendido
-                        """, language="csv")
-                        
-                        st.markdown("""
-                        **📝 Observações importantes:**
-                        - Use exatamente os mesmos cabeçalhos
-                        - Formato de data: AAAA-MM-DD (ex: 2024-12-20)
-                        - Formato de horário: HH:MM (ex: 09:00)
-                        - Status válidos: pendente, confirmado, atendido, cancelado
-                        - Email é opcional (pode ficar em branco)
-                        """)            
             
             if agendamentos:
                 # Filtros avançados
@@ -2401,6 +2293,218 @@ Sistema de Agendamento Online
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        elif opcao == "💾 Backup & Restauração":
+            st.markdown('<div class="main-card fade-in">', unsafe_allow_html=True)
+            st.markdown('<div class="card-header"><h2 class="card-title">💾 Backup & Restauração</h2></div>', unsafe_allow_html=True)
+            
+            # Informações gerais
+            st.info("""
+            🛡️ **Centro de Backup e Restauração**
+            
+            Mantenha seus dados sempre seguros com nosso sistema completo de backup e restauração.
+            Exporte seus agendamentos, configure backups automáticos e restaure dados quando necessário.
+            """)
+            
+            # Separar em tabs para melhor organização
+            tab_export, tab_import, tab_auto = st.tabs(["📤 Exportar Dados", "📥 Importar Dados", "🔄 Backup Automático"])
+
+            # ============================================
+            # ABA 1: EXPORTAR DADOS
+            # ============================================
+            
+            with tab_export:
+                st.subheader("📤 Exportar Agendamentos")
+                
+                col_info, col_action = st.columns([2, 1])
+                
+                with col_info:
+                    st.markdown("""
+                    **📋 O que será exportado:**
+                    • Todos os agendamentos (confirmados, pendentes, atendidos, cancelados)
+                    • Informações completas: nome, telefone, email, data, horário, status
+                    • Formato CSV compatível com Excel e outras planilhas
+                    • Dados organizados cronologicamente
+                    """)
+                
+                with col_action:
+                    if st.button("📥 Gerar Backup CSV", 
+                                type="primary",
+                                use_container_width=True,
+                                help="Baixar todos os agendamentos em formato CSV"):
+                        
+                        csv_data = exportar_agendamentos_csv()
+                        
+                        if csv_data:
+                            # Gerar nome do arquivo com data atual
+                            from datetime import datetime
+                            data_atual = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            nome_arquivo = f"agendamentos_backup_{data_atual}.csv"
+                            
+                            # Estatísticas
+                            total_agendamentos = len(buscar_agendamentos())
+                            tamanho_kb = len(csv_data.encode('utf-8')) / 1024
+                            
+                            st.success(f"✅ Backup gerado com sucesso!")
+                            
+                            # Métricas do backup
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("📊 Total de Registros", total_agendamentos)
+                            with col2:
+                                st.metric("📏 Tamanho", f"{tamanho_kb:.1f} KB")
+                            with col3:
+                                st.metric("📅 Data/Hora", datetime.now().strftime("%d/%m %H:%M"))
+                            
+                            # Botão de download
+                            st.download_button(
+                                label="⬇️ Baixar Arquivo de Backup",
+                                data=csv_data,
+                                file_name=nome_arquivo,
+                                mime="text/csv",
+                                use_container_width=True,
+                                type="primary"
+                            )
+                            
+                            st.info(f"💾 **Arquivo:** {nome_arquivo}")
+                            
+                        else:
+                            st.warning("⚠️ Nenhum agendamento encontrado para exportar")
+                
+                # Instruções
+                with st.expander("ℹ️ Como usar o arquivo de backup"):
+                    st.markdown("""
+                    **📖 Instruções de uso:**
+                    
+                    1. **💾 Salvar arquivo:** Guarde o arquivo CSV em local seguro
+                    2. **📁 Organização:** Recomendamos criar uma pasta "Backups_Agendamento"
+                    3. **📊 Abrir no Excel:** O arquivo abre diretamente no Excel ou Google Sheets
+                    4. **🔄 Restaurar:** Use a aba "Importar Dados" para restaurar os agendamentos
+                    5. **⏰ Frequência:** Recomendamos backup semanal ou antes de mudanças importantes
+                    
+                    **🔒 Segurança:**
+                    • O arquivo contém dados pessoais dos clientes
+                    • Mantenha-o em local seguro e protegido
+                    • Não compartilhe sem necessidade
+                    """)
+            
+            # ============================================
+            # ABA 2: IMPORTAR DADOS
+            # ============================================
+            
+            with tab_import:
+                st.subheader("📥 Restaurar Agendamentos")
+                
+                col_info_import, col_upload = st.columns([2, 3])
+
+                with col_info_import:
+                    st.markdown("""
+                    **📂 Restaurar Backup:**
+                    
+                    • Importe um arquivo CSV exportado anteriormente
+                    • Formato deve ser idêntico ao exportado
+                    • Duplicatas serão ignoradas automaticamente
+                    • Colunas obrigatórias: ID, Data, Horário, Nome, Telefone
+                    """)
+                    
+                    st.warning("""
+                    ⚠️ **Atenção:**
+                    Esta operação irá adicionar os agendamentos do arquivo ao sistema atual.
+                    Agendamentos duplicados serão ignorados automaticamente.
+                    """)
+
+                with col_upload:
+                    uploaded_file = st.file_uploader(
+                        "Escolha um arquivo CSV de backup:",
+                        type=['csv'],
+                        help="Selecione um arquivo CSV exportado anteriormente do sistema"
+                    )
+                    
+                    if uploaded_file is not None:
+                        # Mostrar informações do arquivo
+                        file_size = uploaded_file.size
+                        st.info(f"📄 **Arquivo:** {uploaded_file.name} ({file_size} bytes)")
+                        
+                        if st.button("📤 Restaurar Dados do Backup", 
+                                    type="primary", 
+                                    use_container_width=True):
+                            
+                            # Ler conteúdo do arquivo
+                            csv_content = uploaded_file.getvalue().decode('utf-8')
+                            
+                            # Importar dados
+                            resultado = importar_agendamentos_csv(csv_content)
+                            
+                            if resultado['sucesso']:
+                                st.success("🎉 Restauração realizada com sucesso!")
+                                
+                                # Mostrar estatísticas sem colunas aninhadas
+                                if resultado['importados'] > 0:
+                                    st.info(f"✅ **{resultado['importados']}** agendamento(s) restaurado(s)")
+                                
+                                if resultado['duplicados'] > 0:
+                                    st.warning(f"⚠️ **{resultado['duplicados']}** registro(s) já existiam (ignorados)")
+                                
+                                if resultado['erros'] > 0:
+                                    st.error(f"❌ **{resultado['erros']}** registro(s) com erro nos dados")
+                                
+                                # Atualizar a página para mostrar os novos dados
+                                if resultado['importados'] > 0:
+                                    st.balloons()
+                                    st.rerun()
+                                    
+                            else:
+                                st.error(f"❌ Erro na restauração: {resultado.get('erro', 'Erro desconhecido')}")
+                
+                # Formato esperado
+                with st.expander("📋 Formato esperado do arquivo CSV"):
+                    st.code("""
+        ID,Data,Horário,Nome,Telefone,Email,Status
+        1,2024-12-20,09:00,João Silva,(11) 99999-9999,joao@email.com,confirmado
+        2,2024-12-20,10:00,Maria Santos,(11) 88888-8888,maria@email.com,pendente
+        3,2024-12-21,14:00,Pedro Costa,(11) 77777-7777,pedro@email.com,atendido
+                    """, language="csv")
+                    
+                    st.markdown("""
+                    **📝 Observações importantes:**
+                    - Use exatamente os mesmos cabeçalhos mostrados acima
+                    - Formato de data: AAAA-MM-DD (ex: 2024-12-20)
+                    - Formato de horário: HH:MM (ex: 09:00)
+                    - Status válidos: pendente, confirmado, atendido, cancelado
+                    - Email é opcional (pode ficar em branco)
+                    - ID será ignorado (sistema gera automaticamente)
+                    """)
+            
+            # ============================================
+            # ABA 3: BACKUP AUTOMÁTICO (placeholder)
+            # ============================================
+            
+            with tab_auto:
+                st.subheader("🔄 Backup Automático")
+                
+                st.info("""
+                🚧 **Em Desenvolvimento**
+                
+                Esta seção será implementada em breve com as seguintes funcionalidades:
+                
+                • 📧 **Backup por Email:** Envio automático de backups por email
+                • 📅 **Google Calendar:** Sincronização automática com Google Calendar  
+                • ⏰ **Agendamento:** Backups automáticos em horários programados
+                • 📊 **Histórico:** Log de backups realizados
+                • 🔔 **Notificações:** Alertas sobre status dos backups
+                """)
+                
+                # Placeholder para futuras implementações
+                st.markdown("---")
+                st.markdown("**⚙️ Configurações Futuras:**")
+                
+                backup_auto_ativo = st.checkbox("Ativar backup automático", disabled=True, help="Será implementado em breve")
+                backup_email = st.text_input("Email para backup:", disabled=True, placeholder="Em desenvolvimento...")
+                backup_frequencia = st.selectbox("Frequência:", ["Diário", "Semanal", "Mensal"], disabled=True)
+                
+                st.button("💾 Salvar Configurações", disabled=True, help="Será implementado em breve")
             
             st.markdown('</div>', unsafe_allow_html=True)
 
