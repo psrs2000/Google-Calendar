@@ -2807,10 +2807,9 @@ else:
             
             st.info("ℹ️ Informe os mesmos dados utilizados no agendamento.")
             
-            col1, col2 = st.columns(2)
-            with col1:
+
                 nome_cancel = st.text_input("Nome cadastrado:", placeholder="Nome usado no agendamento")
-            with col2:
+                
                 telefone_cancel = st.text_input("Telefone cadastrado:", placeholder="(11) 99999-9999")
             
             data_cancel = st.date_input("Data do agendamento:", min_value=datetime.today().date())
