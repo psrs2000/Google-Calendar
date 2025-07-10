@@ -7,24 +7,19 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import calendar
 
-# Verificar se é modo admin através do parâmetro da URL
-# Compatibilidade com Streamlit Cloud e versões locais
+# Verificar se é modo admin (versão simplificada)
+is_admin = False
 try:
-    # Streamlit versão mais nova (local)
     query_params = st.query_params
-    admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
-    is_admin = query_params.get("admin") == admin_key
+    is_admin = query_params.get("admin") == "desenvolvimento"
 except:
     try:
-        # Streamlit Cloud (versão mais antiga)
         query_params = st.experimental_get_query_params()
-        admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
-        is_admin = query_params.get("admin") == admin_key
+        is_admin = query_params.get("admin", [None])[0] == "desenvolvimento"
     except:
-        # Fallback se nenhum funcionar
         is_admin = False
 
-# Configuração da página
+# Configuração da página (AGORA PODE SER PRIMEIRO!)
 if is_admin:
     st.set_page_config(
         page_title="Painel Administrativo",
@@ -327,8 +322,11 @@ st.markdown("""
 
 # Configurações
 DB = "agenda.db"
-SENHA_CORRETA = st.secrets.get("ADMIN_PASSWORD", "admin123")
-
+# Configurações
+try:
+    SENHA_CORRETA = st.secrets.get("ADMIN_PASSWORD", "admin123")
+except:
+    SENHA_CORRETA = "admin123"  # Para desenvolvimento local
 
 # Funções do banco
 def conectar():
