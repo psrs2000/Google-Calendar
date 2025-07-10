@@ -1010,6 +1010,86 @@ def exportar_agendamentos_csv():
         st.error(f"Erro ao exportar: {e}")
         return None
 
+def importar_agendamentos_csv(csv_content):
+    """Importa agendamentos de um arquivo CSV"""
+    import csv
+    import io
+    
+    try:
+        # Ler o conteúdo CSV
+        csv_file = io.StringIO(csv_content)
+        reader = csv.DictReader(csv_file)
+        
+        conn = conectar()
+        c = conn.cursor()
+        
+        importados = 0
+        duplicados = 0
+        erros = 0
+        
+        for row in reader:
+            try:
+                # Extrair dados do CSV
+                agendamento_id = row.get('ID', '')
+                data = row.get('Data', '')
+                horario = row.get('Horário', '') or row.get('Horario', '')
+                nome = row.get('Nome', '')
+                telefone = row.get('Telefone', '')
+                email = row.get('Email', '') or row.get('E-mail', '') or ''
+                status = row.get('Status', 'pendente')
+                
+                # Validar dados obrigatórios
+                if not all([data, horario, nome, telefone]):
+                    erros += 1
+                    continue
+                
+                # Verificar se já existe (evitar duplicatas)
+                c.execute("SELECT COUNT(*) FROM agendamentos WHERE data=? AND horario=? AND nome_cliente=? AND telefone=?", 
+                         (data, horario, nome, telefone))
+                
+                if c.fetchone()[0] > 0:
+                    duplicados += 1
+                    continue
+                
+                # Inserir no banco
+                try:
+                    c.execute("""INSERT INTO agendamentos 
+                               (nome_cliente, telefone, email, data, horario, status) 
+                               VALUES (?, ?, ?, ?, ?, ?)""",
+                             (nome, telefone, email, data, horario, status))
+                    importados += 1
+                except sqlite3.OperationalError:
+                    # Versão antiga sem email e status
+                    c.execute("""INSERT INTO agendamentos 
+                               (nome_cliente, telefone, data, horario) 
+                               VALUES (?, ?, ?, ?)""",
+                             (nome, telefone, data, horario))
+                    importados += 1
+                    
+            except Exception as e:
+                print(f"Erro ao processar linha: {e}")
+                erros += 1
+                continue
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            'importados': importados,
+            'duplicados': duplicados, 
+            'erros': erros,
+            'sucesso': True
+        }
+        
+    except Exception as e:
+        return {
+            'importados': 0,
+            'duplicados': 0,
+            'erros': 0,
+            'sucesso': False,
+            'erro': str(e)
+        }
+
 # ========================================
 # 2. ADICIONAR ESTAS FUNÇÕES ANTES DA LINHA "# Inicializar banco":
 # ========================================
@@ -1926,6 +2006,84 @@ Sistema de Agendamento Online
                 • Inclui: nome, telefone, email, data, horário e status
                 • Nome do arquivo inclui data/hora atual
                 """)            
+            
+                st.markdown("---")
+                st.subheader("📥 Importar Agendamentos")
+
+                col_info_import, col_upload = st.columns([2, 3])
+
+                with col_info_import:
+                    st.info("""
+                    📂 **Restaurar Backup**
+                    
+                    • Importe um arquivo CSV exportado anteriormente
+                    • Formato deve ser idêntico ao exportado
+                    • Duplicatas serão ignoradas automaticamente
+                    • Colunas necessárias: ID, Data, Horário, Nome, Telefone
+                    """)
+
+                with col_upload:
+                    uploaded_file = st.file_uploader(
+                        "Escolha um arquivo CSV de backup:",
+                        type=['csv'],
+                        help="Selecione um arquivo CSV exportado anteriormente do sistema"
+                    )
+                    
+                    if uploaded_file is not None:
+                        if st.button("📤 Importar Dados do CSV", 
+                                    type="primary", 
+                                    use_container_width=True):
+                            
+                            # Ler conteúdo do arquivo
+                            csv_content = uploaded_file.getvalue().decode('utf-8')
+                            
+                            # Importar dados
+                            resultado = importar_agendamentos_csv(csv_content)
+                            
+                            if resultado['sucesso']:
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.metric("✅ Importados", resultado['importados'])
+                                with col2:
+                                    st.metric("⚠️ Duplicados", resultado['duplicados'])
+                                with col3:
+                                    st.metric("❌ Erros", resultado['erros'])
+                                
+                                if resultado['importados'] > 0:
+                                    st.success(f"🎉 {resultado['importados']} agendamento(s) importado(s) com sucesso!")
+                                
+                                if resultado['duplicados'] > 0:
+                                    st.warning(f"⚠️ {resultado['duplicados']} registro(s) ignorado(s) (já existiam)")
+                                
+                                if resultado['erros'] > 0:
+                                    st.error(f"❌ {resultado['erros']} registro(s) com erro (dados incompletos)")
+                                
+                                # Atualizar a página para mostrar os novos dados
+                                if resultado['importados'] > 0:
+                                    st.balloons()
+                                    st.rerun()
+                                    
+                            else:
+                                st.error(f"❌ Erro na importação: {resultado.get('erro', 'Erro desconhecido')}")
+                    
+                    # Exemplo de formato
+                    with st.expander("📋 Ver formato esperado do CSV"):
+                        st.code("""
+            ID,Data,Horário,Nome,Telefone,Email,Status
+            1,2024-12-20,09:00,João Silva,(11) 99999-9999,joao@email.com,confirmado
+            2,2024-12-20,10:00,Maria Santos,(11) 88888-8888,maria@email.com,pendente
+            3,2024-12-21,14:00,Pedro Costa,(11) 77777-7777,pedro@email.com,atendido
+                        """, language="csv")
+                        
+                        st.markdown("""
+                        **📝 Observações importantes:**
+                        - Use exatamente os mesmos cabeçalhos
+                        - Formato de data: AAAA-MM-DD (ex: 2024-12-20)
+                        - Formato de horário: HH:MM (ex: 09:00)
+                        - Status válidos: pendente, confirmado, atendido, cancelado
+                        - Email é opcional (pode ficar em branco)
+                        """)            
             
             if agendamentos:
                 # Filtros avançados
