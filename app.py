@@ -1376,22 +1376,6 @@ if is_admin:
                     else:
                         st.success("✅ **Modo Automático:** Agendamentos são confirmados instantaneamente")
                 
-                # Configurações de limite
-                st.markdown("---")
-                st.markdown("**⚠️ Limites e Restrições**")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    max_agendamentos_dia = st.number_input(
-                        "Máximo de agendamentos por dia:",
-                        min_value=1,
-                        max_value=50,
-                        value=obter_configuracao("max_agendamentos_dia", 20),
-                        help="Limite máximo de agendamentos aceitos por dia"
-                    )
-                
-
             
             with tab2:
                 st.subheader("📞 Informações de Contato e Local")
@@ -1632,7 +1616,6 @@ Sistema de Agendamento Online
                 salvar_configuracao("horario_fim", horario_fim.strftime("%H:%M"))
                 salvar_configuracao("intervalo_consultas", intervalo_opcoes[intervalo_selecionado])
                 salvar_configuracao("confirmacao_automatica", confirmacao_automatica)
-                salvar_configuracao("max_agendamentos_dia", max_agendamentos_dia)
                                 
                 # Salvar configurações da tab 2
                 salvar_configuracao("nome_profissional", nome_profissional)
