@@ -435,7 +435,7 @@ def salvar_configuracao(chave, valor):
     conn.commit()
     conn.close()
 
-def horario_disponivel_atualizada(data, horario):
+def horario_disponivel(data, horario):
     conn = conectar()
     c = conn.cursor()
     
