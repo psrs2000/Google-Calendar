@@ -349,8 +349,6 @@ try:
     SENHA_CORRETA = st.secrets.get("ADMIN_PASSWORD", "admin123")
 except:
     SENHA_CORRETA = "admin123"  # Para desenvolvimento local
-if EMAILS_INTELIGENTES_DISPONIVEL:
-    inicializar_funcoes(obter_configuracao, salvar_configuracao, buscar_agendamentos, conectar)
 
 # Funções do banco
 def conectar():
@@ -1278,6 +1276,9 @@ def criar_menu_horizontal():
     
 # Inicializar banco
 init_config()
+
+if EMAILS_INTELIGENTES_DISPONIVEL:
+    inicializar_funcoes(obter_configuracao, salvar_configuracao, buscar_agendamentos, conectar)
 
 # INTERFACE PRINCIPAL
 if is_admin:
