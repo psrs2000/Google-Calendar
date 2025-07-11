@@ -10,6 +10,46 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import streamlit as st
 
+# VARIÁVEIS GLOBAIS PARA AS FUNÇÕES (CORREÇÃO DO ERRO)
+_obter_configuracao = None
+_salvar_configuracao = None
+_buscar_agendamentos = None
+_conectar = None
+
+def inicializar_funcoes(obter_config_func, salvar_config_func, buscar_agend_func, conectar_func):
+    """
+    Inicializa as funções necessárias do arquivo principal
+    """
+    global _obter_configuracao, _salvar_configuracao, _buscar_agendamentos, _conectar
+    _obter_configuracao = obter_config_func
+    _salvar_configuracao = salvar_config_func
+    _buscar_agendamentos = buscar_agend_func
+    _conectar = conectar_func
+
+def obter_configuracao(chave, padrao=None):
+    """Wrapper para a função do arquivo principal"""
+    if _obter_configuracao:
+        return _obter_configuracao(chave, padrao)
+    return padrao
+
+def salvar_configuracao(chave, valor):
+    """Wrapper para a função do arquivo principal"""
+    if _salvar_configuracao:
+        return _salvar_configuracao(chave, valor)
+    return False
+
+def buscar_agendamentos():
+    """Wrapper para a função do arquivo principal"""
+    if _buscar_agendamentos:
+        return _buscar_agendamentos()
+    return []
+
+def conectar():
+    """Wrapper para a função do arquivo principal"""
+    if _conectar:
+        return _conectar()
+    return None
+
 def formatar_email_para_gmail_calendar(nome_cliente, telefone, email_cliente, data, horario, 
                                      nome_profissional, nome_clinica, endereco_completo, 
                                      telefone_contato, whatsapp, especialidade="", tipo_acao="confirmacao"):
@@ -433,68 +473,3 @@ def configurar_emails_inteligentes():
             st.metric("📅 Eventos no Calendar", total_confirmados)
         with col3:
             st.metric("✅ Taxa de Sucesso", "99%")
-
-# Função para integrar no sistema existente
-def integrar_emails_inteligentes_no_sistema():
-    """
-    Retorna código para integrar no sistema principal
-    """
-    return """
-# ADICIONAR estas importações no topo do arquivo principal:
-try:
-    from smart_email_calendar import enviar_email_inteligente_calendar, configurar_emails_inteligentes
-    EMAILS_INTELIGENTES_DISPONIVEL = True
-except ImportError:
-    EMAILS_INTELIGENTES_DISPONIVEL = False
-
-# MODIFICAR a função adicionar_agendamento():
-def adicionar_agendamento(nome, telefone, email, data, horario):
-    # ... código existente ...
-    
-    # ADICIONAR no final, após salvar no banco:
-    if EMAILS_INTELIGENTES_DISPONIVEL and agendamento_id:
-        emails_inteligentes_ativo = obter_configuracao("emails_inteligentes_ativo", False)
-        if emails_inteligentes_ativo and status_inicial == "confirmado":
-            try:
-                resultado = enviar_email_inteligente_calendar(
-                    agendamento_id=agendamento_id,
-                    nome_cliente=nome,
-                    email_cliente=email,
-                    telefone=telefone,
-                    data=data,
-                    horario=horario,
-                    tipo_acao="confirmacao"
-                )
-                if resultado["sucesso"]:
-                    print(f"✅ Emails inteligentes enviados: {resultado['emails_enviados']}")
-            except Exception as e:
-                print(f"Erro em emails inteligentes: {e}")
-    
-    return status_inicial
-
-# MODIFICAR a função cancelar_agendamento():
-def cancelar_agendamento(nome, telefone, data):
-    # ... código existente até encontrar o agendamento ...
-    
-    if existe:
-        # ADICIONAR antes de deletar:
-        if EMAILS_INTELIGENTES_DISPONIVEL:
-            emails_inteligentes_ativo = obter_configuracao("emails_inteligentes_ativo", False)
-            incluir_cancelamentos = obter_configuracao("gmail_incluir_cancelamentos", True)
-            
-            if emails_inteligentes_ativo and incluir_cancelamentos and email_cliente and horario_cliente:
-                try:
-                    enviar_email_inteligente_calendar(
-                        agendamento_id=0,
-                        nome_cliente=nome,
-                        email_cliente=email_cliente,
-                        telefone=telefone,
-                        data=data,
-                        horario=horario_cliente,
-                        tipo_acao="cancelamento"
-                    )
-                except Exception as e:
-                    print(f"Erro em email de cancelamento: {e}")
-        
-        # ... resto do código existente ...
-"""
