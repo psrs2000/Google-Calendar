@@ -7,7 +7,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import calendar
 try:
-    from smart_email_calendar import enviar_email_inteligente_calendar, configurar_emails_inteligentes
+    from smart_email_calendar import enviar_email_inteligente_calendar, configurar_emails_inteligentes, inicializar_funcoes
     EMAILS_INTELIGENTES_DISPONIVEL = True
 except ImportError:
     EMAILS_INTELIGENTES_DISPONIVEL = False
@@ -349,6 +349,8 @@ try:
     SENHA_CORRETA = st.secrets.get("ADMIN_PASSWORD", "admin123")
 except:
     SENHA_CORRETA = "admin123"  # Para desenvolvimento local
+if EMAILS_INTELIGENTES_DISPONIVEL:
+    inicializar_funcoes(obter_configuracao, salvar_configuracao, buscar_agendamentos, conectar)
 
 # Funções do banco
 def conectar():
