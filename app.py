@@ -6,12 +6,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import calendar
-try:
-    from smart_email_calendar import enviar_email_inteligente_calendar, configurar_emails_inteligentes, inicializar_funcoes
-    EMAILS_INTELIGENTES_DISPONIVEL = True
-except ImportError:
-    EMAILS_INTELIGENTES_DISPONIVEL = False
-    st.warning("⚠️ Módulo de emails inteligentes não encontrado.")
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
@@ -503,33 +497,10 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
     
     if status_inicial == "confirmado" and email and agendamento_id and envio_automatico and enviar_confirmacao:
-        # VERIFICAR SE EMAILS INTELIGENTES ESTÃO ATIVOS
-        emails_inteligentes_ativo = obter_configuracao("emails_inteligentes_ativo", False) if EMAILS_INTELIGENTES_DISPONIVEL else False
-        
-        if emails_inteligentes_ativo:
-            # USAR EMAILS INTELIGENTES (NOVO SISTEMA)
-            try:
-                resultado = enviar_email_inteligente_calendar(
-                    agendamento_id=agendamento_id,
-                    nome_cliente=nome,
-                    email_cliente=email,
-                    telefone=telefone,
-                    data=data,
-                    horario=horario,
-                    tipo_acao="confirmacao"
-                )
-                if resultado["sucesso"]:
-                    print(f"✅ Emails inteligentes enviados: {resultado['emails_enviados']}")
-                else:
-                    print(f"❌ Erro em emails inteligentes: {resultado['motivo']}")
-            except Exception as e:
-                print(f"Erro ao enviar emails inteligentes: {e}")
-        else:
-            # USAR SISTEMA ORIGINAL DE EMAIL
-            try:
-                enviar_email_confirmacao(agendamento_id, nome, email, data, horario)
-            except Exception as e:
-                print(f"Erro ao enviar email de confirmação automática: {e}")
+        try:
+            enviar_email_confirmacao(agendamento_id, nome, email, data, horario)
+        except Exception as e:
+            print(f"Erro ao enviar email de confirmação automática: {e}")
     
     return status_inicial
 
@@ -573,38 +544,14 @@ def cancelar_agendamento(nome, telefone, data):
         enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
         
         if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
-            # VERIFICAR SE EMAILS INTELIGENTES ESTÃO ATIVOS
-            emails_inteligentes_ativo = obter_configuracao("emails_inteligentes_ativo", False) if EMAILS_INTELIGENTES_DISPONIVEL else False
-            incluir_cancelamentos = obter_configuracao("gmail_incluir_cancelamentos", True)
-            
-            if emails_inteligentes_ativo and incluir_cancelamentos:
-                # USAR EMAILS INTELIGENTES PARA CANCELAMENTO
-                try:
-                    resultado = enviar_email_inteligente_calendar(
-                        agendamento_id=0,  # Não importa para cancelamento
-                        nome_cliente=nome,
-                        email_cliente=email_cliente,
-                        telefone=telefone,
-                        data=data,
-                        horario=horario_cliente,
-                        tipo_acao="cancelamento"
-                    )
-                    if resultado["sucesso"]:
-                        print(f"✅ Emails de cancelamento inteligentes enviados: {resultado['emails_enviados']}")
-                    else:
-                        print(f"❌ Erro em emails de cancelamento: {resultado['motivo']}")
-                except Exception as e:
-                    print(f"❌ Erro ao enviar emails de cancelamento inteligentes: {e}")
-            else:
-                # USAR SISTEMA ORIGINAL
-                try:
-                    sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
-                    if sucesso:
-                        print(f"✅ Email de cancelamento enviado para {email_cliente}")
-                    else:
-                        print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
-                except Exception as e:
-                    print(f"❌ Erro ao enviar email de cancelamento: {e}")
+            try:
+                sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
+                if sucesso:
+                    print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                else:
+                    print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+            except Exception as e:
+                print(f"❌ Erro ao enviar email de cancelamento: {e}")
         
         return True
     else:
@@ -712,39 +659,10 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
     if novo_status == 'confirmado' and agendamento_dados and len(agendamento_dados) >= 4 and envio_automatico and enviar_confirmacao:
         nome_cliente, email, data, horario = agendamento_dados
         if email:
-            # VERIFICAR SE EMAILS INTELIGENTES ESTÃO ATIVOS
-            emails_inteligentes_ativo = obter_configuracao("emails_inteligentes_ativo", False) if EMAILS_INTELIGENTES_DISPONIVEL else False
-            
-            if emails_inteligentes_ativo:
-                # USAR EMAILS INTELIGENTES
-                try:
-                    # Buscar telefone do agendamento
-                    conn = conectar()
-                    c = conn.cursor()
-                    c.execute("SELECT telefone FROM agendamentos WHERE id = ?", (agendamento_id,))
-                    telefone_result = c.fetchone()
-                    telefone_cliente = telefone_result[0] if telefone_result else ""
-                    conn.close()
-                    
-                    resultado = enviar_email_inteligente_calendar(
-                        agendamento_id=agendamento_id,
-                        nome_cliente=nome_cliente,
-                        email_cliente=email,
-                        telefone=telefone_cliente,
-                        data=data,
-                        horario=horario,
-                        tipo_acao="confirmacao"
-                    )
-                    if resultado["sucesso"]:
-                        print(f"✅ Emails inteligentes de confirmação enviados: {resultado['emails_enviados']}")
-                except Exception as e:
-                    print(f"Erro ao enviar emails inteligentes de confirmação: {e}")
-            else:
-                # USAR SISTEMA ORIGINAL
-                try:
-                    enviar_email_confirmacao(agendamento_id, nome_cliente, email, data, horario)
-                except Exception as e:
-                    print(f"Erro ao enviar email de confirmação: {e}")
+            try:
+                enviar_email_confirmacao(agendamento_id, nome_cliente, email, data, horario)
+            except Exception as e:
+                print(f"Erro ao enviar email de confirmação: {e}")
     
     # Se foi cancelado pelo admin e tem email, enviar cancelamento
     enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
@@ -1202,11 +1120,11 @@ def criar_menu_horizontal():
         <p style="color: white; text-align: center; margin: 0; font-size: 1rem; font-weight: 400; letter-spacing: 1px;">🔧 Menu Administrativo</p>
     """, unsafe_allow_html=True)
     
-    # Menu responsivo ATUALIZADO com 8 colunas
-    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
+    # Menu responsivo ATUALIZADO com 6 colunas
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
-        if st.button("⚙️ **Config**", 
+        if st.button("⚙️ **Configurações**", 
                     key="btn_config", 
                     use_container_width=True,
                     help="Configurações gerais do sistema"):
@@ -1238,15 +1156,6 @@ def criar_menu_horizontal():
             st.rerun()
     
     with col5:
-        # NOVA ABA PARA EMAILS INTELIGENTES
-        if st.button("📧 **Email+**", 
-                    key="btn_emails_inteligentes", 
-                    use_container_width=True,
-                    help="Emails Inteligentes para Google Calendar"):
-            st.session_state.menu_opcao = "📧 Emails Inteligentes"
-            st.rerun()
-    
-    with col6:
         if st.button("💾 **Backup**", 
                     key="btn_backup", 
                     use_container_width=True,
@@ -1254,7 +1163,7 @@ def criar_menu_horizontal():
             st.session_state.menu_opcao = "💾 Backup & Restauração"
             st.rerun()
     
-    with col7:
+    with col6:
         if st.button("🚪 **Sair**", 
                     key="btn_sair", 
                     use_container_width=True,
@@ -1276,9 +1185,6 @@ def criar_menu_horizontal():
     
 # Inicializar banco
 init_config()
-
-if EMAILS_INTELIGENTES_DISPONIVEL:
-    inicializar_funcoes(obter_configuracao, salvar_configuracao, buscar_agendamentos, conectar)
 
 # INTERFACE PRINCIPAL
 if is_admin:
@@ -2387,29 +2293,6 @@ Sistema de Agendamento Online
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        elif opcao == "📧 Emails Inteligentes":
-            st.markdown('<div class="main-card fade-in">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header"><h2 class="card-title">📧 Emails Inteligentes para Google Calendar</h2></div>', unsafe_allow_html=True)
-            
-            if EMAILS_INTELIGENTES_DISPONIVEL:
-                # Usar a função de configuração do módulo
-                configurar_emails_inteligentes()
-            else:
-                st.error("❌ Módulo de emails inteligentes não encontrado")
-                
-                with st.expander("📋 Como instalar"):
-                    st.markdown("""
-                    **Para ativar os emails inteligentes:**
-                    
-                    1. Certifique-se de que o arquivo `smart_email_calendar.py` está na mesma pasta do seu sistema
-                    2. Reinicie a aplicação Streamlit
-                    3. A funcionalidade aparecerá automaticamente
-                    
-                    **Arquivo necessário:** `smart_email_calendar.py`
-                    """)
             
             st.markdown('</div>', unsafe_allow_html=True)
 
