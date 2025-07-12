@@ -1552,11 +1552,6 @@ def verificar_e_restaurar_configuracoes():
 # Inicializar banco
 init_config()
 
-# DEBUG TEMPORÁRIO
-print("🔍 DEBUG: Iniciando verificação...")
-resultado = verificar_e_restaurar_configuracoes()
-print(f"🔍 DEBUG: Resultado da restauração: {resultado}")
-
 # INTERFACE PRINCIPAL
 if is_admin:
     # PAINEL ADMINISTRATIVO
