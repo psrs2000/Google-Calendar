@@ -2237,38 +2237,38 @@ Sistema de Agendamento Online
                             """)
                         
                         with col2:
+
                             if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
                                 try:
-                                    # Teste individual de cada secret
+                                    st.write("🔍 Testando imports...")
+                                    
+                                    # Teste de import direto
+                                    import importlib
+                                    
+                                    # Testar cada biblioteca individualmente
                                     try:
-                                        client_id = st.secrets["GOOGLE_CLIENT_ID"]
-                                        st.write(f"✅ GOOGLE_CLIENT_ID: {client_id[:20]}...")
-                                    except Exception as e:
-                                        st.error(f"❌ GOOGLE_CLIENT_ID: {e}")
+                                        google_auth = importlib.import_module('google.auth')
+                                        st.write("✅ google.auth OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.auth: {e}")
                                         
                                     try:
-                                        client_secret = st.secrets["GOOGLE_CLIENT_SECRET"]
-                                        st.write(f"✅ GOOGLE_CLIENT_SECRET: {client_secret[:10]}...")
-                                    except Exception as e:
-                                        st.error(f"❌ GOOGLE_CLIENT_SECRET: {e}")
+                                        google_oauth2 = importlib.import_module('google.oauth2.credentials')
+                                        st.write("✅ google.oauth2.credentials OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.oauth2.credentials: {e}")
                                         
                                     try:
-                                        refresh_token = st.secrets["GOOGLE_REFRESH_TOKEN"]
-                                        st.write(f"✅ GOOGLE_REFRESH_TOKEN: {refresh_token[:20]}...")
-                                    except Exception as e:
-                                        st.error(f"❌ GOOGLE_REFRESH_TOKEN: {e}")
+                                        googleapiclient = importlib.import_module('googleapiclient.discovery')
+                                        st.write("✅ googleapiclient.discovery OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ googleapiclient.discovery: {e}")
                                         
-                                    try:
-                                        calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
-                                        st.write(f"✅ GOOGLE_CALENDAR_ID: {calendar_id}")
-                                    except Exception as e:
-                                        st.error(f"❌ GOOGLE_CALENDAR_ID: {e}")
-                                        
-                                    # Se chegou até aqui, todos existem
-                                    st.success("🎉 Todos os secrets foram encontrados!")
+                                    st.info("📝 Se algum import falhou, o problema é falta de bibliotecas no requirements.txt")
                                     
                                 except Exception as e:
-                                    st.error(f"❌ ERRO GERAL: {e}")
+                                    st.error(f"❌ Erro geral: {e}")
+
                                 with st.spinner("Testando conexão..."):
                                     try:
                                         service = get_google_calendar_service()
