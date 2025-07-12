@@ -2238,48 +2238,37 @@ Sistema de Agendamento Online
                         
                         with col2:
                             if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
-                                with st.spinner("Testando conexão..."):
+                                try:
+                                    # Teste individual de cada secret
                                     try:
-                                        # Teste passo a passo
-                                        st.write("🔍 Lendo secrets...")
-                                        
-                                        creds_info = {
-                                            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
-                                            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
-                                            "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
-                                            "token_uri": "https://oauth2.googleapis.com/token"
-                                        }
-                                        st.write("✅ Secrets lidos")
-                                        
-                                        from google.oauth2.credentials import Credentials
-                                        from google.auth.transport.requests import Request
-                                        from googleapiclient.discovery import build
-                                        st.write("✅ Imports OK")
-                                        
-                                        credentials = Credentials.from_authorized_user_info(creds_info)
-                                        st.write("✅ Credentials criadas")
-                                        
-                                        if credentials.expired:
-                                            st.write("🔄 Renovando token...")
-                                            credentials.refresh(Request())
-                                            st.write("✅ Token renovado")
-                                        else:
-                                            st.write("✅ Token válido")
-                                        
-                                        service = build('calendar', 'v3', credentials=credentials)
-                                        st.success("🎉 CONEXÃO GOOGLE CALENDAR OK!")
-                                        
-                                        # Teste extra - listar calendários
-                                        calendars = service.calendarList().list().execute()
-                                        st.write(f"📅 Encontrados {len(calendars.get('items', []))} calendários")
-                                        
+                                        client_id = st.secrets["GOOGLE_CLIENT_ID"]
+                                        st.write(f"✅ GOOGLE_CLIENT_ID: {client_id[:20]}...")
                                     except Exception as e:
-                                        st.error(f"❌ ERRO: {type(e).__name__}")
-                                        st.error(f"📝 Detalhes: {str(e)}")
+                                        st.error(f"❌ GOOGLE_CLIENT_ID: {e}")
                                         
-                                        # Mais detalhes se for erro de autenticação
-                                        if "401" in str(e) or "Unauthorized" in str(e):
-                                            st.warning("🔑 Erro de autenticação - token pode estar inválido")
+                                    try:
+                                        client_secret = st.secrets["GOOGLE_CLIENT_SECRET"]
+                                        st.write(f"✅ GOOGLE_CLIENT_SECRET: {client_secret[:10]}...")
+                                    except Exception as e:
+                                        st.error(f"❌ GOOGLE_CLIENT_SECRET: {e}")
+                                        
+                                    try:
+                                        refresh_token = st.secrets["GOOGLE_REFRESH_TOKEN"]
+                                        st.write(f"✅ GOOGLE_REFRESH_TOKEN: {refresh_token[:20]}...")
+                                    except Exception as e:
+                                        st.error(f"❌ GOOGLE_REFRESH_TOKEN: {e}")
+                                        
+                                    try:
+                                        calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
+                                        st.write(f"✅ GOOGLE_CALENDAR_ID: {calendar_id}")
+                                    except Exception as e:
+                                        st.error(f"❌ GOOGLE_CALENDAR_ID: {e}")
+                                        
+                                    # Se chegou até aqui, todos existem
+                                    st.success("🎉 Todos os secrets foram encontrados!")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ ERRO GERAL: {e}")
                                 with st.spinner("Testando conexão..."):
                                     try:
                                         service = get_google_calendar_service()
