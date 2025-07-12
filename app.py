@@ -2239,6 +2239,33 @@ Sistema de Agendamento Online
                                     
                                 except Exception as e:
                                     st.error(f"❌ Erro ao ler secrets: {e}")                                
+
+                                    st.write("🔄 Testando conexão...")
+                                    
+                                    from google.oauth2.credentials import Credentials
+                                    from google.auth.transport.requests import Request
+                                    from googleapiclient.discovery import build
+                                    
+                                    creds_info = {
+                                        "client_id": client_id,
+                                        "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
+                                        "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
+                                        "token_uri": "https://oauth2.googleapis.com/token"
+                                    }
+                                    
+                                    credentials = Credentials.from_authorized_user_info(creds_info)
+                                    st.write("✅ Credentials criadas")
+                                    
+                                    if credentials.expired:
+                                        st.write("🔄 Renovando token...")
+                                        credentials.refresh(Request())
+                                    
+                                    service = build('calendar', 'v3', credentials=credentials)
+                                    st.success("✅ Conexão Google Calendar OK!")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ ERRO ESPECÍFICO: {type(e).__name__}: {str(e)}")
+
                                 with st.spinner("Testando conexão..."):
                                     try:
                                         service = get_google_calendar_service()
