@@ -1324,8 +1324,7 @@ def get_github_config():
         "repo": "psrs2000/Agenda_Livre",
         "branch": "main",
         "config_file": "configuracoes.json"
-    }
-    
+    }    
     # Tentar usar secrets primeiro (para Streamlit Cloud)
     try:
         return {
@@ -1511,16 +1510,14 @@ def verificar_e_restaurar_configuracoes():
     """Verifica se precisa restaurar configurações na inicialização"""
     
     try:
-        # Verificar se backup automático está ativado nos secrets
-        backup_ativo = False
-        try:
-            backup_ativo = st.secrets.get("GITHUB_TOKEN") is not None
-        except:
-            pass
+        # Verificar se tem configuração GitHub (local ou secrets)
+        github_config = get_github_config()
         
-        if not backup_ativo:
-            print("ℹ️ Backup GitHub não configurado nos secrets")
+        if not github_config or not github_config.get("token"):
+            print("ℹ️ Backup GitHub não configurado")
             return False
+        
+        print("✅ Configuração GitHub encontrada")
         
         # Verificar se tem configurações locais
         conn = conectar()
@@ -1535,17 +1532,17 @@ def verificar_e_restaurar_configuracoes():
         
         print(f"📊 Configurações locais encontradas: {total_configs}")
         
-        # Se não tem configurações locais, tentar restaurar do GitHub
-        if total_configs == 0:
-            print("🔄 Nenhuma configuração local. Tentando restaurar do GitHub...")
+        # Se não tem configurações locais OU tem muito poucas, tentar restaurar
+        if total_configs < 5:  # Threshold baixo para detectar "banco vazio"
+            print("🔄 Poucas configurações locais. Tentando restaurar do GitHub...")
             if restaurar_configuracoes_github():
                 print("✅ Configurações restauradas do GitHub com sucesso!")
                 return True
             else:
-                print("ℹ️ Nenhum backup encontrado no GitHub. Usando configurações padrão.")
+                print("ℹ️ Nenhum backup encontrado no GitHub ou erro na restauração.")
                 return False
         else:
-            print("✅ Configurações locais já existem. Restauração não necessária.")
+            print("✅ Configurações locais suficientes. Restauração não necessária.")
             return False
             
     except Exception as e:
@@ -1554,6 +1551,11 @@ def verificar_e_restaurar_configuracoes():
     
 # Inicializar banco
 init_config()
+
+# DEBUG TEMPORÁRIO
+print("🔍 DEBUG: Iniciando verificação...")
+resultado = verificar_e_restaurar_configuracoes()
+print(f"🔍 DEBUG: Resultado da restauração: {resultado}")
 
 # INTERFACE PRINCIPAL
 if is_admin:
