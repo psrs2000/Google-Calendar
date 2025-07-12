@@ -1554,6 +1554,8 @@ def download_from_github(github_config):
 def get_google_calendar_service():
     """Configura Google Calendar usando Streamlit Secrets"""
     try:
+        print("🔍 Iniciando get_google_calendar_service...")
+        
         # Obter credenciais dos secrets
         creds_info = {
             "client_id": st.secrets["GOOGLE_CLIENT_ID"],
@@ -1562,22 +1564,32 @@ def get_google_calendar_service():
             "token_uri": "https://oauth2.googleapis.com/token"
         }
         
+        print("🔍 Secrets lidos com sucesso")
+        
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
         
+        print("🔍 Imports OK")
+        
         credentials = Credentials.from_authorized_user_info(creds_info)
+        print("🔍 Credentials criadas")
         
         # Renovar token se necessário
         if credentials.expired:
+            print("🔍 Token expirado, renovando...")
             credentials.refresh(Request())
+            print("🔍 Token renovado")
         
+        print("🔍 Criando service...")
         service = build('calendar', 'v3', credentials=credentials)
-        print("✅ Conectado ao Google Calendar via secrets")
+        print("✅ Service criado com sucesso")
         return service
         
     except Exception as e:
-        print(f"❌ Erro ao conectar Google Calendar: {e}")
+        print(f"❌ ERRO NA FUNÇÃO: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario):
@@ -2226,43 +2238,11 @@ Sistema de Agendamento Online
                         
                         with col2:
                             if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
-                                try:
-                                    # Teste dos secrets (já funcionando)
-                                    client_id = st.secrets["GOOGLE_CLIENT_ID"]
-                                    st.write(f"✅ Client ID: {client_id[:20]}...")
-                                    
-                                    client_secret = st.secrets["GOOGLE_CLIENT_SECRET"]  
-                                    st.write(f"✅ Client Secret: {client_secret[:10]}...")
-                                    
-                                    refresh_token = st.secrets["GOOGLE_REFRESH_TOKEN"]
-                                    st.write(f"✅ Refresh Token: {refresh_token[:20]}...")
-                                    
-                                    # NOVO: Teste da conexão detalhado
-                                    st.write("🔄 Testando conexão...")
-                                    
-                                    from google.oauth2.credentials import Credentials
-                                    from google.auth.transport.requests import Request
-                                    from googleapiclient.discovery import build
-                                    
-                                    creds_info = {
-                                        "client_id": client_id,
-                                        "client_secret": client_secret, 
-                                        "refresh_token": refresh_token,
-                                        "token_uri": "https://oauth2.googleapis.com/token"
-                                    }
-                                    
-                                    credentials = Credentials.from_authorized_user_info(creds_info)
-                                    st.write("✅ Credentials criadas")
-                                    
-                                    if credentials.expired:
-                                        st.write("🔄 Renovando token...")
-                                        credentials.refresh(Request())
-                                    
-                                    service = build('calendar', 'v3', credentials=credentials)
-                                    st.success("✅ Conexão Google Calendar OK!")
-                                    
-                                except Exception as e:
-                                    st.error(f"❌ ERRO ESPECÍFICO: {type(e).__name__}: {str(e)}")
+                                service = get_google_calendar_service()
+                                if service:
+                                    st.success("✅ Funcionou!")
+                                else:
+                                    st.error("❌ Falhou - veja terminal para detalhes")
 
                                 with st.spinner("Testando conexão..."):
                                     try:
