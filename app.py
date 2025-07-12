@@ -1504,53 +1504,12 @@ def download_from_github(github_config):
         print(f"❌ Erro no download GitHub: {e}")
         return None
 
-# PASSO 2: Adicionar esta função após as de restauração
-
-def verificar_e_restaurar_configuracoes():
-    """Verifica se precisa restaurar configurações na inicialização"""
-    
-    try:
-        # Verificar se tem configuração GitHub (local ou secrets)
-        github_config = get_github_config()
-        
-        if not github_config or not github_config.get("token"):
-            print("ℹ️ Backup GitHub não configurado")
-            return False
-        
-        print("✅ Configuração GitHub encontrada")
-        
-        # Verificar se tem configurações locais
-        conn = conectar()
-        c = conn.cursor()
-        try:
-            c.execute("SELECT COUNT(*) FROM configuracoes")
-            total_configs = c.fetchone()[0]
-        except:
-            total_configs = 0
-        finally:
-            conn.close()
-        
-        print(f"📊 Configurações locais encontradas: {total_configs}")
-        
-        # Se não tem configurações locais OU tem muito poucas, tentar restaurar
-        if total_configs < 5:  # Threshold baixo para detectar "banco vazio"
-            print("🔄 Poucas configurações locais. Tentando restaurar do GitHub...")
-            if restaurar_configuracoes_github():
-                print("✅ Configurações restauradas do GitHub com sucesso!")
-                return True
-            else:
-                print("ℹ️ Nenhum backup encontrado no GitHub ou erro na restauração.")
-                return False
-        else:
-            print("✅ Configurações locais suficientes. Restauração não necessária.")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Erro na verificação de configurações: {e}")
-        return False
     
 # Inicializar banco
 init_config()
+
+# Restaurar configurações do GitHub
+restaurar_configuracoes_github()
 
 # INTERFACE PRINCIPAL
 if is_admin:
