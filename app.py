@@ -510,26 +510,28 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
     return status_inicial
 
 def cancelar_agendamento(nome, telefone, data):
+    """Cancela agendamento mudando status para 'cancelado' em vez de deletar"""
     conn = conectar()
     c = conn.cursor()
     
-    # Buscar o agendamento com dados completos ANTES de deletar
+    # Buscar o agendamento com dados completos ANTES de alterar
     email_cliente = None
     horario_cliente = None
+    agendamento_id = None
     
     try:
-        # Tentar buscar com email
-        c.execute("SELECT email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        # Tentar buscar com email e ID
+        c.execute("SELECT id, email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
         resultado = c.fetchone()
         if resultado:
-            email_cliente, horario_cliente = resultado
+            agendamento_id, email_cliente, horario_cliente = resultado
     except sqlite3.OperationalError:
-        # Se não tem coluna email, buscar só horário
+        # Se não tem coluna email, buscar só ID e horário
         try:
-            c.execute("SELECT horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+            c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
             resultado = c.fetchone()
             if resultado:
-                horario_cliente = resultado[0]
+                agendamento_id, horario_cliente = resultado
                 email_cliente = ""
         except:
             pass
@@ -539,26 +541,66 @@ def cancelar_agendamento(nome, telefone, data):
     existe = c.fetchone()[0] > 0
     
     if existe:
-        # Deletar agendamento
-        c.execute("DELETE FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
-        conn.commit()
-        conn.close()
-        
-        # Enviar email de cancelamento se tiver email e configurações ativas
-        envio_automatico = obter_configuracao("envio_automatico", False)
-        enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
-        
-        if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
+        # NOVO: Mudar status para 'cancelado' em vez de deletar
+        try:
+            c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
+                     (nome, telefone, data))
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
+            
+            # Enviar email de cancelamento se tiver email e configurações ativas
+            envio_automatico = obter_configuracao("envio_automatico", False)
+            enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
+            
+            if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
+                try:
+                    sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
+                    if sucesso:
+                        print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                    else:
+                        print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+                except Exception as e:
+                    print(f"❌ Erro ao enviar email de cancelamento: {e}")
+            
+            return True
+            
+        except sqlite3.OperationalError:
+            # Se não tem coluna status, criar ela e tentar novamente
             try:
-                sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
-                if sucesso:
-                    print(f"✅ Email de cancelamento enviado para {email_cliente}")
-                else:
-                    print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+                c.execute("ALTER TABLE agendamentos ADD COLUMN status TEXT DEFAULT 'pendente'")
+                conn.commit()
+                
+                # Tentar novamente
+                c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
+                         (nome, telefone, data))
+                conn.commit()
+                conn.close()
+                
+                print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
+                
+                # Enviar email de cancelamento
+                envio_automatico = obter_configuracao("envio_automatico", False)
+                enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
+                
+                if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
+                    try:
+                        sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
+                        if sucesso:
+                            print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                        else:
+                            print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+                    except Exception as e:
+                        print(f"❌ Erro ao enviar email de cancelamento: {e}")
+                
+                return True
+                
             except Exception as e:
-                print(f"❌ Erro ao enviar email de cancelamento: {e}")
+                print(f"❌ Erro ao atualizar status: {e}")
+                conn.close()
+                return False
         
-        return True
     else:
         conn.close()
         return False
@@ -1266,6 +1308,125 @@ def criar_menu_horizontal():
     """, unsafe_allow_html=True)
     
     return st.session_state.menu_opcao
+
+# PASSO 1: Adicionar esta função no app.py (depois das outras funções do banco)
+
+import requests
+import json
+import base64
+
+def get_github_config():
+    """Obtém configurações do GitHub"""
+    
+    # Configuração padrão (fallback)
+    config_local = {
+        "token": "",  # ← Vazio agora!
+        "repo": "psrs2000/Agenda_Livre",
+        "branch": "main",
+        "config_file": "configuracoes.json"
+    }
+    
+    # Tentar usar secrets primeiro (para Streamlit Cloud)
+    try:
+        return {
+            "token": st.secrets["GITHUB_TOKEN"],
+            "repo": st.secrets["GITHUB_REPO"],
+            "branch": st.secrets.get("GITHUB_BRANCH", "main"),
+            "config_file": st.secrets.get("CONFIG_FILE", "configuracoes.json")
+        }
+    except:
+        # Fallback para configuração local
+        return config_local
+
+def backup_configuracoes_github():
+    """Faz backup de todas as configurações para GitHub"""
+    try:
+        github_config = get_github_config()
+        if not github_config or not github_config.get("token"):
+            print("❌ Configuração GitHub não encontrada")
+            return False
+        
+        # Buscar todas as configurações do banco local
+        conn = conectar()
+        c = conn.cursor()
+        
+        try:
+            c.execute("SELECT chave, valor FROM configuracoes")
+            configs = dict(c.fetchall())
+        except:
+            configs = {}
+        finally:
+            conn.close()
+        
+        # Adicionar informações do backup
+        configs['_backup_timestamp'] = datetime.now().isoformat()
+        configs['_backup_version'] = '1.0'
+        configs['_sistema'] = 'Agenda Online'
+        
+        # Converter para JSON bonito
+        config_json = json.dumps(configs, indent=2, ensure_ascii=False)
+        
+        # Enviar para GitHub
+        return upload_to_github(config_json, github_config)
+        
+    except Exception as e:
+        print(f"❌ Erro no backup GitHub: {e}")
+        return False
+
+def upload_to_github(content, github_config):
+    """Upload de arquivo para GitHub"""
+    try:
+        headers = {
+            "Authorization": f"token {github_config['token']}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Sistema-Agendamento"
+        }
+        
+        # URL da API GitHub
+        api_url = f"https://api.github.com/repos/{github_config['repo']}/contents/{github_config['config_file']}"
+        
+        print(f"🔗 Conectando: {api_url}")
+        
+        # Verificar se arquivo já existe (para obter SHA)
+        response = requests.get(api_url, headers=headers)
+        sha = None
+        
+        if response.status_code == 200:
+            sha = response.json()["sha"]
+            print("📄 Arquivo existente encontrado, atualizando...")
+        elif response.status_code == 404:
+            print("📄 Criando arquivo novo...")
+        else:
+            print(f"⚠️ Resposta inesperada: {response.status_code}")
+        
+        # Preparar dados para upload
+        content_encoded = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        
+        data = {
+            "message": f"Backup configurações - {datetime.now().strftime('%d/%m/%Y às %H:%M')}",
+            "content": content_encoded,
+            "branch": github_config['branch']
+        }
+        
+        if sha:
+            data["sha"] = sha
+        
+        # Fazer upload
+        print("📤 Enviando backup...")
+        response = requests.put(api_url, headers=headers, json=data)
+        
+        if response.status_code in [200, 201]:
+            print("✅ Backup enviado para GitHub com sucesso!")
+            return True
+        else:
+            print(f"❌ Erro no upload GitHub: {response.status_code}")
+            print(f"📋 Resposta: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Erro no upload GitHub: {e}")
+        return False
+
     
 # Inicializar banco
 init_config()
@@ -1692,9 +1853,64 @@ Sistema de Agendamento Online
                             else:
                                 st.warning("⚠️ Preencha o email de teste e configure o sistema primeiro")
                 
+                    # Seção de backup GitHub (ADICIONAR DEPOIS da seção de teste de email)
+                    st.markdown("---")
+                    st.markdown("**☁️ Backup de Configurações**")
+                    
+                    backup_github_ativo = st.checkbox(
+                        "Ativar backup automático no GitHub",
+                        value=obter_configuracao("backup_github_ativo", False),
+                        help="Salva automaticamente suas configurações em repositório GitHub privado"
+                    )
+                    
+                    if backup_github_ativo:
+                        st.success("✅ Backup automático ativado - suas configurações serão salvas automaticamente!")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            if st.button("💾 Fazer Backup Manual", type="secondary"):
+                                with st.spinner("Enviando backup para GitHub..."):
+                                    try:
+                                        if backup_configuracoes_github():
+                                            st.success("✅ Backup enviado com sucesso!")
+                                            st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
+                                        else:
+                                            st.error("❌ Erro no backup. Verifique as configurações.")
+                                    except Exception as e:
+                                        st.error(f"❌ Erro: {e}")
+                        
+                        with col2:
+                            # Mostrar última data de backup se disponível
+                            ultima_config = obter_configuracao("_backup_timestamp", "")
+                            if ultima_config:
+                                try:
+                                    from datetime import datetime
+                                    data_backup = datetime.fromisoformat(ultima_config)
+                                    data_formatada = data_backup.strftime("%d/%m/%Y às %H:%M")
+                                    st.info(f"📅 Último backup: {data_formatada}")
+                                except:
+                                    st.info("📅 Backup disponível no GitHub")
+                            else:
+                                st.info("📅 Primeiro backup será feito automaticamente")
+                    
+                    else:
+                        st.info("💡 Ative o backup automático para nunca perder suas configurações quando o Streamlit reiniciar!")
+                        
+                        # Botão para fazer backup mesmo com função desativada
+                        if st.button("💾 Fazer Backup Único", help="Fazer backup sem ativar função automática"):
+                            with st.spinner("Enviando backup..."):
+                                try:
+                                    if backup_configuracoes_github():
+                                        st.success("✅ Backup enviado com sucesso!")
+                                        st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
+                                    else:
+                                        st.error("❌ Erro no backup. Verifique token GitHub.")
+                                except Exception as e:
+                                    st.error(f"❌ Erro: {e}")
+                
                 else:
-                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")
-            
+                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")            
             # Botão para salvar todas as configurações
             st.markdown("---")
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
@@ -1730,7 +1946,21 @@ Sistema de Agendamento Online
                     salvar_configuracao("enviar_cancelamento", enviar_cancelamento)
                     salvar_configuracao("template_confirmacao", template_confirmacao)
                 
+                # NOVO: Salvar configuração de backup GitHub
+                salvar_configuracao("backup_github_ativo", backup_github_ativo)
+                
                 st.success("✅ Todas as configurações foram salvas com sucesso!")
+                
+                # NOVO: Backup automático no GitHub (se ativado)
+                if backup_github_ativo:
+                    try:
+                        with st.spinner("📤 Fazendo backup no GitHub..."):
+                            if backup_configuracoes_github():
+                                st.success("☁️ Backup automático enviado para GitHub!")
+                            else:
+                                st.warning("⚠️ Erro no backup automático. Configurações salvas localmente.")
+                    except Exception as e:
+                        st.warning(f"⚠️ Erro no backup automático: {e}")
                 
                 # Mostrar resumo
                 st.markdown("**📋 Resumo das configurações salvas:**")
@@ -1739,6 +1969,7 @@ Sistema de Agendamento Online
                 ⏰ **Antecedência:** {antecedencia_selecionada}
                 🔄 **Confirmação:** {'Automática' if confirmacao_automatica else 'Manual'}
                 📧 **Email:** {'Ativado' if envio_automatico else 'Desativado'}
+                ☁️ **Backup:** {'Ativado' if backup_github_ativo else 'Desativado'}
                 👨‍⚕️ **Profissional:** {nome_profissional} - {especialidade}
                 🏥 **Local:** {nome_clinica}
                 """)
