@@ -1427,6 +1427,130 @@ def upload_to_github(content, github_config):
         print(f"❌ Erro no upload GitHub: {e}")
         return False
 
+
+def restaurar_configuracoes_github():
+    """Restaura configurações do GitHub"""
+    try:
+        github_config = get_github_config()
+        if not github_config or not github_config.get("token"):
+            print("⚠️ Configuração GitHub não encontrada para restauração")
+            return False
+        
+        # Baixar arquivo do GitHub
+        config_json = download_from_github(github_config)
+        if not config_json:
+            print("📄 Nenhum backup encontrado no GitHub")
+            return False
+        
+        # Parse do JSON
+        configs = json.loads(config_json)
+        
+        # Remover metadados do backup
+        configs.pop('_backup_timestamp', None)
+        configs.pop('_backup_version', None)
+        configs.pop('_sistema', None)
+        
+        # Salvar no banco local
+        conn = conectar()
+        c = conn.cursor()
+        
+        try:
+            for chave, valor in configs.items():
+                c.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)", 
+                         (chave, valor))
+            conn.commit()
+            print(f"✅ {len(configs)} configurações restauradas do GitHub")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Erro ao salvar configurações restauradas: {e}")
+            return False
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        print(f"❌ Erro na restauração GitHub: {e}")
+        return False
+
+def download_from_github(github_config):
+    """Download de arquivo do GitHub"""
+    try:
+        headers = {
+            "Authorization": f"token {github_config['token']}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Sistema-Agendamento"
+        }
+        
+        # URL da API GitHub
+        api_url = f"https://api.github.com/repos/{github_config['repo']}/contents/{github_config['config_file']}"
+        
+        print(f"📥 Baixando backup: {api_url}")
+        
+        response = requests.get(api_url, headers=headers)
+        
+        if response.status_code == 200:
+            # Decodificar conteúdo base64
+            content_encoded = response.json()["content"]
+            content = base64.b64decode(content_encoded).decode('utf-8')
+            print("✅ Backup baixado com sucesso")
+            return content
+        elif response.status_code == 404:
+            print("📄 Arquivo de backup não encontrado no GitHub")
+            return None
+        else:
+            print(f"❌ Erro no download GitHub: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Erro no download GitHub: {e}")
+        return None
+
+# PASSO 2: Adicionar esta função após as de restauração
+
+def verificar_e_restaurar_configuracoes():
+    """Verifica se precisa restaurar configurações na inicialização"""
+    
+    try:
+        # Verificar se backup automático está ativado nos secrets
+        backup_ativo = False
+        try:
+            backup_ativo = st.secrets.get("GITHUB_TOKEN") is not None
+        except:
+            pass
+        
+        if not backup_ativo:
+            print("ℹ️ Backup GitHub não configurado nos secrets")
+            return False
+        
+        # Verificar se tem configurações locais
+        conn = conectar()
+        c = conn.cursor()
+        try:
+            c.execute("SELECT COUNT(*) FROM configuracoes")
+            total_configs = c.fetchone()[0]
+        except:
+            total_configs = 0
+        finally:
+            conn.close()
+        
+        print(f"📊 Configurações locais encontradas: {total_configs}")
+        
+        # Se não tem configurações locais, tentar restaurar do GitHub
+        if total_configs == 0:
+            print("🔄 Nenhuma configuração local. Tentando restaurar do GitHub...")
+            if restaurar_configuracoes_github():
+                print("✅ Configurações restauradas do GitHub com sucesso!")
+                return True
+            else:
+                print("ℹ️ Nenhum backup encontrado no GitHub. Usando configurações padrão.")
+                return False
+        else:
+            print("✅ Configurações locais já existem. Restauração não necessária.")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Erro na verificação de configurações: {e}")
+        return False
     
 # Inicializar banco
 init_config()
