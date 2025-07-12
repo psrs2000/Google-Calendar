@@ -1581,12 +1581,17 @@ if is_admin:
                             help="Para Gmail: use senha de app (não a senha normal da conta)"
                         )
                         
+                        try:
+                            porta_valor = obter_configuracao("porta_smtp", 587)
+                            porta_smtp_value = int(porta_valor) if porta_valor and str(porta_valor).strip() else 587
+                        except (ValueError, TypeError):
+                            porta_smtp_value = 587
+
                         porta_smtp = st.number_input(
                             "Porta SMTP:",
-                            value=obter_configuracao("porta_smtp", 587),
+                            value=porta_smtp_value,
                             help="Para Gmail: 587 | Para Outlook: 587"
-                        )
-                    
+                        )                    
                     # Configurações de envio
                     st.markdown("---")
                     st.markdown("**📬 Tipos de Email Automático**")
