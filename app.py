@@ -2227,7 +2227,7 @@ Sistema de Agendamento Online
                         with col2:
                             if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
                                 try:
-                                    # TESTE SIMPLES DOS SECRETS
+                                    # Teste dos secrets (já funcionando)
                                     client_id = st.secrets["GOOGLE_CLIENT_ID"]
                                     st.write(f"✅ Client ID: {client_id[:20]}...")
                                     
@@ -2237,9 +2237,7 @@ Sistema de Agendamento Online
                                     refresh_token = st.secrets["GOOGLE_REFRESH_TOKEN"]
                                     st.write(f"✅ Refresh Token: {refresh_token[:20]}...")
                                     
-                                except Exception as e:
-                                    st.error(f"❌ Erro ao ler secrets: {e}")                                
-
+                                    # NOVO: Teste da conexão detalhado
                                     st.write("🔄 Testando conexão...")
                                     
                                     from google.oauth2.credentials import Credentials
@@ -2248,8 +2246,8 @@ Sistema de Agendamento Online
                                     
                                     creds_info = {
                                         "client_id": client_id,
-                                        "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
-                                        "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
+                                        "client_secret": client_secret, 
+                                        "refresh_token": refresh_token,
                                         "token_uri": "https://oauth2.googleapis.com/token"
                                     }
                                     
