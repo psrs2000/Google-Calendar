@@ -1609,7 +1609,7 @@ def get_google_calendar_service():
         traceback.print_exc()
         return None
 
-def criar_evento_google_calendar_com_retry(agendamento_id, nome_cliente, telefone, email, data, horario, max_tentativas=3):
+def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario, max_tentativas=3):
     print(f"🔍 DEBUG: Tentando criar evento - ID: {agendamento_id}, Cliente: {nome_cliente}")  # ← ADICIONAR ESTA LINHA
     """Cria evento no Google Calendar com múltiplas tentativas"""
     
@@ -1701,7 +1701,7 @@ def criar_evento_google_calendar_com_retry(agendamento_id, nome_cliente, telefon
     
     return False
 
-def deletar_evento_google_calendar_com_retry(agendamento_id, max_tentativas=3):
+def deletar_evento_google_calendar(agendamento_id, max_tentativas=3):
     """Deleta evento do Google Calendar com múltiplas tentativas"""
     
     for tentativa in range(1, max_tentativas + 1):
@@ -1758,7 +1758,7 @@ def deletar_evento_google_calendar_com_retry(agendamento_id, max_tentativas=3):
     
     return False
 
-def atualizar_evento_google_calendar_com_retry(agendamento_id, nome_cliente, status, max_tentativas=3):
+def atualizar_evento_google_calendar(agendamento_id, nome_cliente, status, max_tentativas=3):
     """Atualiza evento no Google Calendar com múltiplas tentativas"""
     
     for tentativa in range(1, max_tentativas + 1):
