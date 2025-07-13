@@ -1390,38 +1390,85 @@ def get_github_config():
         return config_local
 
 def backup_configuracoes_github():
-    """Faz backup de todas as configurações para GitHub"""
+    """Faz backup completo: configurações + agendamentos + bloqueios"""
     try:
         github_config = get_github_config()
         if not github_config or not github_config.get("token"):
             print("❌ Configuração GitHub não encontrada")
             return False
         
-        # Buscar todas as configurações do banco local
         conn = conectar()
         c = conn.cursor()
         
+        # 1. CONFIGURAÇÕES (já existe)
         try:
             c.execute("SELECT chave, valor FROM configuracoes")
             configs = dict(c.fetchall())
         except:
             configs = {}
-        finally:
-            conn.close()
         
-        # Adicionar informações do backup
-        configs['_backup_timestamp'] = datetime.now().isoformat()
-        configs['_backup_version'] = '1.0'
-        configs['_sistema'] = 'Agenda Online'
+        # 2. AGENDAMENTOS (NOVO)
+        try:
+            c.execute("SELECT * FROM agendamentos")
+            colunas = [desc[0] for desc in c.description]
+            agendamentos = [dict(zip(colunas, row)) for row in c.fetchall()]
+        except:
+            agendamentos = []
         
-        # Converter para JSON bonito
-        config_json = json.dumps(configs, indent=2, ensure_ascii=False)
+        # 3. BLOQUEIOS DE DIAS (NOVO)
+        try:
+            c.execute("SELECT data FROM bloqueios")
+            bloqueios_dias = [row[0] for row in c.fetchall()]
+        except:
+            bloqueios_dias = []
+        
+        # 4. BLOQUEIOS DE HORÁRIOS (NOVO)
+        try:
+            c.execute("SELECT data, horario FROM bloqueios_horarios")
+            bloqueios_horarios = [{"data": row[0], "horario": row[1]} for row in c.fetchall()]
+        except:
+            bloqueios_horarios = []
+        
+        # 5. BLOQUEIOS PERMANENTES (NOVO)
+        try:
+            c.execute("SELECT * FROM bloqueios_permanentes")
+            colunas = [desc[0] for desc in c.description]
+            bloqueios_permanentes = [dict(zip(colunas, row)) for row in c.fetchall()]
+        except:
+            bloqueios_permanentes = []
+        
+        # 6. DIAS ÚTEIS (NOVO)
+        try:
+            c.execute("SELECT dia FROM dias_uteis")
+            dias_uteis = [row[0] for row in c.fetchall()]
+        except:
+            dias_uteis = []
+        
+        conn.close()
+        
+        # MONTAR BACKUP COMPLETO
+        backup_completo = {
+            "_backup_info": {
+                "timestamp": datetime.now().isoformat(),
+                "version": "2.0",
+                "sistema": "Agenda Online - Backup Completo"
+            },
+            "configuracoes": configs,
+            "agendamentos": agendamentos,
+            "bloqueios_dias": bloqueios_dias,
+            "bloqueios_horarios": bloqueios_horarios,  
+            "bloqueios_permanentes": bloqueios_permanentes,
+            "dias_uteis": dias_uteis
+        }
+        
+        # Converter para JSON
+        backup_json = json.dumps(backup_completo, indent=2, ensure_ascii=False)
         
         # Enviar para GitHub
-        return upload_to_github(config_json, github_config)
+        return upload_to_github(backup_json, github_config)
         
     except Exception as e:
-        print(f"❌ Erro no backup GitHub: {e}")
+        print(f"❌ Erro no backup completo: {e}")
         return False
 
 def upload_to_github(content, github_config):
@@ -1480,7 +1527,7 @@ def upload_to_github(content, github_config):
 
 
 def restaurar_configuracoes_github():
-    """Restaura configurações do GitHub"""
+    """Restaura backup completo: configurações + agendamentos + bloqueios"""
     try:
         github_config = get_github_config()
         if not github_config or not github_config.get("token"):
@@ -1488,39 +1535,107 @@ def restaurar_configuracoes_github():
             return False
         
         # Baixar arquivo do GitHub
-        config_json = download_from_github(github_config)
-        if not config_json:
+        backup_json = download_from_github(github_config)
+        if not backup_json:
             print("📄 Nenhum backup encontrado no GitHub")
             return False
         
         # Parse do JSON
-        configs = json.loads(config_json)
+        backup_data = json.loads(backup_json)
         
-        # Remover metadados do backup
-        configs.pop('_backup_timestamp', None)
-        configs.pop('_backup_version', None)
-        configs.pop('_sistema', None)
-        
-        # Salvar no banco local
         conn = conectar()
         c = conn.cursor()
         
         try:
-            for chave, valor in configs.items():
-                c.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)", 
-                         (chave, valor))
+            # 1. RESTAURAR CONFIGURAÇÕES
+            if "configuracoes" in backup_data:
+                configs = backup_data["configuracoes"]
+                # Remover metadados antigos se existirem
+                configs.pop('_backup_timestamp', None)
+                configs.pop('_backup_version', None)
+                configs.pop('_sistema', None)
+                
+                for chave, valor in configs.items():
+                    c.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)", 
+                             (chave, valor))
+                print(f"✅ {len(configs)} configurações restauradas")
+            
+            # 2. RESTAURAR AGENDAMENTOS
+            if "agendamentos" in backup_data:
+                agendamentos = backup_data["agendamentos"]
+                
+                # Limpar tabela atual
+                c.execute("DELETE FROM agendamentos")
+                
+                for agendamento in agendamentos:
+                    # Montar query dinamicamente baseado nas colunas
+                    colunas = list(agendamento.keys())
+                    valores = list(agendamento.values())
+                    placeholders = ", ".join(["?" for _ in colunas])
+                    colunas_str = ", ".join(colunas)
+                    
+                    c.execute(f"INSERT INTO agendamentos ({colunas_str}) VALUES ({placeholders})", valores)
+                
+                print(f"✅ {len(agendamentos)} agendamentos restaurados")
+            
+            # 3. RESTAURAR BLOQUEIOS DE DIAS
+            if "bloqueios_dias" in backup_data:
+                bloqueios_dias = backup_data["bloqueios_dias"]
+                
+                c.execute("DELETE FROM bloqueios")
+                for data in bloqueios_dias:
+                    c.execute("INSERT INTO bloqueios (data) VALUES (?)", (data,))
+                
+                print(f"✅ {len(bloqueios_dias)} bloqueios de dias restaurados")
+            
+            # 4. RESTAURAR BLOQUEIOS DE HORÁRIOS
+            if "bloqueios_horarios" in backup_data:
+                bloqueios_horarios = backup_data["bloqueios_horarios"]
+                
+                try:
+                    c.execute("DELETE FROM bloqueios_horarios")
+                    for bloqueio in bloqueios_horarios:
+                        c.execute("INSERT INTO bloqueios_horarios (data, horario) VALUES (?, ?)", 
+                                 (bloqueio["data"], bloqueio["horario"]))
+                    print(f"✅ {len(bloqueios_horarios)} bloqueios de horários restaurados")
+                except:
+                    print("⚠️ Tabela bloqueios_horarios não existe - pulando")
+            
+            # 5. RESTAURAR BLOQUEIOS PERMANENTES
+            if "bloqueios_permanentes" in backup_data:
+                bloqueios_permanentes = backup_data["bloqueios_permanentes"]
+                
+                try:
+                    c.execute("DELETE FROM bloqueios_permanentes")
+                    for bloqueio in bloqueios_permanentes:
+                        c.execute("INSERT INTO bloqueios_permanentes (horario_inicio, horario_fim, dias_semana, descricao) VALUES (?, ?, ?, ?)", 
+                                 (bloqueio["horario_inicio"], bloqueio["horario_fim"], bloqueio["dias_semana"], bloqueio["descricao"]))
+                    print(f"✅ {len(bloqueios_permanentes)} bloqueios permanentes restaurados")
+                except:
+                    print("⚠️ Tabela bloqueios_permanentes não existe - pulando")
+            
+            # 6. RESTAURAR DIAS ÚTEIS
+            if "dias_uteis" in backup_data:
+                dias_uteis = backup_data["dias_uteis"]
+                
+                c.execute("DELETE FROM dias_uteis")
+                for dia in dias_uteis:
+                    c.execute("INSERT INTO dias_uteis (dia) VALUES (?)", (dia,))
+                
+                print(f"✅ {len(dias_uteis)} dias úteis restaurados")
+            
             conn.commit()
-            print(f"✅ {len(configs)} configurações restauradas do GitHub")
+            print("🎉 Backup completo restaurado com sucesso!")
             return True
             
         except Exception as e:
-            print(f"❌ Erro ao salvar configurações restauradas: {e}")
+            print(f"❌ Erro ao restaurar dados: {e}")
             return False
         finally:
             conn.close()
             
     except Exception as e:
-        print(f"❌ Erro na restauração GitHub: {e}")
+        print(f"❌ Erro na restauração completa: {e}")
         return False
 
 def download_from_github(github_config):
@@ -2307,31 +2422,37 @@ Sistema de Agendamento Online
                         - `GOOGLE_CALENDAR_ID` (opcional, padrão: "primary")
                         """)
                     
-                    # Seção de backup GitHub (manter como está)
+                    # Seção de backup GitHub
                     st.markdown("---")
-                    st.markdown("**☁️ Backup de Configurações**")   
-                
-                    # Seção de backup GitHub (ADICIONAR DEPOIS da seção de teste de email)
-                    st.markdown("---")
-                    st.markdown("**☁️ Backup de Configurações**")
-                    
+                    st.markdown("**☁️ Backup Completo do Sistema**")
+
                     backup_github_ativo = st.checkbox(
                         "Ativar backup automático no GitHub",
                         value=obter_configuracao("backup_github_ativo", False),
-                        help="Salva automaticamente suas configurações em repositório GitHub privado"
+                        help="Salva automaticamente TODOS os dados do sistema em repositório GitHub privado"
                     )
-                    
+
                     if backup_github_ativo:
-                        st.success("✅ Backup automático ativado - suas configurações serão salvas automaticamente!")
+                        st.success("✅ Backup automático ativado - todos os dados serão salvos automaticamente!")
+                        
+                        # Info sobre o que é salvo
+                        st.info("""
+                        **📋 O que é salvo no backup:**
+                        • ⚙️ Configurações do sistema
+                        • 👥 Todos os agendamentos  
+                        • 🚫 Bloqueios de dias e horários
+                        • ⏰ Bloqueios permanentes
+                        • 📅 Dias úteis configurados
+                        """)
                         
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            if st.button("💾 Fazer Backup Manual", type="secondary"):
-                                with st.spinner("Enviando backup para GitHub..."):
+                            if st.button("💾 Fazer Backup Completo", type="secondary"):
+                                with st.spinner("Enviando backup completo para GitHub..."):
                                     try:
                                         if backup_configuracoes_github():
-                                            st.success("✅ Backup enviado com sucesso!")
+                                            st.success("✅ Backup completo enviado com sucesso!")
                                             st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
                                         else:
                                             st.error("❌ Erro no backup. Verifique as configurações.")
@@ -2351,24 +2472,22 @@ Sistema de Agendamento Online
                                     st.info("📅 Backup disponível no GitHub")
                             else:
                                 st.info("📅 Primeiro backup será feito automaticamente")
-                    
+
                     else:
-                        st.info("💡 Ative o backup automático para nunca perder suas configurações quando o Streamlit reiniciar!")
+                        st.info("💡 Ative o backup automático para nunca perder NENHUM dado quando o Streamlit reiniciar!")
                         
                         # Botão para fazer backup mesmo com função desativada
-                        if st.button("💾 Fazer Backup Único", help="Fazer backup sem ativar função automática"):
-                            with st.spinner("Enviando backup..."):
+                        if st.button("💾 Fazer Backup Completo Único", help="Fazer backup de todos os dados sem ativar função automática"):
+                            with st.spinner("Enviando backup completo..."):
                                 try:
                                     if backup_configuracoes_github():
-                                        st.success("✅ Backup enviado com sucesso!")
+                                        st.success("✅ Backup completo enviado com sucesso!")
                                         st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
                                     else:
                                         st.error("❌ Erro no backup. Verifique token GitHub.")
                                 except Exception as e:
-                                    st.error(f"❌ Erro: {e}")
-                
-                else:
-                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")            
+                                    st.error(f"❌ Erro: {e}")         
+
             # Botão para salvar todas as configurações
             st.markdown("---")
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
