@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit as st
 import sqlite3
 from datetime import datetime, timedelta
 import pandas as pd
@@ -461,6 +462,11 @@ def horario_disponivel(data, horario):
             return False
     except:
         pass
+    
+    # NOVO: Verificar se a data está em algum período bloqueado
+    if data_em_periodo_bloqueado(data):
+        conn.close()
+        return False    
     
     # Verificar se o horário específico está bloqueado
     try:
@@ -1792,9 +1798,107 @@ def remover_event_id_google(agendamento_id):
         print(f"❌ Erro ao remover event ID: {e}")
     finally:
         conn.close()
+
+# ========================================
+# FUNÇÕES NOVAS PARA BLOQUEIOS DE PERÍODO
+# ========================================
+
+def init_config_periodos():
+    """Adiciona tabela de bloqueios de período ao banco"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    # Criar tabela para bloqueios de período
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS bloqueios_periodos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_inicio TEXT,
+            data_fim TEXT,
+            descricao TEXT,
+            criado_em TEXT
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def adicionar_bloqueio_periodo(data_inicio, data_fim, descricao=""):
+    """Adiciona um bloqueio de período (ex: férias, viagem)"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    try:
+        # Salvar o período na nova tabela
+        from datetime import datetime
+        criado_em = datetime.now().isoformat()
+        
+        c.execute("""INSERT INTO bloqueios_periodos 
+                    (data_inicio, data_fim, descricao, criado_em) 
+                    VALUES (?, ?, ?, ?)""", 
+                 (data_inicio, data_fim, descricao, criado_em))
+        
+        periodo_id = c.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return periodo_id
+        
+    except Exception as e:
+        conn.close()
+        print(f"Erro ao adicionar período: {e}")
+        return False
+
+def obter_bloqueios_periodos():
+    """Obtém todos os bloqueios de período"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    try:
+        c.execute("""SELECT id, data_inicio, data_fim, descricao, criado_em 
+                    FROM bloqueios_periodos 
+                    ORDER BY data_inicio""")
+        periodos = c.fetchall()
+        return periodos
+    except:
+        return []
+    finally:
+        conn.close()
+
+def remover_bloqueio_periodo(periodo_id):
+    """Remove um bloqueio de período"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    try:
+        c.execute("DELETE FROM bloqueios_periodos WHERE id=?", (periodo_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        conn.close()
+        return False
+
+def data_em_periodo_bloqueado(data):
+    """Verifica se uma data está em algum período bloqueado"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    try:
+        c.execute("""SELECT COUNT(*) FROM bloqueios_periodos 
+                    WHERE ? BETWEEN data_inicio AND data_fim""", (data,))
+        
+        resultado = c.fetchone()[0] > 0
+        conn.close()
+        return resultado
+    except:
+        conn.close()
+        return False
     
 # Inicializar banco
 init_config()
+
+# Inicializar tabela de períodos
+init_config_periodos()
 
 # Restaurar configurações do GitHub
 restaurar_configuracoes_github()
@@ -2463,415 +2567,541 @@ Sistema de Agendamento Online
             st.markdown('</div>', unsafe_allow_html=True)
         
         elif opcao == "🗓️ Gerenciar Bloqueios":
-            st.markdown('<div class="main-card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header"><h2 class="card-title">🗓️ Gerenciar Bloqueios</h2></div>', unsafe_allow_html=True)
-            
-            # Tabs para diferentes tipos de bloqueio
-            tab1, tab2, tab3 = st.tabs(["📅 Bloquear Dias Inteiros", "🕐 Bloquear Horários Específicos", "⏰ Bloqueios Permanentes"])
-            
-            with tab1:
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.subheader("📌 Bloquear Data")
-                    data_bloqueio = st.date_input("Data para bloquear:", min_value=datetime.today())
+                    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+                    st.markdown('<div class="card-header"><h2 class="card-title">🗓️ Gerenciar Bloqueios</h2></div>', unsafe_allow_html=True)
                     
-                    if st.button("🚫 Bloquear Dia Inteiro", type="primary", key="btn_bloquear_dia"):
-                        if adicionar_bloqueio(data_bloqueio.strftime("%Y-%m-%d")):
-                            st.success("✅ Dia bloqueado!")
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ Data já bloqueada.")
-                
-                with col2:
-                    st.subheader("📋 Bloquear Período")
-                    data_inicio = st.date_input("Data inicial:", min_value=datetime.today().date(), key="data_inicio_periodo")
-                    data_fim = st.date_input("Data final:", min_value=data_inicio if data_inicio else datetime.today().date(), key="data_fim_periodo")
+                    # Tabs para diferentes tipos de bloqueio
+                    tab1, tab2, tab3, tab4 = st.tabs(["📅 Dias Específicos", "📆 Períodos", "🕐 Horários Específicos", "⏰ Bloqueios Permanentes"])
                     
-                    if st.button("🚫 Bloquear Período", type="primary", key="btn_bloquear_periodo"):
-                        if data_fim >= data_inicio:
-                            dias_bloqueados = 0
-                            for i in range((data_fim - data_inicio).days + 1):
-                                data = (data_inicio + timedelta(days=i)).strftime("%Y-%m-%d")
-                                if adicionar_bloqueio(data):
-                                    dias_bloqueados += 1
-                            
-                            st.success(f"✅ {dias_bloqueados} dias foram bloqueados!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Data final deve ser posterior à data inicial.")
-                
-                # Lista de datas bloqueadas (dias inteiros)
-                st.subheader("🚫 Dias Inteiros Bloqueados")
-                bloqueios = obter_bloqueios()
-                
-                if bloqueios:
-                    for data in bloqueios:
-                        data_obj = datetime.strptime(data, "%Y-%m-%d")
-                        data_formatada = data_obj.strftime("%d/%m/%Y - %A")
-                        data_formatada = data_formatada.replace('Monday', 'Segunda-feira')\
-                            .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
-                            .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
-                            .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
+                    with tab1:
+                        st.subheader("📅 Bloquear Dias Específicos")
+                        st.info("💡 Use esta opção para bloquear poucos dias isolados (ex: feriados, faltas pontuais)")
                         
-                        col_data, col_btn = st.columns([4, 1])
-                        with col_data:
-                            st.markdown(f"""
-                            <div style="background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
-                                <span style="color: #991b1b; font-weight: 500;">🚫 {data_formatada}</span>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        with col_btn:
-                            if st.button("🗑️", key=f"remove_dia_{data}", help="Remover bloqueio"):
-                                remover_bloqueio(data)
-                                st.rerun()
-                else:
-                    st.info("📅 Nenhum dia inteiro bloqueado atualmente.")
-            
-            with tab2:
-                st.subheader("🕐 Bloquear Horários Específicos")
-                
-                # Sub-abas para organizar melhor
-                subtab1, subtab2 = st.tabs(["📅 Por Data Específica", "📆 Por Dia da Semana"])
-                
-                # =====================================================
-                # SUBTAB 1: BLOQUEIO POR DATA ESPECÍFICA (código atual)
-                # =====================================================
-                with subtab1:
-                    st.markdown("**📅 Bloqueio para uma data específica**")
-                    
-                    # Seleção de data
-                    data_horario = st.date_input("Selecionar data:", min_value=datetime.today(), key="data_horario_especifico")
-                    data_horario_str = data_horario.strftime("%Y-%m-%d")
-                    
-                    # Obter configurações de horários
-                    horario_inicio_config = obter_configuracao("horario_inicio", "09:00")
-                    horario_fim_config = obter_configuracao("horario_fim", "18:00")
-                    intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
-                    
-                    # Gerar horários possíveis
-                    try:
-                        hora_inicio = datetime.strptime(horario_inicio_config, "%H:%M").time()
-                        hora_fim = datetime.strptime(horario_fim_config, "%H:%M").time()
-                        
-                        inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
-                        fim_min = hora_fim.hour * 60 + hora_fim.minute
-                        
-                        horarios_possiveis = []
-                        horario_atual = inicio_min
-                        
-                        while horario_atual + intervalo_consultas <= fim_min:
-                            h = horario_atual // 60
-                            m = horario_atual % 60
-                            horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
-                            horario_atual += intervalo_consultas
-                            
-                    except:
-                        horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
-                    
-                    # Verificar quais horários já estão bloqueados
-                    bloqueios_dia = obter_bloqueios_horarios()
-                    horarios_bloqueados_dia = [h for d, h in bloqueios_dia if d == data_horario_str]
-                    
-                    st.markdown("**Selecione os horários que deseja bloquear:**")
-                    
-                    # Layout em colunas para os horários
-                    cols = st.columns(4)
-                    horarios_selecionados = []
-                    
-                    for i, horario in enumerate(horarios_possiveis):
-                        with cols[i % 4]:
-                            ja_bloqueado = horario in horarios_bloqueados_dia
-                            if ja_bloqueado:
-                                st.markdown(f"""
-                                <div style="background: #fee2e2; border: 2px solid #ef4444; border-radius: 8px; padding: 8px; text-align: center; margin: 4px 0;">
-                                    <span style="color: #991b1b; font-weight: 600;">🚫 {horario}</span><br>
-                                    <small style="color: #991b1b;">Bloqueado</small>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                if st.checkbox(f"🕐 {horario}", key=f"horario_especifico_{horario}"):
-                                    horarios_selecionados.append(horario)
-                    
-                    # Botões de ação
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        if st.button("🚫 Bloquear Horários Selecionados", type="primary", key="btn_bloquear_horarios_data"):
-                            if horarios_selecionados:
-                                bloqueados = 0
-                                for horario in horarios_selecionados:
-                                    if adicionar_bloqueio_horario(data_horario_str, horario):
-                                        bloqueados += 1
-                                
-                                if bloqueados > 0:
-                                    st.success(f"✅ {bloqueados} horário(s) bloqueado(s) com sucesso!")
-                                    st.rerun()
-                                else:
-                                    st.warning("⚠️ Horários já estavam bloqueados.")
-                            else:
-                                st.warning("⚠️ Selecione pelo menos um horário para bloquear.")
-                    
-                    with col2:
-                        if st.button("🔓 Desbloquear Todos os Horários do Dia", type="secondary", key="btn_desbloquear_dia_data"):
-                            if horarios_bloqueados_dia:
-                                for horario in horarios_bloqueados_dia:
-                                    remover_bloqueio_horario(data_horario_str, horario)
-                                
-                                st.success(f"✅ Todos os horários do dia {data_horario.strftime('%d/%m/%Y')} foram desbloqueados!")
-                                st.rerun()
-                            else:
-                                st.info("ℹ️ Nenhum horário bloqueado neste dia.")
-                
-                # =====================================================
-                # SUBTAB 2: BLOQUEIO POR DIA DA SEMANA (NOVO)
-                # =====================================================
-                with subtab2:
-                    st.markdown("**📆 Bloqueio recorrente por dia da semana**")
-                    st.info("💡 Configure horários que ficam sempre bloqueados em determinados dias da semana (ex: sábados das 12h às 18h)")
-                    
-                    # Seleção do dia da semana
-                    dias_opcoes = {
-                        "Monday": "Segunda-feira",
-                        "Tuesday": "Terça-feira", 
-                        "Wednesday": "Quarta-feira",
-                        "Thursday": "Quinta-feira",
-                        "Friday": "Sexta-feira",
-                        "Saturday": "Sábado",
-                        "Sunday": "Domingo"
-                    }
-                    
-                    dia_semana_selecionado = st.selectbox(
-                        "Selecione o dia da semana:",
-                        list(dias_opcoes.keys()),
-                        format_func=lambda x: dias_opcoes[x],
-                        key="dia_semana_bloqueio"
-                    )
-                    
-                    # Obter horários possíveis (mesmo cálculo da outra aba)
-                    horario_inicio_config = obter_configuracao("horario_inicio", "09:00")
-                    horario_fim_config = obter_configuracao("horario_fim", "18:00")
-                    intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
-                    
-                    try:
-                        hora_inicio = datetime.strptime(horario_inicio_config, "%H:%M").time()
-                        hora_fim = datetime.strptime(horario_fim_config, "%H:%M").time()
-                        
-                        inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
-                        fim_min = hora_fim.hour * 60 + hora_fim.minute
-                        
-                        horarios_possiveis = []
-                        horario_atual = inicio_min
-                        
-                        while horario_atual + intervalo_consultas <= fim_min:
-                            h = horario_atual // 60
-                            m = horario_atual % 60
-                            horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
-                            horario_atual += intervalo_consultas
-                            
-                    except:
-                        horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
-                    
-                    st.markdown(f"**Selecione os horários para bloquear todas as {dias_opcoes[dia_semana_selecionado].lower()}:**")
-                    
-                    # Layout em colunas para os horários
-                    cols = st.columns(4)
-                    horarios_selecionados_semanal = []
-                    
-                    for i, horario in enumerate(horarios_possiveis):
-                        with cols[i % 4]:
-                            if st.checkbox(f"🕐 {horario}", key=f"horario_semanal_{horario}"):
-                                horarios_selecionados_semanal.append(horario)
-                    
-                    # Descrição opcional
-                    descricao_semanal = st.text_input(
-                        "Descrição (opcional):",
-                        placeholder=f"Ex: {dias_opcoes[dia_semana_selecionado]} - meio período",
-                        key="desc_bloqueio_semanal"
-                    )
-                    
-                    # Botão para salvar bloqueio semanal
-                    if st.button("💾 Salvar Bloqueio Semanal", type="primary", key="btn_salvar_semanal"):
-                        if horarios_selecionados_semanal:
-                            if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
-                                st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
-                                st.rerun()
-                            else:
-                                st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
-                        else:
-                            st.warning("⚠️ Selecione pelo menos um horário para bloquear.")
-                    
-                    # Lista de bloqueios semanais existentes
-                    st.markdown("---")
-                    st.subheader("📋 Bloqueios Semanais Ativos")
-                    
-                    bloqueios_semanais = obter_bloqueios_semanais()
-                    
-                    if bloqueios_semanais:
-                        for bloqueio in bloqueios_semanais:
-                            bloqueio_id, dia_semana, horarios_str, descricao = bloqueio
-                            
-                            horarios_lista = horarios_str.split(",")
-                            horarios_texto = ", ".join(horarios_lista)
-                            
-                            col1, col2 = st.columns([4, 1])
-                            
-                            with col1:
-                                st.markdown(f"""
-                                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
-                                    <h4 style="color: #92400e; margin: 0 0 0.5rem 0;">📅 {dias_opcoes[dia_semana]}</h4>
-                                    <p style="margin: 0; color: #92400e;">
-                                        <strong>Horários bloqueados:</strong> {horarios_texto}<br>
-                                        {f'<strong>Descrição:</strong> {descricao}' if descricao else ''}
-                                    </p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            with col2:
-                                if st.button("🗑️", key=f"remove_semanal_{bloqueio_id}", help="Remover bloqueio semanal"):
-                                    if remover_bloqueio_semanal(bloqueio_id):
-                                        st.success("Bloqueio semanal removido!")
-                                        st.rerun()
-                    else:
-                        st.info("📅 Nenhum bloqueio semanal configurado.")
-                
-                # Lista de horários bloqueados por data específica (mantém o código atual)
-                st.subheader("🕐 Horários Específicos Bloqueados")
-                bloqueios_horarios = obter_bloqueios_horarios()
-                
-                if bloqueios_horarios:
-                    # Agrupar por data
-                    bloqueios_por_data = {}
-                    for data, horario in bloqueios_horarios:
-                        if data not in bloqueios_por_data:
-                            bloqueios_por_data[data] = []
-                        bloqueios_por_data[data].append(horario)
-                    
-                    for data, horarios in sorted(bloqueios_por_data.items()):
-                        data_obj = datetime.strptime(data, "%Y-%m-%d")
-                        data_formatada = data_obj.strftime("%d/%m/%Y - %A")
-                        data_formatada = data_formatada.replace('Monday', 'Segunda-feira')\
-                            .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
-                            .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
-                            .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
-                        
-                        st.markdown(f"**📅 {data_formatada}**")
-                        
-                        # Mostrar horários bloqueados em colunas
-                        cols = st.columns(6)
-                        for i, horario in enumerate(sorted(horarios)):
-                            with cols[i % 6]:
-                                col1, col2 = st.columns([3, 1])
-                                with col1:
-                                    st.markdown(f"🚫 **{horario}**")
-                                with col2:
-                                    if st.button("🗑️", key=f"remove_horario_{data}_{horario}", help="Remover bloqueio"):
-                                        remover_bloqueio_horario(data, horario)
-                                        st.rerun()
-                        
-                        st.markdown("---")
-                else:
-                    st.info("🕐 Nenhum horário específico bloqueado atualmente.")
-            
-            with tab3:
-                st.subheader("⏰ Bloqueios Permanentes")
-                
-                st.markdown("""
-                <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin: 1rem 0;">
-                    ℹ️ <strong>Bloqueios Permanentes:</strong><br>
-                    Configure horários que ficam sempre bloqueados (ex: almoço, intervalos, etc.)
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Formulário para novo bloqueio
-                st.markdown("### ➕ Criar Novo Bloqueio Permanente")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    horario_inicio_perm = st.time_input("Horário de início:", key="inicio_permanente")
-                    
-                with col2:
-                    horario_fim_perm = st.time_input("Horário de fim:", key="fim_permanente")
-                
-                # Seleção de dias da semana
-                st.markdown("**Dias da semana:**")
-                
-                dias_opcoes = {
-                    "Monday": "Segunda-feira",
-                    "Tuesday": "Terça-feira", 
-                    "Wednesday": "Quarta-feira",
-                    "Thursday": "Quinta-feira",
-                    "Friday": "Sexta-feira",
-                    "Saturday": "Sábado",
-                    "Sunday": "Domingo"
-                }
-                
-                cols = st.columns(4)
-                dias_selecionados_perm = []
-                
-                for i, (dia_en, dia_pt) in enumerate(dias_opcoes.items()):
-                    with cols[i % 4]:
-                        if st.checkbox(dia_pt, key=f"dia_perm_{dia_en}"):
-                            dias_selecionados_perm.append(dia_en)
-                
-                # Descrição
-                descricao_perm = st.text_input("Descrição:", placeholder="Ex: Horário de Almoço", key="desc_permanente")
-                
-                # Botão para salvar
-                if st.button("💾 Salvar Bloqueio Permanente", type="primary", key="btn_salvar_permanente"):
-                    if horario_inicio_perm and horario_fim_perm and dias_selecionados_perm and descricao_perm:
-                        if horario_fim_perm > horario_inicio_perm:
-                            inicio_str = horario_inicio_perm.strftime("%H:%M")
-                            fim_str = horario_fim_perm.strftime("%H:%M")
-                            
-                            if adicionar_bloqueio_permanente(inicio_str, fim_str, dias_selecionados_perm, descricao_perm):
-                                st.success("✅ Bloqueio permanente criado com sucesso!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Erro ao criar bloqueio.")
-                        else:
-                            st.warning("⚠️ Horário de fim deve ser posterior ao horário de início.")
-                    else:
-                        st.warning("⚠️ Preencha todos os campos obrigatórios.")
-                
-                # Lista de bloqueios permanentes existentes
-                st.markdown("---")
-                st.subheader("📋 Bloqueios Permanentes Ativos")
-                
-                bloqueios_permanentes = obter_bloqueios_permanentes()
-                
-                if bloqueios_permanentes:
-                    for bloqueio in bloqueios_permanentes:
-                        bloqueio_id, inicio, fim, dias, descricao = bloqueio
-                        
-                        # Converter dias de volta para português
-                        dias_lista = dias.split(",")
-                        dias_pt = [dias_opcoes.get(dia, dia) for dia in dias_lista]
-                        dias_texto = ", ".join(dias_pt)
-                        
-                        col1, col2 = st.columns([4, 1])
+                        col1, col2 = st.columns(2)
                         
                         with col1:
-                            st.markdown(f"""
-                            <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
-                                <h4 style="color: #856404; margin: 0 0 0.5rem 0;">⏰ {descricao}</h4>
-                                <p style="margin: 0; color: #856404;">
-                                    <strong>Horário:</strong> {inicio} às {fim}<br>
-                                    <strong>Dias:</strong> {dias_texto}
-                                </p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown("**📌 Bloquear Data Individual**")
+                            data_bloqueio = st.date_input("Data para bloquear:", min_value=datetime.today())
+                            
+                            if st.button("🚫 Bloquear Dia", type="primary", key="btn_bloquear_dia"):
+                                if adicionar_bloqueio(data_bloqueio.strftime("%Y-%m-%d")):
+                                    st.success("✅ Dia bloqueado!")
+                                    st.rerun()
+                                else:
+                                    st.warning("⚠️ Data já bloqueada.")
                         
                         with col2:
-                            if st.button("🗑️", key=f"remove_perm_{bloqueio_id}", help="Remover bloqueio permanente"):
-                                if remover_bloqueio_permanente(bloqueio_id):
-                                    st.success("Bloqueio removido!")
-                                    st.rerun()
-                else:
-                    st.info("📅 Nenhum bloqueio permanente configurado.")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+                            st.markdown("**ℹ️ Dias Específicos vs Períodos:**")
+                            st.markdown("""
+                            **🎯 Use "Dias Específicos" para:**
+                            • Feriados isolados
+                            • Faltas pontuais  
+                            • 1-3 dias não consecutivos
+                            
+                            **🎯 Use "Períodos" para:**
+                            • Férias (vários dias seguidos)
+                            • Viagens longas
+                            • Congressos/cursos
+                            """)
+                        
+                        # Lista de datas bloqueadas (dias inteiros)
+                        st.subheader("🚫 Dias Individuais Bloqueados")
+                        bloqueios = obter_bloqueios()
+                        
+                        if bloqueios:
+                            for data in bloqueios:
+                                data_obj = datetime.strptime(data, "%Y-%m-%d")
+                                data_formatada = data_obj.strftime("%d/%m/%Y - %A")
+                                data_formatada = data_formatada.replace('Monday', 'Segunda-feira')\
+                                    .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
+                                    .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
+                                    .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
+                                
+                                col_data, col_btn = st.columns([4, 1])
+                                with col_data:
+                                    st.markdown(f"""
+                                    <div style="background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
+                                        <span style="color: #991b1b; font-weight: 500;">🚫 {data_formatada}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                with col_btn:
+                                    if st.button("🗑️", key=f"remove_dia_{data}", help="Remover bloqueio"):
+                                        remover_bloqueio(data)
+                                        st.rerun()
+                        else:
+                            st.info("📅 Nenhum dia individual bloqueado atualmente.")
+                    
+                    with tab2:
+                        st.subheader("📆 Bloquear Períodos")
+                        st.info("💡 Use esta opção para bloquear vários dias consecutivos (ex: férias, viagens)")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**➕ Criar Novo Período Bloqueado**")
+                            
+                            data_inicio_periodo = st.date_input(
+                                "Data inicial:", 
+                                min_value=datetime.today().date(), 
+                                key="periodo_inicio"
+                            )
+                            
+                            data_fim_periodo = st.date_input(
+                                "Data final:", 
+                                min_value=data_inicio_periodo if data_inicio_periodo else datetime.today().date(), 
+                                key="periodo_fim"
+                            )
+                            
+                            descricao_periodo = st.text_input(
+                                "Descrição:",
+                                placeholder="Ex: Férias de Janeiro, Viagem Europa, Congresso...",
+                                key="desc_periodo"
+                            )
+                            
+                            if st.button("🚫 Bloquear Período", type="primary", key="btn_bloquear_periodo_novo"):
+                                if data_fim_periodo >= data_inicio_periodo:
+                                    if descricao_periodo.strip():
+                                        periodo_id = adicionar_bloqueio_periodo(
+                                            data_inicio_periodo.strftime("%Y-%m-%d"),
+                                            data_fim_periodo.strftime("%Y-%m-%d"),
+                                            descricao_periodo
+                                        )
+                                        
+                                        if periodo_id:
+                                            dias_total = (data_fim_periodo - data_inicio_periodo).days + 1
+                                            st.success(f"✅ Período bloqueado com sucesso! ({dias_total} dias)")
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Erro ao bloquear período.")
+                                    else:
+                                        st.warning("⚠️ Digite uma descrição para o período.")
+                                else:
+                                    st.error("❌ Data final deve ser posterior à data inicial.")
+                        
+                        with col2:
+                            st.markdown("**ℹ️ Vantagens dos Períodos:**")
+                            st.success("""
+                            ✅ **Organizado:** Um período = uma linha na lista
+                            ✅ **Fácil remoção:** Exclui tudo de uma vez  
+                            ✅ **Visual limpo:** Sem poluição na tela
+                            ✅ **Informativo:** Mostra status e duração
+                            """)
+                        
+                        # Lista de períodos bloqueados
+                        st.markdown("---")
+                        st.subheader("📋 Períodos Bloqueados")
+                        
+                        periodos = obter_bloqueios_periodos()
+                        
+                        if periodos:
+                            for periodo in periodos:
+                                periodo_id, data_inicio, data_fim, descricao, criado_em = periodo
+                                
+                                # Calcular informações do período
+                                try:
+                                    inicio_obj = datetime.strptime(data_inicio, "%Y-%m-%d")
+                                    fim_obj = datetime.strptime(data_fim, "%Y-%m-%d")
+                                    dias_total = (fim_obj - inicio_obj).days + 1
+                                    
+                                    inicio_formatado = inicio_obj.strftime("%d/%m/%Y")
+                                    fim_formatado = fim_obj.strftime("%d/%m/%Y")
+                                    
+                                    # Verificar se período já passou, está ativo ou é futuro
+                                    hoje = datetime.now().date()
+                                    if fim_obj.date() < hoje:
+                                        status_cor = "#6b7280"  # Cinza para passado
+                                        status_texto = "Finalizado"
+                                        status_icon = "✅"
+                                    elif inicio_obj.date() <= hoje <= fim_obj.date():
+                                        status_cor = "#f59e0b"  # Amarelo para ativo
+                                        status_texto = "Ativo"
+                                        status_icon = "🟡"
+                                    else:
+                                        status_cor = "#3b82f6"  # Azul para futuro
+                                        status_texto = "Agendado"
+                                        status_icon = "📅"
+                                    
+                                except:
+                                    inicio_formatado = data_inicio
+                                    fim_formatado = data_fim
+                                    dias_total = "?"
+                                    status_cor = "#6b7280"
+                                    status_texto = "Indefinido"
+                                    status_icon = "❓"
+                                
+                                col_info, col_btn = st.columns([5, 1])
+                                
+                                with col_info:
+                                    st.markdown(f"""
+                                    <div style="background: white; border-left: 4px solid {status_cor}; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                            <h4 style="color: #1f2937; margin: 0; font-size: 1.1rem;">📆 {descricao}</h4>
+                                            <span style="background: {status_cor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                                {status_icon} {status_texto}
+                                            </span>
+                                        </div>
+                                        <div style="color: #374151; font-size: 0.95rem; line-height: 1.4;">
+                                            <strong>📅 Período:</strong> {inicio_formatado} até {fim_formatado}<br>
+                                            <strong>📊 Duração:</strong> {dias_total} dia(s)
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                with col_btn:
+                                    st.markdown("<br><br>", unsafe_allow_html=True)  # Espaçamento para alinhar
+                                    if st.button("🗑️", key=f"remove_periodo_{periodo_id}", help="Remover período completo"):
+                                        if remover_bloqueio_periodo(periodo_id):
+                                            st.success(f"✅ Período '{descricao}' removido!")
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Erro ao remover período.")
+                        else:
+                            st.info("📅 Nenhum período bloqueado.")
+                    
+                    with tab3:
+                        st.subheader("🕐 Bloquear Horários Específicos")
+                        
+                        # Sub-abas para organizar melhor
+                        subtab1, subtab2 = st.tabs(["📅 Por Data Específica", "📆 Por Dia da Semana"])
+                        
+                        # =====================================================
+                        # SUBTAB 1: BLOQUEIO POR DATA ESPECÍFICA (código atual)
+                        # =====================================================
+                        with subtab1:
+                            st.markdown("**📅 Bloqueio para uma data específica**")
+                            
+                            # Seleção de data
+                            data_horario = st.date_input("Selecionar data:", min_value=datetime.today(), key="data_horario_especifico")
+                            data_horario_str = data_horario.strftime("%Y-%m-%d")
+                            
+                            # Obter configurações de horários
+                            horario_inicio_config = obter_configuracao("horario_inicio", "09:00")
+                            horario_fim_config = obter_configuracao("horario_fim", "18:00")
+                            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+                            
+                            # Gerar horários possíveis
+                            try:
+                                hora_inicio = datetime.strptime(horario_inicio_config, "%H:%M").time()
+                                hora_fim = datetime.strptime(horario_fim_config, "%H:%M").time()
+                                
+                                inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
+                                fim_min = hora_fim.hour * 60 + hora_fim.minute
+                                
+                                horarios_possiveis = []
+                                horario_atual = inicio_min
+                                
+                                while horario_atual + intervalo_consultas <= fim_min:
+                                    h = horario_atual // 60
+                                    m = horario_atual % 60
+                                    horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
+                                    horario_atual += intervalo_consultas
+                                    
+                            except:
+                                horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
+                            
+                            # Verificar quais horários já estão bloqueados
+                            bloqueios_dia = obter_bloqueios_horarios()
+                            horarios_bloqueados_dia = [h for d, h in bloqueios_dia if d == data_horario_str]
+                            
+                            st.markdown("**Selecione os horários que deseja bloquear:**")
+                            
+                            # Layout em colunas para os horários
+                            cols = st.columns(4)
+                            horarios_selecionados = []
+                            
+                            for i, horario in enumerate(horarios_possiveis):
+                                with cols[i % 4]:
+                                    ja_bloqueado = horario in horarios_bloqueados_dia
+                                    if ja_bloqueado:
+                                        st.markdown(f"""
+                                        <div style="background: #fee2e2; border: 2px solid #ef4444; border-radius: 8px; padding: 8px; text-align: center; margin: 4px 0;">
+                                            <span style="color: #991b1b; font-weight: 600;">🚫 {horario}</span><br>
+                                            <small style="color: #991b1b;">Bloqueado</small>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        if st.checkbox(f"🕐 {horario}", key=f"horario_especifico_{horario}"):
+                                            horarios_selecionados.append(horario)
+                            
+                            # Botões de ação
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                if st.button("🚫 Bloquear Horários Selecionados", type="primary", key="btn_bloquear_horarios_data"):
+                                    if horarios_selecionados:
+                                        bloqueados = 0
+                                        for horario in horarios_selecionados:
+                                            if adicionar_bloqueio_horario(data_horario_str, horario):
+                                                bloqueados += 1
+                                        
+                                        if bloqueados > 0:
+                                            st.success(f"✅ {bloqueados} horário(s) bloqueado(s) com sucesso!")
+                                            st.rerun()
+                                        else:
+                                            st.warning("⚠️ Horários já estavam bloqueados.")
+                                    else:
+                                        st.warning("⚠️ Selecione pelo menos um horário para bloquear.")
+                            
+                            with col2:
+                                if st.button("🔓 Desbloquear Todos os Horários do Dia", type="secondary", key="btn_desbloquear_dia_data"):
+                                    if horarios_bloqueados_dia:
+                                        for horario in horarios_bloqueados_dia:
+                                            remover_bloqueio_horario(data_horario_str, horario)
+                                        
+                                        st.success(f"✅ Todos os horários do dia {data_horario.strftime('%d/%m/%Y')} foram desbloqueados!")
+                                        st.rerun()
+                                    else:
+                                        st.info("ℹ️ Nenhum horário bloqueado neste dia.")
+                        
+                        # =====================================================
+                        # SUBTAB 2: BLOQUEIO POR DIA DA SEMANA (NOVO)
+                        # =====================================================
+                        with subtab2:
+                            st.markdown("**📆 Bloqueio recorrente por dia da semana**")
+                            st.info("💡 Configure horários que ficam sempre bloqueados em determinados dias da semana (ex: sábados das 12h às 18h)")
+                            
+                            # Seleção do dia da semana
+                            dias_opcoes = {
+                                "Monday": "Segunda-feira",
+                                "Tuesday": "Terça-feira", 
+                                "Wednesday": "Quarta-feira",
+                                "Thursday": "Quinta-feira",
+                                "Friday": "Sexta-feira",
+                                "Saturday": "Sábado",
+                                "Sunday": "Domingo"
+                            }
+                            
+                            dia_semana_selecionado = st.selectbox(
+                                "Selecione o dia da semana:",
+                                list(dias_opcoes.keys()),
+                                format_func=lambda x: dias_opcoes[x],
+                                key="dia_semana_bloqueio"
+                            )
+                            
+                            # Obter horários possíveis (mesmo cálculo da outra aba)
+                            horario_inicio_config = obter_configuracao("horario_inicio", "09:00")
+                            horario_fim_config = obter_configuracao("horario_fim", "18:00")
+                            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+                            
+                            try:
+                                hora_inicio = datetime.strptime(horario_inicio_config, "%H:%M").time()
+                                hora_fim = datetime.strptime(horario_fim_config, "%H:%M").time()
+                                
+                                inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
+                                fim_min = hora_fim.hour * 60 + hora_fim.minute
+                                
+                                horarios_possiveis = []
+                                horario_atual = inicio_min
+                                
+                                while horario_atual + intervalo_consultas <= fim_min:
+                                    h = horario_atual // 60
+                                    m = horario_atual % 60
+                                    horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
+                                    horario_atual += intervalo_consultas
+                                    
+                            except:
+                                horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
+                            
+                            st.markdown(f"**Selecione os horários para bloquear todas as {dias_opcoes[dia_semana_selecionado].lower()}:**")
+                            
+                            # Layout em colunas para os horários
+                            cols = st.columns(4)
+                            horarios_selecionados_semanal = []
+                            
+                            for i, horario in enumerate(horarios_possiveis):
+                                with cols[i % 4]:
+                                    if st.checkbox(f"🕐 {horario}", key=f"horario_semanal_{horario}"):
+                                        horarios_selecionados_semanal.append(horario)
+                            
+                            # Descrição opcional
+                            descricao_semanal = st.text_input(
+                                "Descrição (opcional):",
+                                placeholder=f"Ex: {dias_opcoes[dia_semana_selecionado]} - meio período",
+                                key="desc_bloqueio_semanal"
+                            )
+                            
+                            # Botão para salvar bloqueio semanal
+                            if st.button("💾 Salvar Bloqueio Semanal", type="primary", key="btn_salvar_semanal"):
+                                if horarios_selecionados_semanal:
+                                    if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
+                                        st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
+                                        st.rerun()
+                                    else:
+                                        st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
+                                else:
+                                    st.warning("⚠️ Selecione pelo menos um horário para bloquear.")
+                            
+                            # Lista de bloqueios semanais existentes
+                            st.markdown("---")
+                            st.subheader("📋 Bloqueios Semanais Ativos")
+                            
+                            bloqueios_semanais = obter_bloqueios_semanais()
+                            
+                            if bloqueios_semanais:
+                                for bloqueio in bloqueios_semanais:
+                                    bloqueio_id, dia_semana, horarios_str, descricao = bloqueio
+                                    
+                                    horarios_lista = horarios_str.split(",")
+                                    horarios_texto = ", ".join(horarios_lista)
+                                    
+                                    col1, col2 = st.columns([4, 1])
+                                    
+                                    with col1:
+                                        st.markdown(f"""
+                                        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
+                                            <h4 style="color: #92400e; margin: 0 0 0.5rem 0;">📅 {dias_opcoes[dia_semana]}</h4>
+                                            <p style="margin: 0; color: #92400e;">
+                                                <strong>Horários bloqueados:</strong> {horarios_texto}<br>
+                                                {f'<strong>Descrição:</strong> {descricao}' if descricao else ''}
+                                            </p>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    
+                                    with col2:
+                                        if st.button("🗑️", key=f"remove_semanal_{bloqueio_id}", help="Remover bloqueio semanal"):
+                                            if remover_bloqueio_semanal(bloqueio_id):
+                                                st.success("Bloqueio semanal removido!")
+                                                st.rerun()
+                            else:
+                                st.info("📅 Nenhum bloqueio semanal configurado.")
+                        
+                        # Lista de horários bloqueados por data específica
+                        st.subheader("🕐 Horários Específicos Bloqueados")
+                        bloqueios_horarios = obter_bloqueios_horarios()
+                        
+                        if bloqueios_horarios:
+                            # Agrupar por data
+                            bloqueios_por_data = {}
+                            for data, horario in bloqueios_horarios:
+                                if data not in bloqueios_por_data:
+                                    bloqueios_por_data[data] = []
+                                bloqueios_por_data[data].append(horario)
+                            
+                            for data, horarios in sorted(bloqueios_por_data.items()):
+                                data_obj = datetime.strptime(data, "%Y-%m-%d")
+                                data_formatada = data_obj.strftime("%d/%m/%Y - %A")
+                                data_formatada = data_formatada.replace('Monday', 'Segunda-feira')\
+                                    .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
+                                    .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
+                                    .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
+                                
+                                st.markdown(f"**📅 {data_formatada}**")
+                                
+                                # Mostrar horários bloqueados em colunas
+                                cols = st.columns(6)
+                                for i, horario in enumerate(sorted(horarios)):
+                                    with cols[i % 6]:
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            st.markdown(f"🚫 **{horario}**")
+                                        with col2:
+                                            if st.button("🗑️", key=f"remove_horario_{data}_{horario}", help="Remover bloqueio"):
+                                                remover_bloqueio_horario(data, horario)
+                                                st.rerun()
+                                
+                                st.markdown("---")
+                        else:
+                            st.info("🕐 Nenhum horário específico bloqueado atualmente.")
+                    
+                    with tab4:
+                        st.subheader("⏰ Bloqueios Permanentes")
+                        
+                        st.markdown("""
+                        <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+                            ℹ️ <strong>Bloqueios Permanentes:</strong><br>
+                            Configure horários que ficam sempre bloqueados (ex: almoço, intervalos, etc.)
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Formulário para novo bloqueio
+                        st.markdown("### ➕ Criar Novo Bloqueio Permanente")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            horario_inicio_perm = st.time_input("Horário de início:", key="inicio_permanente")
+                            
+                        with col2:
+                            horario_fim_perm = st.time_input("Horário de fim:", key="fim_permanente")
+                        
+                        # Seleção de dias da semana
+                        st.markdown("**Dias da semana:**")
+                        
+                        dias_opcoes = {
+                            "Monday": "Segunda-feira",
+                            "Tuesday": "Terça-feira", 
+                            "Wednesday": "Quarta-feira",
+                            "Thursday": "Quinta-feira",
+                            "Friday": "Sexta-feira",
+                            "Saturday": "Sábado",
+                            "Sunday": "Domingo"
+                        }
+                        
+                        cols = st.columns(4)
+                        dias_selecionados_perm = []
+                        
+                        for i, (dia_en, dia_pt) in enumerate(dias_opcoes.items()):
+                            with cols[i % 4]:
+                                if st.checkbox(dia_pt, key=f"dia_perm_{dia_en}"):
+                                    dias_selecionados_perm.append(dia_en)
+                        
+                        # Descrição
+                        descricao_perm = st.text_input("Descrição:", placeholder="Ex: Horário de Almoço", key="desc_permanente")
+                        
+                        # Botão para salvar
+                        if st.button("💾 Salvar Bloqueio Permanente", type="primary", key="btn_salvar_permanente"):
+                            if horario_inicio_perm and horario_fim_perm and dias_selecionados_perm and descricao_perm:
+                                if horario_fim_perm > horario_inicio_perm:
+                                    inicio_str = horario_inicio_perm.strftime("%H:%M")
+                                    fim_str = horario_fim_perm.strftime("%H:%M")
+                                    
+                                    if adicionar_bloqueio_permanente(inicio_str, fim_str, dias_selecionados_perm, descricao_perm):
+                                        st.success("✅ Bloqueio permanente criado com sucesso!")
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Erro ao criar bloqueio.")
+                                else:
+                                    st.warning("⚠️ Horário de fim deve ser posterior ao horário de início.")
+                            else:
+                                st.warning("⚠️ Preencha todos os campos obrigatórios.")
+                        
+                        # Lista de bloqueios permanentes existentes
+                        st.markdown("---")
+                        st.subheader("📋 Bloqueios Permanentes Ativos")
+                        
+                        bloqueios_permanentes = obter_bloqueios_permanentes()
+                        
+                        if bloqueios_permanentes:
+                            for bloqueio in bloqueios_permanentes:
+                                bloqueio_id, inicio, fim, dias, descricao = bloqueio
+                                
+                                # Converter dias de volta para português
+                                dias_lista = dias.split(",")
+                                dias_pt = [dias_opcoes.get(dia, dia) for dia in dias_lista]
+                                dias_texto = ", ".join(dias_pt)
+                                
+                                col1, col2 = st.columns([4, 1])
+                                
+                                with col1:
+                                    st.markdown(f"""
+                                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
+                                        <h4 style="color: #856404; margin: 0 0 0.5rem 0;">⏰ {descricao}</h4>
+                                        <p style="margin: 0; color: #856404;">
+                                            <strong>Horário:</strong> {inicio} às {fim}<br>
+                                            <strong>Dias:</strong> {dias_texto}
+                                        </p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                with col2:
+                                    if st.button("🗑️", key=f"remove_perm_{bloqueio_id}", help="Remover bloqueio permanente"):
+                                        if remover_bloqueio_permanente(bloqueio_id):
+                                            st.success("Bloqueio removido!")
+                                            st.rerun()
+                        else:
+                            st.info("📅 Nenhum bloqueio permanente configurado.")
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
         
         elif opcao == "👥 Lista de Agendamentos":
             st.markdown('<div class="main-card fade-in">', unsafe_allow_html=True)
