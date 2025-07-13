@@ -2485,8 +2485,8 @@ Sistema de Agendamento Online
                 
                 with col2:
                     st.subheader("📋 Bloquear Período")
-                    data_inicio = st.date_input("Data inicial:", min_value=datetime.today(), key="data_inicio_periodo")
-                    data_fim = st.date_input("Data final:", min_value=data_inicio, key="data_fim_periodo")
+                    data_inicio = st.date_input("Data inicial:", min_value=datetime.today().date(), key="data_inicio_periodo")
+                    data_fim = st.date_input("Data final:", min_value=data_inicio if data_inicio else datetime.today().date(), key="data_fim_periodo")
                     
                     if st.button("🚫 Bloquear Período", type="primary", key="btn_bloquear_periodo"):
                         if data_fim >= data_inicio:
