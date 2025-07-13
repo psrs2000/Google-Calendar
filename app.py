@@ -463,13 +463,8 @@ def horario_disponivel(data, horario):
     except:
         pass
     
-    # Verificar bloqueios permanentes
+    # NOVO: Verificar bloqueios permanentes
     if horario_bloqueado_permanente(data, horario):
-        conn.close()
-        return False
-    
-    # NOVO: Verificar bloqueios semanais
-    if horario_bloqueado_semanal(data, horario):
         conn.close()
         return False
     
@@ -510,28 +505,26 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
     return status_inicial
 
 def cancelar_agendamento(nome, telefone, data):
-    """Cancela agendamento mudando status para 'cancelado' em vez de deletar"""
     conn = conectar()
     c = conn.cursor()
     
-    # Buscar o agendamento com dados completos ANTES de alterar
+    # Buscar o agendamento com dados completos ANTES de deletar
     email_cliente = None
     horario_cliente = None
-    agendamento_id = None
     
     try:
-        # Tentar buscar com email e ID
-        c.execute("SELECT id, email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        # Tentar buscar com email
+        c.execute("SELECT email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
         resultado = c.fetchone()
         if resultado:
-            agendamento_id, email_cliente, horario_cliente = resultado
+            email_cliente, horario_cliente = resultado
     except sqlite3.OperationalError:
-        # Se não tem coluna email, buscar só ID e horário
+        # Se não tem coluna email, buscar só horário
         try:
-            c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+            c.execute("SELECT horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
             resultado = c.fetchone()
             if resultado:
-                agendamento_id, horario_cliente = resultado
+                horario_cliente = resultado[0]
                 email_cliente = ""
         except:
             pass
@@ -541,66 +534,26 @@ def cancelar_agendamento(nome, telefone, data):
     existe = c.fetchone()[0] > 0
     
     if existe:
-        # NOVO: Mudar status para 'cancelado' em vez de deletar
-        try:
-            c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
-                     (nome, telefone, data))
-            conn.commit()
-            conn.close()
-            
-            print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
-            
-            # Enviar email de cancelamento se tiver email e configurações ativas
-            envio_automatico = obter_configuracao("envio_automatico", False)
-            enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
-            
-            if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
-                try:
-                    sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
-                    if sucesso:
-                        print(f"✅ Email de cancelamento enviado para {email_cliente}")
-                    else:
-                        print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
-                except Exception as e:
-                    print(f"❌ Erro ao enviar email de cancelamento: {e}")
-            
-            return True
-            
-        except sqlite3.OperationalError:
-            # Se não tem coluna status, criar ela e tentar novamente
-            try:
-                c.execute("ALTER TABLE agendamentos ADD COLUMN status TEXT DEFAULT 'pendente'")
-                conn.commit()
-                
-                # Tentar novamente
-                c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
-                         (nome, telefone, data))
-                conn.commit()
-                conn.close()
-                
-                print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
-                
-                # Enviar email de cancelamento
-                envio_automatico = obter_configuracao("envio_automatico", False)
-                enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
-                
-                if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
-                    try:
-                        sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
-                        if sucesso:
-                            print(f"✅ Email de cancelamento enviado para {email_cliente}")
-                        else:
-                            print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
-                    except Exception as e:
-                        print(f"❌ Erro ao enviar email de cancelamento: {e}")
-                
-                return True
-                
-            except Exception as e:
-                print(f"❌ Erro ao atualizar status: {e}")
-                conn.close()
-                return False
+        # Deletar agendamento
+        c.execute("DELETE FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        conn.commit()
+        conn.close()
         
+        # Enviar email de cancelamento se tiver email e configurações ativas
+        envio_automatico = obter_configuracao("envio_automatico", False)
+        enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
+        
+        if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
+            try:
+                sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
+                if sucesso:
+                    print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                else:
+                    print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+            except Exception as e:
+                print(f"❌ Erro ao enviar email de cancelamento: {e}")
+        
+        return True
     else:
         conn.close()
         return False
@@ -828,85 +781,6 @@ def horario_bloqueado_permanente(data, horario):
                 # Verificar se o horário está no intervalo
                 if inicio <= horario <= fim:
                     return True
-        
-        return False
-    except:
-        return False
-    finally:
-        conn.close()
-
-def adicionar_bloqueio_semanal(dia_semana, horarios_bloqueados, descricao=""):
-    """Adiciona bloqueio recorrente para um dia da semana específico"""
-    conn = conectar()
-    c = conn.cursor()
-    try:
-        # Criar tabela se não existir
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS bloqueios_semanais (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                dia_semana TEXT,
-                horarios TEXT,
-                descricao TEXT,
-                UNIQUE(dia_semana, horarios)
-            )
-        ''')
-        
-        horarios_str = ",".join(horarios_bloqueados)
-        c.execute("INSERT INTO bloqueios_semanais (dia_semana, horarios, descricao) VALUES (?, ?, ?)", 
-                  (dia_semana, horarios_str, descricao))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False
-    except Exception as e:
-        print(f"Erro ao adicionar bloqueio semanal: {e}")
-        return False
-    finally:
-        conn.close()
-
-def obter_bloqueios_semanais():
-    """Obtém todos os bloqueios semanais"""
-    conn = conectar()
-    c = conn.cursor()
-    try:
-        c.execute("SELECT id, dia_semana, horarios, descricao FROM bloqueios_semanais ORDER BY dia_semana")
-        bloqueios = c.fetchall()
-        return bloqueios
-    except:
-        return []
-    finally:
-        conn.close()
-
-def remover_bloqueio_semanal(bloqueio_id):
-    """Remove um bloqueio semanal"""
-    conn = conectar()
-    c = conn.cursor()
-    try:
-        c.execute("DELETE FROM bloqueios_semanais WHERE id=?", (bloqueio_id,))
-        conn.commit()
-        return True
-    except:
-        return False
-    finally:
-        conn.close()
-
-def horario_bloqueado_semanal(data, horario):
-    """Verifica se um horário está bloqueado por regra semanal"""
-    conn = conectar()
-    c = conn.cursor()
-    try:
-        # Descobrir o dia da semana
-        data_obj = datetime.strptime(data, "%Y-%m-%d")
-        dia_semana = data_obj.strftime("%A")  # Monday, Tuesday, etc.
-        
-        # Buscar bloqueios semanais para este dia
-        c.execute("SELECT horarios FROM bloqueios_semanais WHERE dia_semana=?", (dia_semana,))
-        bloqueios = c.fetchall()
-        
-        for (horarios_str,) in bloqueios:
-            horarios_bloqueados = horarios_str.split(",")
-            if horario in horarios_bloqueados:
-                return True
         
         return False
     except:
@@ -1308,208 +1182,9 @@ def criar_menu_horizontal():
     """, unsafe_allow_html=True)
     
     return st.session_state.menu_opcao
-
-# PASSO 1: Adicionar esta função no app.py (depois das outras funções do banco)
-
-import requests
-import json
-import base64
-
-def get_github_config():
-    """Obtém configurações do GitHub"""
-    
-    # Configuração padrão (fallback)
-    config_local = {
-        "token": "",  # ← Vazio agora!
-        "repo": "psrs2000/Agenda_Livre",
-        "branch": "main",
-        "config_file": "configuracoes.json"
-    }    
-    # Tentar usar secrets primeiro (para Streamlit Cloud)
-    try:
-        return {
-            "token": st.secrets["GITHUB_TOKEN"],
-            "repo": st.secrets["GITHUB_REPO"],
-            "branch": st.secrets.get("GITHUB_BRANCH", "main"),
-            "config_file": st.secrets.get("CONFIG_FILE", "configuracoes.json")
-        }
-    except:
-        # Fallback para configuração local
-        return config_local
-
-def backup_configuracoes_github():
-    """Faz backup de todas as configurações para GitHub"""
-    try:
-        github_config = get_github_config()
-        if not github_config or not github_config.get("token"):
-            print("❌ Configuração GitHub não encontrada")
-            return False
-        
-        # Buscar todas as configurações do banco local
-        conn = conectar()
-        c = conn.cursor()
-        
-        try:
-            c.execute("SELECT chave, valor FROM configuracoes")
-            configs = dict(c.fetchall())
-        except:
-            configs = {}
-        finally:
-            conn.close()
-        
-        # Adicionar informações do backup
-        configs['_backup_timestamp'] = datetime.now().isoformat()
-        configs['_backup_version'] = '1.0'
-        configs['_sistema'] = 'Agenda Online'
-        
-        # Converter para JSON bonito
-        config_json = json.dumps(configs, indent=2, ensure_ascii=False)
-        
-        # Enviar para GitHub
-        return upload_to_github(config_json, github_config)
-        
-    except Exception as e:
-        print(f"❌ Erro no backup GitHub: {e}")
-        return False
-
-def upload_to_github(content, github_config):
-    """Upload de arquivo para GitHub"""
-    try:
-        headers = {
-            "Authorization": f"token {github_config['token']}",
-            "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Sistema-Agendamento"
-        }
-        
-        # URL da API GitHub
-        api_url = f"https://api.github.com/repos/{github_config['repo']}/contents/{github_config['config_file']}"
-        
-        print(f"🔗 Conectando: {api_url}")
-        
-        # Verificar se arquivo já existe (para obter SHA)
-        response = requests.get(api_url, headers=headers)
-        sha = None
-        
-        if response.status_code == 200:
-            sha = response.json()["sha"]
-            print("📄 Arquivo existente encontrado, atualizando...")
-        elif response.status_code == 404:
-            print("📄 Criando arquivo novo...")
-        else:
-            print(f"⚠️ Resposta inesperada: {response.status_code}")
-        
-        # Preparar dados para upload
-        content_encoded = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-        
-        data = {
-            "message": f"Backup configurações - {datetime.now().strftime('%d/%m/%Y às %H:%M')}",
-            "content": content_encoded,
-            "branch": github_config['branch']
-        }
-        
-        if sha:
-            data["sha"] = sha
-        
-        # Fazer upload
-        print("📤 Enviando backup...")
-        response = requests.put(api_url, headers=headers, json=data)
-        
-        if response.status_code in [200, 201]:
-            print("✅ Backup enviado para GitHub com sucesso!")
-            return True
-        else:
-            print(f"❌ Erro no upload GitHub: {response.status_code}")
-            print(f"📋 Resposta: {response.text}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Erro no upload GitHub: {e}")
-        return False
-
-
-def restaurar_configuracoes_github():
-    """Restaura configurações do GitHub"""
-    try:
-        github_config = get_github_config()
-        if not github_config or not github_config.get("token"):
-            print("⚠️ Configuração GitHub não encontrada para restauração")
-            return False
-        
-        # Baixar arquivo do GitHub
-        config_json = download_from_github(github_config)
-        if not config_json:
-            print("📄 Nenhum backup encontrado no GitHub")
-            return False
-        
-        # Parse do JSON
-        configs = json.loads(config_json)
-        
-        # Remover metadados do backup
-        configs.pop('_backup_timestamp', None)
-        configs.pop('_backup_version', None)
-        configs.pop('_sistema', None)
-        
-        # Salvar no banco local
-        conn = conectar()
-        c = conn.cursor()
-        
-        try:
-            for chave, valor in configs.items():
-                c.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)", 
-                         (chave, valor))
-            conn.commit()
-            print(f"✅ {len(configs)} configurações restauradas do GitHub")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Erro ao salvar configurações restauradas: {e}")
-            return False
-        finally:
-            conn.close()
-            
-    except Exception as e:
-        print(f"❌ Erro na restauração GitHub: {e}")
-        return False
-
-def download_from_github(github_config):
-    """Download de arquivo do GitHub"""
-    try:
-        headers = {
-            "Authorization": f"token {github_config['token']}",
-            "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Sistema-Agendamento"
-        }
-        
-        # URL da API GitHub
-        api_url = f"https://api.github.com/repos/{github_config['repo']}/contents/{github_config['config_file']}"
-        
-        print(f"📥 Baixando backup: {api_url}")
-        
-        response = requests.get(api_url, headers=headers)
-        
-        if response.status_code == 200:
-            # Decodificar conteúdo base64
-            content_encoded = response.json()["content"]
-            content = base64.b64decode(content_encoded).decode('utf-8')
-            print("✅ Backup baixado com sucesso")
-            return content
-        elif response.status_code == 404:
-            print("📄 Arquivo de backup não encontrado no GitHub")
-            return None
-        else:
-            print(f"❌ Erro no download GitHub: {response.status_code}")
-            return None
-            
-    except Exception as e:
-        print(f"❌ Erro no download GitHub: {e}")
-        return None
-
     
 # Inicializar banco
 init_config()
-
-# Restaurar configurações do GitHub
-restaurar_configuracoes_github()
 
 # INTERFACE PRINCIPAL
 if is_admin:
@@ -1701,6 +1376,22 @@ if is_admin:
                     else:
                         st.success("✅ **Modo Automático:** Agendamentos são confirmados instantaneamente")
                 
+                # Configurações de limite
+                st.markdown("---")
+                st.markdown("**⚠️ Limites e Restrições**")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    max_agendamentos_dia = st.number_input(
+                        "Máximo de agendamentos por dia:",
+                        min_value=1,
+                        max_value=50,
+                        value=obter_configuracao("max_agendamentos_dia", 20),
+                        help="Limite máximo de agendamentos aceitos por dia"
+                    )
+                
+
             
             with tab2:
                 st.subheader("📞 Informações de Contato e Local")
@@ -1822,17 +1513,12 @@ if is_admin:
                             help="Para Gmail: use senha de app (não a senha normal da conta)"
                         )
                         
-                        try:
-                            porta_valor = obter_configuracao("porta_smtp", 587)
-                            porta_smtp_value = int(porta_valor) if porta_valor and str(porta_valor).strip() else 587
-                        except (ValueError, TypeError):
-                            porta_smtp_value = 587
-
                         porta_smtp = st.number_input(
                             "Porta SMTP:",
-                            value=porta_smtp_value,
+                            value=obter_configuracao("porta_smtp", 587),
                             help="Para Gmail: 587 | Para Outlook: 587"
-                        )                    
+                        )
+                    
                     # Configurações de envio
                     st.markdown("---")
                     st.markdown("**📬 Tipos de Email Automático**")
@@ -1933,64 +1619,9 @@ Sistema de Agendamento Online
                             else:
                                 st.warning("⚠️ Preencha o email de teste e configure o sistema primeiro")
                 
-                    # Seção de backup GitHub (ADICIONAR DEPOIS da seção de teste de email)
-                    st.markdown("---")
-                    st.markdown("**☁️ Backup de Configurações**")
-                    
-                    backup_github_ativo = st.checkbox(
-                        "Ativar backup automático no GitHub",
-                        value=obter_configuracao("backup_github_ativo", False),
-                        help="Salva automaticamente suas configurações em repositório GitHub privado"
-                    )
-                    
-                    if backup_github_ativo:
-                        st.success("✅ Backup automático ativado - suas configurações serão salvas automaticamente!")
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            if st.button("💾 Fazer Backup Manual", type="secondary"):
-                                with st.spinner("Enviando backup para GitHub..."):
-                                    try:
-                                        if backup_configuracoes_github():
-                                            st.success("✅ Backup enviado com sucesso!")
-                                            st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
-                                        else:
-                                            st.error("❌ Erro no backup. Verifique as configurações.")
-                                    except Exception as e:
-                                        st.error(f"❌ Erro: {e}")
-                        
-                        with col2:
-                            # Mostrar última data de backup se disponível
-                            ultima_config = obter_configuracao("_backup_timestamp", "")
-                            if ultima_config:
-                                try:
-                                    from datetime import datetime
-                                    data_backup = datetime.fromisoformat(ultima_config)
-                                    data_formatada = data_backup.strftime("%d/%m/%Y às %H:%M")
-                                    st.info(f"📅 Último backup: {data_formatada}")
-                                except:
-                                    st.info("📅 Backup disponível no GitHub")
-                            else:
-                                st.info("📅 Primeiro backup será feito automaticamente")
-                    
-                    else:
-                        st.info("💡 Ative o backup automático para nunca perder suas configurações quando o Streamlit reiniciar!")
-                        
-                        # Botão para fazer backup mesmo com função desativada
-                        if st.button("💾 Fazer Backup Único", help="Fazer backup sem ativar função automática"):
-                            with st.spinner("Enviando backup..."):
-                                try:
-                                    if backup_configuracoes_github():
-                                        st.success("✅ Backup enviado com sucesso!")
-                                        st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
-                                    else:
-                                        st.error("❌ Erro no backup. Verifique token GitHub.")
-                                except Exception as e:
-                                    st.error(f"❌ Erro: {e}")
-                
                 else:
-                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")            
+                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")
+            
             # Botão para salvar todas as configurações
             st.markdown("---")
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
@@ -2001,6 +1632,7 @@ Sistema de Agendamento Online
                 salvar_configuracao("horario_fim", horario_fim.strftime("%H:%M"))
                 salvar_configuracao("intervalo_consultas", intervalo_opcoes[intervalo_selecionado])
                 salvar_configuracao("confirmacao_automatica", confirmacao_automatica)
+                salvar_configuracao("max_agendamentos_dia", max_agendamentos_dia)
                                 
                 # Salvar configurações da tab 2
                 salvar_configuracao("nome_profissional", nome_profissional)
@@ -2026,21 +1658,7 @@ Sistema de Agendamento Online
                     salvar_configuracao("enviar_cancelamento", enviar_cancelamento)
                     salvar_configuracao("template_confirmacao", template_confirmacao)
                 
-                # NOVO: Salvar configuração de backup GitHub
-                salvar_configuracao("backup_github_ativo", backup_github_ativo)
-                
                 st.success("✅ Todas as configurações foram salvas com sucesso!")
-                
-                # NOVO: Backup automático no GitHub (se ativado)
-                if backup_github_ativo:
-                    try:
-                        with st.spinner("📤 Fazendo backup no GitHub..."):
-                            if backup_configuracoes_github():
-                                st.success("☁️ Backup automático enviado para GitHub!")
-                            else:
-                                st.warning("⚠️ Erro no backup automático. Configurações salvas localmente.")
-                    except Exception as e:
-                        st.warning(f"⚠️ Erro no backup automático: {e}")
                 
                 # Mostrar resumo
                 st.markdown("**📋 Resumo das configurações salvas:**")
@@ -2049,7 +1667,6 @@ Sistema de Agendamento Online
                 ⏰ **Antecedência:** {antecedencia_selecionada}
                 🔄 **Confirmação:** {'Automática' if confirmacao_automatica else 'Manual'}
                 📧 **Email:** {'Ativado' if envio_automatico else 'Desativado'}
-                ☁️ **Backup:** {'Ativado' if backup_github_ativo else 'Desativado'}
                 👨‍⚕️ **Profissional:** {nome_profissional} - {especialidade}
                 🏥 **Local:** {nome_clinica}
                 """)
@@ -2148,211 +1765,89 @@ Sistema de Agendamento Online
             with tab2:
                 st.subheader("🕐 Bloquear Horários Específicos")
                 
-                # Sub-abas para organizar melhor
-                subtab1, subtab2 = st.tabs(["📅 Por Data Específica", "📆 Por Dia da Semana"])
+                # Seleção de data
+                data_horario = st.date_input("Selecionar data:", min_value=datetime.today(), key="data_horario_especifico")
+                data_horario_str = data_horario.strftime("%Y-%m-%d")
                 
-                # =====================================================
-                # SUBTAB 1: BLOQUEIO POR DATA ESPECÍFICA (código atual)
-                # =====================================================
-                with subtab1:
-                    st.markdown("**📅 Bloqueio para uma data específica**")
+                # Obter configurações de horários
+                horario_inicio_config = obter_configuracao("horario_inicio", "09:00")
+                horario_fim_config = obter_configuracao("horario_fim", "18:00")
+                
+                # Gerar horários possíveis
+                try:
+                    hora_inicio = datetime.strptime(horario_inicio_config, "%H:%M").time()
+                    hora_fim = datetime.strptime(horario_fim_config, "%H:%M").time()
                     
-                    # Seleção de data
-                    data_horario = st.date_input("Selecionar data:", min_value=datetime.today(), key="data_horario_especifico")
-                    data_horario_str = data_horario.strftime("%Y-%m-%d")
+                    inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
+                    fim_min = hora_fim.hour * 60 + hora_fim.minute
                     
-                    # Obter configurações de horários
-                    horario_inicio_config = obter_configuracao("horario_inicio", "09:00")
-                    horario_fim_config = obter_configuracao("horario_fim", "18:00")
-                    intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+                    horarios_possiveis = []
+                    horario_atual = inicio_min
                     
-                    # Gerar horários possíveis
-                    try:
-                        hora_inicio = datetime.strptime(horario_inicio_config, "%H:%M").time()
-                        hora_fim = datetime.strptime(horario_fim_config, "%H:%M").time()
+                    while horario_atual + 60 <= fim_min:
+                        h = horario_atual // 60
+                        m = horario_atual % 60
+                        horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
+                        horario_atual += 60
                         
-                        inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
-                        fim_min = hora_fim.hour * 60 + hora_fim.minute
-                        
-                        horarios_possiveis = []
-                        horario_atual = inicio_min
-                        
-                        while horario_atual + intervalo_consultas <= fim_min:
-                            h = horario_atual // 60
-                            m = horario_atual % 60
-                            horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
-                            horario_atual += intervalo_consultas
+                except:
+                    horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
+                
+                # Verificar quais horários já estão bloqueados
+                bloqueios_dia = obter_bloqueios_horarios()
+                horarios_bloqueados_dia = [h for d, h in bloqueios_dia if d == data_horario_str]
+                
+                st.markdown("**Selecione os horários que deseja bloquear:**")
+                
+                # Layout em colunas para os horários
+                cols = st.columns(4)
+                horarios_selecionados = []
+                
+                for i, horario in enumerate(horarios_possiveis):
+                    with cols[i % 4]:
+                        ja_bloqueado = horario in horarios_bloqueados_dia
+                        if ja_bloqueado:
+                            st.markdown(f"""
+                            <div style="background: #fee2e2; border: 2px solid #ef4444; border-radius: 8px; padding: 8px; text-align: center; margin: 4px 0;">
+                                <span style="color: #991b1b; font-weight: 600;">🚫 {horario}</span><br>
+                                <small style="color: #991b1b;">Bloqueado</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            if st.checkbox(f"🕐 {horario}", key=f"horario_especifico_{horario}"):
+                                horarios_selecionados.append(horario)
+                
+                # Botões de ação
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if st.button("🚫 Bloquear Horários Selecionados", type="primary", key="btn_bloquear_horarios"):
+                        if horarios_selecionados:
+                            bloqueados = 0
+                            for horario in horarios_selecionados:
+                                if adicionar_bloqueio_horario(data_horario_str, horario):
+                                    bloqueados += 1
                             
-                    except:
-                        horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
-                    
-                    # Verificar quais horários já estão bloqueados
-                    bloqueios_dia = obter_bloqueios_horarios()
-                    horarios_bloqueados_dia = [h for d, h in bloqueios_dia if d == data_horario_str]
-                    
-                    st.markdown("**Selecione os horários que deseja bloquear:**")
-                    
-                    # Layout em colunas para os horários
-                    cols = st.columns(4)
-                    horarios_selecionados = []
-                    
-                    for i, horario in enumerate(horarios_possiveis):
-                        with cols[i % 4]:
-                            ja_bloqueado = horario in horarios_bloqueados_dia
-                            if ja_bloqueado:
-                                st.markdown(f"""
-                                <div style="background: #fee2e2; border: 2px solid #ef4444; border-radius: 8px; padding: 8px; text-align: center; margin: 4px 0;">
-                                    <span style="color: #991b1b; font-weight: 600;">🚫 {horario}</span><br>
-                                    <small style="color: #991b1b;">Bloqueado</small>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                if st.checkbox(f"🕐 {horario}", key=f"horario_especifico_{horario}"):
-                                    horarios_selecionados.append(horario)
-                    
-                    # Botões de ação
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        if st.button("🚫 Bloquear Horários Selecionados", type="primary", key="btn_bloquear_horarios_data"):
-                            if horarios_selecionados:
-                                bloqueados = 0
-                                for horario in horarios_selecionados:
-                                    if adicionar_bloqueio_horario(data_horario_str, horario):
-                                        bloqueados += 1
-                                
-                                if bloqueados > 0:
-                                    st.success(f"✅ {bloqueados} horário(s) bloqueado(s) com sucesso!")
-                                    st.rerun()
-                                else:
-                                    st.warning("⚠️ Horários já estavam bloqueados.")
-                            else:
-                                st.warning("⚠️ Selecione pelo menos um horário para bloquear.")
-                    
-                    with col2:
-                        if st.button("🔓 Desbloquear Todos os Horários do Dia", type="secondary", key="btn_desbloquear_dia_data"):
-                            if horarios_bloqueados_dia:
-                                for horario in horarios_bloqueados_dia:
-                                    remover_bloqueio_horario(data_horario_str, horario)
-                                
-                                st.success(f"✅ Todos os horários do dia {data_horario.strftime('%d/%m/%Y')} foram desbloqueados!")
+                            if bloqueados > 0:
+                                st.success(f"✅ {bloqueados} horário(s) bloqueado(s) com sucesso!")
                                 st.rerun()
                             else:
-                                st.info("ℹ️ Nenhum horário bloqueado neste dia.")
-                
-                # =====================================================
-                # SUBTAB 2: BLOQUEIO POR DIA DA SEMANA (NOVO)
-                # =====================================================
-                with subtab2:
-                    st.markdown("**📆 Bloqueio recorrente por dia da semana**")
-                    st.info("💡 Configure horários que ficam sempre bloqueados em determinados dias da semana (ex: sábados das 12h às 18h)")
-                    
-                    # Seleção do dia da semana
-                    dias_opcoes = {
-                        "Monday": "Segunda-feira",
-                        "Tuesday": "Terça-feira", 
-                        "Wednesday": "Quarta-feira",
-                        "Thursday": "Quinta-feira",
-                        "Friday": "Sexta-feira",
-                        "Saturday": "Sábado",
-                        "Sunday": "Domingo"
-                    }
-                    
-                    dia_semana_selecionado = st.selectbox(
-                        "Selecione o dia da semana:",
-                        list(dias_opcoes.keys()),
-                        format_func=lambda x: dias_opcoes[x],
-                        key="dia_semana_bloqueio"
-                    )
-                    
-                    # Obter horários possíveis (mesmo cálculo da outra aba)
-                    horario_inicio_config = obter_configuracao("horario_inicio", "09:00")
-                    horario_fim_config = obter_configuracao("horario_fim", "18:00")
-                    intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
-                    
-                    try:
-                        hora_inicio = datetime.strptime(horario_inicio_config, "%H:%M").time()
-                        hora_fim = datetime.strptime(horario_fim_config, "%H:%M").time()
-                        
-                        inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
-                        fim_min = hora_fim.hour * 60 + hora_fim.minute
-                        
-                        horarios_possiveis = []
-                        horario_atual = inicio_min
-                        
-                        while horario_atual + intervalo_consultas <= fim_min:
-                            h = horario_atual // 60
-                            m = horario_atual % 60
-                            horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
-                            horario_atual += intervalo_consultas
-                            
-                    except:
-                        horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
-                    
-                    st.markdown(f"**Selecione os horários para bloquear todas as {dias_opcoes[dia_semana_selecionado].lower()}:**")
-                    
-                    # Layout em colunas para os horários
-                    cols = st.columns(4)
-                    horarios_selecionados_semanal = []
-                    
-                    for i, horario in enumerate(horarios_possiveis):
-                        with cols[i % 4]:
-                            if st.checkbox(f"🕐 {horario}", key=f"horario_semanal_{horario}"):
-                                horarios_selecionados_semanal.append(horario)
-                    
-                    # Descrição opcional
-                    descricao_semanal = st.text_input(
-                        "Descrição (opcional):",
-                        placeholder=f"Ex: {dias_opcoes[dia_semana_selecionado]} - meio período",
-                        key="desc_bloqueio_semanal"
-                    )
-                    
-                    # Botão para salvar bloqueio semanal
-                    if st.button("💾 Salvar Bloqueio Semanal", type="primary", key="btn_salvar_semanal"):
-                        if horarios_selecionados_semanal:
-                            if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
-                                st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
-                                st.rerun()
-                            else:
-                                st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
+                                st.warning("⚠️ Horários já estavam bloqueados.")
                         else:
                             st.warning("⚠️ Selecione pelo menos um horário para bloquear.")
-                    
-                    # Lista de bloqueios semanais existentes
-                    st.markdown("---")
-                    st.subheader("📋 Bloqueios Semanais Ativos")
-                    
-                    bloqueios_semanais = obter_bloqueios_semanais()
-                    
-                    if bloqueios_semanais:
-                        for bloqueio in bloqueios_semanais:
-                            bloqueio_id, dia_semana, horarios_str, descricao = bloqueio
-                            
-                            horarios_lista = horarios_str.split(",")
-                            horarios_texto = ", ".join(horarios_lista)
-                            
-                            col1, col2 = st.columns([4, 1])
-                            
-                            with col1:
-                                st.markdown(f"""
-                                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
-                                    <h4 style="color: #92400e; margin: 0 0 0.5rem 0;">📅 {dias_opcoes[dia_semana]}</h4>
-                                    <p style="margin: 0; color: #92400e;">
-                                        <strong>Horários bloqueados:</strong> {horarios_texto}<br>
-                                        {f'<strong>Descrição:</strong> {descricao}' if descricao else ''}
-                                    </p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            with col2:
-                                if st.button("🗑️", key=f"remove_semanal_{bloqueio_id}", help="Remover bloqueio semanal"):
-                                    if remover_bloqueio_semanal(bloqueio_id):
-                                        st.success("Bloqueio semanal removido!")
-                                        st.rerun()
-                    else:
-                        st.info("📅 Nenhum bloqueio semanal configurado.")
                 
-                # Lista de horários bloqueados por data específica (mantém o código atual)
+                with col2:
+                    if st.button("🔓 Desbloquear Todos os Horários do Dia", type="secondary", key="btn_desbloquear_dia"):
+                        if horarios_bloqueados_dia:
+                            for horario in horarios_bloqueados_dia:
+                                remover_bloqueio_horario(data_horario_str, horario)
+                            
+                            st.success(f"✅ Todos os horários do dia {data_horario.strftime('%d/%m/%Y')} foram desbloqueados!")
+                            st.rerun()
+                        else:
+                            st.info("ℹ️ Nenhum horário bloqueado neste dia.")
+                
+                # Lista de horários bloqueados
                 st.subheader("🕐 Horários Específicos Bloqueados")
                 bloqueios_horarios = obter_bloqueios_horarios()
                 
