@@ -448,7 +448,7 @@ def horario_disponivel(data, horario):
     c = conn.cursor()
     
     # Verificar se há agendamento neste horário
-    c.execute("SELECT * FROM agendamentos WHERE data=? AND horario=?", (data, horario))
+    c.execute("SELECT * FROM agendamentos WHERE data=? AND horario=? AND status != 'cancelado'", (data, horario))
     if c.fetchone():
         conn.close()
         return False
