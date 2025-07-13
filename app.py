@@ -2422,37 +2422,31 @@ Sistema de Agendamento Online
                         - `GOOGLE_CALENDAR_ID` (opcional, padrão: "primary")
                         """)
                     
-                    # Seção de backup GitHub
+                    # Seção de backup GitHub (manter como está)
                     st.markdown("---")
-                    st.markdown("**☁️ Backup Completo do Sistema**")
-
+                    st.markdown("**☁️ Backup de Configurações**")   
+                
+                    # Seção de backup GitHub (ADICIONAR DEPOIS da seção de teste de email)
+                    st.markdown("---")
+                    st.markdown("**☁️ Backup de Configurações**")
+                    
                     backup_github_ativo = st.checkbox(
                         "Ativar backup automático no GitHub",
                         value=obter_configuracao("backup_github_ativo", False),
-                        help="Salva automaticamente TODOS os dados do sistema em repositório GitHub privado"
+                        help="Salva automaticamente suas configurações em repositório GitHub privado"
                     )
-
+                    
                     if backup_github_ativo:
-                        st.success("✅ Backup automático ativado - todos os dados serão salvos automaticamente!")
-                        
-                        # Info sobre o que é salvo
-                        st.info("""
-                        **📋 O que é salvo no backup:**
-                        • ⚙️ Configurações do sistema
-                        • 👥 Todos os agendamentos  
-                        • 🚫 Bloqueios de dias e horários
-                        • ⏰ Bloqueios permanentes
-                        • 📅 Dias úteis configurados
-                        """)
+                        st.success("✅ Backup automático ativado - suas configurações serão salvas automaticamente!")
                         
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            if st.button("💾 Fazer Backup Completo", type="secondary"):
-                                with st.spinner("Enviando backup completo para GitHub..."):
+                            if st.button("💾 Fazer Backup Manual", type="secondary"):
+                                with st.spinner("Enviando backup para GitHub..."):
                                     try:
                                         if backup_configuracoes_github():
-                                            st.success("✅ Backup completo enviado com sucesso!")
+                                            st.success("✅ Backup enviado com sucesso!")
                                             st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
                                         else:
                                             st.error("❌ Erro no backup. Verifique as configurações.")
@@ -2472,22 +2466,24 @@ Sistema de Agendamento Online
                                     st.info("📅 Backup disponível no GitHub")
                             else:
                                 st.info("📅 Primeiro backup será feito automaticamente")
-
+                    
                     else:
-                        st.info("💡 Ative o backup automático para nunca perder NENHUM dado quando o Streamlit reiniciar!")
+                        st.info("💡 Ative o backup automático para nunca perder suas configurações quando o Streamlit reiniciar!")
                         
                         # Botão para fazer backup mesmo com função desativada
-                        if st.button("💾 Fazer Backup Completo Único", help="Fazer backup de todos os dados sem ativar função automática"):
-                            with st.spinner("Enviando backup completo..."):
+                        if st.button("💾 Fazer Backup Único", help="Fazer backup sem ativar função automática"):
+                            with st.spinner("Enviando backup..."):
                                 try:
                                     if backup_configuracoes_github():
-                                        st.success("✅ Backup completo enviado com sucesso!")
+                                        st.success("✅ Backup enviado com sucesso!")
                                         st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
                                     else:
                                         st.error("❌ Erro no backup. Verifique token GitHub.")
                                 except Exception as e:
-                                    st.error(f"❌ Erro: {e}")         
-
+                                    st.error(f"❌ Erro: {e}")
+                
+                else:
+                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")            
             # Botão para salvar todas as configurações
             st.markdown("---")
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
