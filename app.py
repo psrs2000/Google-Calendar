@@ -2646,9 +2646,14 @@ Sistema de Agendamento Online
                                 key="periodo_inicio"
                             )
                             
+                            # Garantir que min_value seja sempre um objeto date
+                            min_value_fim = data_inicio_periodo if data_inicio_periodo else datetime.today().date()
+                            if hasattr(min_value_fim, 'date'):
+                                min_value_fim = min_value_fim.date()
+
                             data_fim_periodo = st.date_input(
                                 "Data final:", 
-                                min_value=data_inicio_periodo if data_inicio_periodo else datetime.today().date(), 
+                                min_value=min_value_fim, 
                                 key="periodo_fim"
                             )
                             
