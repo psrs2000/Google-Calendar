@@ -3684,10 +3684,18 @@ else:
             for i in range(1, dias_futuros_config + 1):
                 data = hoje + timedelta(days=i)
                 dia_semana = data.strftime("%A")
+                data_str = data.strftime("%Y-%m-%d")  # Formato para verificar períodos
                 
-                if dia_semana in dias_uteis and data.date() not in datas_bloqueadas_dt:
-                    if data.date() > data_limite_antecedencia.date():
-                        datas_validas.append(data.date())
+                # Verificar todas as condições:
+                # 1. Dia da semana permitido
+                # 2. Não está na lista de bloqueios individuais  
+                # 3. Não está em nenhum período bloqueado
+                # 4. Respeita antecedência mínima
+                if (dia_semana in dias_uteis and 
+                    data.date() not in datas_bloqueadas_dt and 
+                    not data_em_periodo_bloqueado(data_str) and  # NOVA VERIFICAÇÃO!
+                    data.date() > data_limite_antecedencia.date()):
+                    datas_validas.append(data.date())
             
             if not datas_validas:
                 st.warning("⚠️ Nenhuma data disponível no momento.")
