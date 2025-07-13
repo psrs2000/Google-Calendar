@@ -565,6 +565,15 @@ def cancelar_agendamento(nome, telefone, data):
                      (nome, telefone, data))
             conn.commit()
             conn.close()
+
+            # NOVO: Integração com Google Calendar
+            google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+
+            if google_calendar_ativo and agendamento_id:
+                try:
+                    deletar_evento_google_calendar(agendamento_id)
+                except Exception as e:
+                    print(f"❌ Erro ao deletar evento Google Calendar: {e}")
             
             print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
             
