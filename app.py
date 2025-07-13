@@ -6,13 +6,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import calendar
-try:
-    from google.oauth2.credentials import Credentials
-    from google.auth.transport.requests import Request
-    from googleapiclient.discovery import build
-    print("✅ Imports Google OK")
-except ImportError as e:
-    print(f"❌ Erro nos imports Google: {e}")
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
 
 
 # Verificar se é modo admin (versão dinâmica corrigida)
@@ -2247,36 +2243,20 @@ Sistema de Agendamento Online
                         
                         with col2:
 
-                            if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
-                                try:
-                                    st.write("🔍 Testando imports...")
-                                    
-                                    # Teste de import direto
-                                    import importlib
-                                    
-                                    # Testar cada biblioteca individualmente
-                                    try:
-                                        google_auth = importlib.import_module('google.auth')
-                                        st.write("✅ google.auth OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ google.auth: {e}")
-                                        
-                                    try:
-                                        google_oauth2 = importlib.import_module('google.oauth2.credentials')
-                                        st.write("✅ google.oauth2.credentials OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ google.oauth2.credentials: {e}")
-                                        
-                                    try:
-                                        googleapiclient = importlib.import_module('googleapiclient.discovery')
-                                        st.write("✅ googleapiclient.discovery OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ googleapiclient.discovery: {e}")
-                                        
-                                    st.info("📝 Se algum import falhou, o problema é falta de bibliotecas no requirements.txt")
-                                    
-                                except Exception as e:
-                                    st.error(f"❌ Erro geral: {e}")
+                            if st.button("🧪 Testar Conexão Google Calendar"):
+                                with st.spinner("Testando conexão..."):
+                                    service = get_google_calendar_service()
+                                    if service:
+                                        try:
+                                            calendars = service.calendarList().list().execute()
+                                            st.success("✅ Conexão com Google Calendar funcionando!")
+                                            with st.expander("📅 Calendários disponíveis"):
+                                                for calendar in calendars.get('items', []):
+                                                    st.write(f"📋 **{calendar['summary']}**")
+                                        except Exception as e:
+                                            st.error(f"❌ Erro: {e}")
+                                    else:
+                                        st.error("❌ Falha na conexão")
 
                                 with st.spinner("Testando conexão..."):
                                     try:
