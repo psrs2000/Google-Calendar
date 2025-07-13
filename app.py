@@ -7,6 +7,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import calendar
+import time
+import random
 try:
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
@@ -1607,31 +1609,39 @@ def get_google_calendar_service():
         traceback.print_exc()
         return None
 
-def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario):
-    """Cria evento no Google Calendar"""
-    try:
-        service = get_google_calendar_service()
-        if not service:
-            return False
-        
-        # Configurações do calendário
-        calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
-        
-        # Montar data/hora do evento
-        data_inicio = datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
-        
-        # Duração baseada na configuração
-        intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
-        data_fim = data_inicio + timedelta(minutes=intervalo_consultas)
-        
-        # Dados do profissional
-        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
-        especialidade = obter_configuracao("especialidade", "Clínico Geral")
-        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
-        
-        evento = {
-            'summary': f'📅 {nome_cliente} - {especialidade}',
-            'description': f'''
+def criar_evento_google_calendar_com_retry(agendamento_id, nome_cliente, telefone, email, data, horario, max_tentativas=3):
+    """Cria evento no Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Criando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)
+                    continue
+                return False
+            
+            # Configurações do calendário
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Montar data/hora do evento
+            data_inicio = datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
+            
+            # Duração baseada na configuração
+            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+            data_fim = data_inicio + timedelta(minutes=intervalo_consultas)
+            
+            # Dados do profissional
+            nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+            especialidade = obter_configuracao("especialidade", "Clínico Geral")
+            nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+            
+            evento = {
+                'summary': f'📅 {nome_cliente} - {especialidade}',
+                'description': f'''
 🏥 {nome_clinica}
 👨‍⚕️ {nome_profissional} - {especialidade}
 
@@ -1641,113 +1651,169 @@ def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, 
 
 🆔 ID: {agendamento_id}
 📝 Sistema de Agendamento Online
-            '''.strip(),
-            'start': {
-                'dateTime': data_inicio.isoformat(),
-                'timeZone': 'America/Sao_Paulo',
-            },
-            'end': {
-                'dateTime': data_fim.isoformat(),
-                'timeZone': 'America/Sao_Paulo',
-            },
-            'attendees': [
-                {'email': email}
-            ] if email else [],
-            'reminders': {
-                'useDefault': False,
-                'overrides': [
-                    {'method': 'email', 'minutes': 24 * 60},  # 1 dia antes
-                    {'method': 'popup', 'minutes': 60},       # 1 hora antes
-                ],
-            },
-            'colorId': '2',  # Verde para consultas
-        }
-        
-        evento_criado = service.events().insert(
-            calendarId=calendar_id, 
-            body=evento
-        ).execute()
-        
-        # Salvar ID do evento no banco
-        salvar_event_id_google(agendamento_id, evento_criado['id'])
-        
-        print(f"✅ Evento criado no Google Calendar: {nome_cliente} - {data} {horario}")
-        return evento_criado['id']
-        
-    except Exception as e:
-        print(f"❌ Erro ao criar evento Google Calendar: {e}")
-        return False
+                '''.strip(),
+                'start': {
+                    'dateTime': data_inicio.isoformat(),
+                    'timeZone': 'America/Sao_Paulo',
+                },
+                'end': {
+                    'dateTime': data_fim.isoformat(),
+                    'timeZone': 'America/Sao_Paulo',
+                },
+                'attendees': [
+                    {'email': email}
+                ] if email else [],
+                'reminders': {
+                    'useDefault': False,
+                    'overrides': [
+                        {'method': 'email', 'minutes': 24 * 60},  # 1 dia antes
+                        {'method': 'popup', 'minutes': 60},       # 1 hora antes
+                    ],
+                },
+                'colorId': '2',  # Verde para consultas
+            }
+            
+            evento_criado = service.events().insert(
+                calendarId=calendar_id, 
+                body=evento
+            ).execute()
+            
+            # Se chegou aqui, deu certo!
+            print(f"✅ Evento criado com sucesso na tentativa {tentativa}")
+            
+            # Salvar ID do evento no banco
+            salvar_event_id_google(agendamento_id, evento_criado['id'])
+            
+            return evento_criado['id']
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            # Se não é a última tentativa, aguardar antes de tentar novamente
+            if tentativa < max_tentativas:
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam para criar evento!")
+                return False
+    
+    return False
 
-def deletar_evento_google_calendar(agendamento_id):
-    """Deleta evento do Google Calendar"""
-    try:
-        service = get_google_calendar_service()
-        if not service:
-            return False
-        
-        # Buscar ID do evento
-        event_id = obter_event_id_google(agendamento_id)
-        if not event_id:
-            print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
-            return False
-        
-        calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
-        
-        service.events().delete(
-            calendarId=calendar_id, 
-            eventId=event_id
-        ).execute()
-        
-        # Remover ID do banco
-        remover_event_id_google(agendamento_id)
-        
-        print(f"🗑️ Evento deletado do Google Calendar: ID {agendamento_id}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Erro ao deletar evento Google Calendar: {e}")
-        return False
+def deletar_evento_google_calendar_com_retry(agendamento_id, max_tentativas=3):
+    """Deleta evento do Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Deletando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)  # 2s, 4s, 6s...
+                    continue
+                return False
+            
+            # Buscar ID do evento
+            event_id = obter_event_id_google(agendamento_id)
+            if not event_id:
+                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+                return False
+            
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Tentar deletar
+            service.events().delete(
+                calendarId=calendar_id, 
+                eventId=event_id
+            ).execute()
+            
+            # Se chegou aqui, deu certo!
+            print(f"✅ Evento deletado com sucesso na tentativa {tentativa}")
+            
+            # Remover ID do banco apenas se deletou com sucesso
+            remover_event_id_google(agendamento_id)
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            # Se não é a última tentativa, aguardar antes de tentar novamente
+            if tentativa < max_tentativas:
+                # Backoff exponencial com jitter
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)  # 1-2.5s, 4-5.5s, 9-10.5s
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam!")
+                
+                # IMPORTANTE: Mesmo que falhe, marcar como "tentou deletar" 
+                # para não ficar tentando infinitamente
+                remover_event_id_google(agendamento_id)
+                
+                return False
+    
+    return False
 
-def atualizar_evento_google_calendar(agendamento_id, nome_cliente, status):
-    """Atualiza evento no Google Calendar"""
-    try:
-        service = get_google_calendar_service()
-        if not service:
-            return False
-        
-        event_id = obter_event_id_google(agendamento_id)
-        if not event_id:
-            print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
-            return False
-        
-        calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
-        
-        # Buscar evento atual
-        evento = service.events().get(
-            calendarId=calendar_id, 
-            eventId=event_id
-        ).execute()
-        
-        # Atualizar título baseado no status
-        if status == 'atendido':
-            evento['summary'] = f'✅ ATENDIDO - {nome_cliente}'
-            evento['colorId'] = '10'  # Verde escuro para atendidos
-        elif status == 'cancelado':
-            evento['summary'] = f'❌ CANCELADO - {nome_cliente}'
-            evento['colorId'] = '4'  # Vermelho para cancelados
-        
-        service.events().update(
-            calendarId=calendar_id, 
-            eventId=event_id, 
-            body=evento
-        ).execute()
-        
-        print(f"🔄 Evento atualizado no Google Calendar: {nome_cliente} - {status}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Erro ao atualizar evento Google Calendar: {e}")
-        return False
+def atualizar_evento_google_calendar_com_retry(agendamento_id, nome_cliente, status, max_tentativas=3):
+    """Atualiza evento no Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Atualizando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)
+                    continue
+                return False
+            
+            event_id = obter_event_id_google(agendamento_id)
+            if not event_id:
+                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+                return False
+            
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Buscar evento atual
+            evento = service.events().get(
+                calendarId=calendar_id, 
+                eventId=event_id
+            ).execute()
+            
+            # Atualizar título baseado no status
+            if status == 'atendido':
+                evento['summary'] = f'✅ ATENDIDO - {nome_cliente}'
+                evento['colorId'] = '10'  # Verde escuro para atendidos
+            elif status == 'cancelado':
+                evento['summary'] = f'❌ CANCELADO - {nome_cliente}'
+                evento['colorId'] = '4'  # Vermelho para cancelados
+            
+            service.events().update(
+                calendarId=calendar_id, 
+                eventId=event_id, 
+                body=evento
+            ).execute()
+            
+            print(f"✅ Evento atualizado com sucesso na tentativa {tentativa}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            if tentativa < max_tentativas:
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam para atualizar evento!")
+                return False
+    
+    return False
 
 def salvar_event_id_google(agendamento_id, event_id):
     """Salva ID do evento Google Calendar no banco"""
