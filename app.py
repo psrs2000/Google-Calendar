@@ -6,6 +6,14 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import calendar
+try:
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+    print("✅ Imports Google OK")
+except ImportError as e:
+    print(f"❌ Erro nos imports Google: {e}")
+
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
@@ -477,6 +485,7 @@ def horario_disponivel(data, horario):
     return True
 
 def adicionar_agendamento(nome, telefone, email, data, horario):
+    """Adiciona agendamento com integração Google Calendar"""
     conn = conectar()
     c = conn.cursor()
     
@@ -497,7 +506,16 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
     finally:
         conn.close()
     
-    # Se confirmação automática E tem email E envio automático ativado, enviar confirmação
+    # NOVO: Integração com Google Calendar
+    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+    
+    if google_calendar_ativo and status_inicial == "confirmado" and agendamento_id:
+        try:
+            criar_evento_google_calendar(agendamento_id, nome, telefone, email, data, horario)
+        except Exception as e:
+            print(f"❌ Erro na integração Google Calendar: {e}")
+    
+    # Envio de emails (código original)
     envio_automatico = obter_configuracao("envio_automatico", False)
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
     
@@ -505,31 +523,33 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
         try:
             enviar_email_confirmacao(agendamento_id, nome, email, data, horario)
         except Exception as e:
-            print(f"Erro ao enviar email de confirmação automática: {e}")
+            print(f"❌ Erro ao enviar email de confirmação automática: {e}")
     
     return status_inicial
 
 def cancelar_agendamento(nome, telefone, data):
+    """Cancela agendamento mudando status para 'cancelado' em vez de deletar"""
     conn = conectar()
     c = conn.cursor()
     
-    # Buscar o agendamento com dados completos ANTES de deletar
+    # Buscar o agendamento com dados completos ANTES de alterar
     email_cliente = None
     horario_cliente = None
+    agendamento_id = None
     
     try:
-        # Tentar buscar com email
-        c.execute("SELECT email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        # Tentar buscar com email e ID
+        c.execute("SELECT id, email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
         resultado = c.fetchone()
         if resultado:
-            email_cliente, horario_cliente = resultado
+            agendamento_id, email_cliente, horario_cliente = resultado
     except sqlite3.OperationalError:
-        # Se não tem coluna email, buscar só horário
+        # Se não tem coluna email, buscar só ID e horário
         try:
-            c.execute("SELECT horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+            c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
             resultado = c.fetchone()
             if resultado:
-                horario_cliente = resultado[0]
+                agendamento_id, horario_cliente = resultado
                 email_cliente = ""
         except:
             pass
@@ -539,26 +559,75 @@ def cancelar_agendamento(nome, telefone, data):
     existe = c.fetchone()[0] > 0
     
     if existe:
-        # Deletar agendamento
-        c.execute("DELETE FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
-        conn.commit()
-        conn.close()
-        
-        # Enviar email de cancelamento se tiver email e configurações ativas
-        envio_automatico = obter_configuracao("envio_automatico", False)
-        enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
-        
-        if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
+        # NOVO: Mudar status para 'cancelado' em vez de deletar
+        try:
+            c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
+                     (nome, telefone, data))
+            conn.commit()
+            conn.close()
+
+            # NOVO: Integração com Google Calendar
+            google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+
+            if google_calendar_ativo and agendamento_id:
+                try:
+                    deletar_evento_google_calendar(agendamento_id)
+                except Exception as e:
+                    print(f"❌ Erro ao deletar evento Google Calendar: {e}")
+            
+            print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
+            
+            # Enviar email de cancelamento se tiver email e configurações ativas
+            envio_automatico = obter_configuracao("envio_automatico", False)
+            enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
+            
+            if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
+                try:
+                    sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
+                    if sucesso:
+                        print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                    else:
+                        print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+                except Exception as e:
+                    print(f"❌ Erro ao enviar email de cancelamento: {e}")
+            
+            return True
+            
+        except sqlite3.OperationalError:
+            # Se não tem coluna status, criar ela e tentar novamente
             try:
-                sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
-                if sucesso:
-                    print(f"✅ Email de cancelamento enviado para {email_cliente}")
-                else:
-                    print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+                c.execute("ALTER TABLE agendamentos ADD COLUMN status TEXT DEFAULT 'pendente'")
+                conn.commit()
+                
+                # Tentar novamente
+                c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
+                         (nome, telefone, data))
+                conn.commit()
+                conn.close()
+                
+                print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
+                
+                # Enviar email de cancelamento
+                envio_automatico = obter_configuracao("envio_automatico", False)
+                enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
+                
+                if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
+                    try:
+                        sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
+                        if sucesso:
+                            print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                        else:
+                            print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+                    except Exception as e:
+                        print(f"❌ Erro ao enviar email de cancelamento: {e}")
+                
+                return True
+                
             except Exception as e:
-                print(f"❌ Erro ao enviar email de cancelamento: {e}")
+                print(f"❌ Erro ao atualizar status: {e}")
+                conn.close()
+                return False
         
-        return True
     else:
         conn.close()
         return False
@@ -645,11 +714,12 @@ def buscar_agendamentos():
     return agendamentos
 
 def atualizar_status_agendamento(agendamento_id, novo_status):
+    """Atualiza status do agendamento com integração Google Calendar"""
     conn = conectar()
     c = conn.cursor()
     
     # Buscar dados do agendamento antes de atualizar
-    c.execute("SELECT nome_cliente, email, data, horario FROM agendamentos WHERE id = ?", (agendamento_id,))
+    c.execute("SELECT nome_cliente, email, data, horario, telefone FROM agendamentos WHERE id = ?", (agendamento_id,))
     agendamento_dados = c.fetchone()
     
     # Atualizar status
@@ -657,28 +727,56 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
     conn.commit()
     conn.close()
     
-    # Se foi confirmado e tem dados de email, enviar confirmação
+    # NOVO: Integração com Google Calendar
+    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+    
+    if google_calendar_ativo and agendamento_dados:
+        nome_cliente = agendamento_dados[0]
+        email = agendamento_dados[1] if len(agendamento_dados) > 1 else ""
+        data = agendamento_dados[2] if len(agendamento_dados) > 2 else ""
+        horario = agendamento_dados[3] if len(agendamento_dados) > 3 else ""
+        telefone = agendamento_dados[4] if len(agendamento_dados) > 4 else ""
+        
+        try:
+            if novo_status == 'confirmado':
+                # Criar evento se não existir
+                event_id = obter_event_id_google(agendamento_id)
+                if not event_id:
+                    criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario)
+                
+            elif novo_status == 'cancelado':
+                # Deletar evento
+                deletar_evento_google_calendar(agendamento_id)
+                
+            elif novo_status == 'atendido':
+                # Atualizar evento
+                atualizar_evento_google_calendar(agendamento_id, nome_cliente, novo_status)
+                
+        except Exception as e:
+            print(f"❌ Erro na integração Google Calendar: {e}")
+    
+    # Envio de emails (código original)
     envio_automatico = obter_configuracao("envio_automatico", False)
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
     
     if novo_status == 'confirmado' and agendamento_dados and len(agendamento_dados) >= 4 and envio_automatico and enviar_confirmacao:
-        nome_cliente, email, data, horario = agendamento_dados
+        nome_cliente, email, data, horario = agendamento_dados[:4]
         if email:
             try:
                 enviar_email_confirmacao(agendamento_id, nome_cliente, email, data, horario)
             except Exception as e:
-                print(f"Erro ao enviar email de confirmação: {e}")
+                print(f"❌ Erro ao enviar email de confirmação: {e}")
     
-    # Se foi cancelado pelo admin e tem email, enviar cancelamento
+    # Email de cancelamento
     enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
     
     if novo_status == 'cancelado' and agendamento_dados and len(agendamento_dados) >= 4 and envio_automatico and enviar_cancelamento:
-        nome_cliente, email, data, horario = agendamento_dados
+        nome_cliente, email, data, horario = agendamento_dados[:4]
         if email:
             try:
                 enviar_email_cancelamento(nome_cliente, email, data, horario, "admin")
             except Exception as e:
-                print(f"Erro ao enviar email de cancelamento: {e}")
+                print(f"❌ Erro ao enviar email de cancelamento: {e}")
 
 def deletar_agendamento(agendamento_id):
     conn = conectar()
@@ -1266,9 +1364,440 @@ def criar_menu_horizontal():
     """, unsafe_allow_html=True)
     
     return st.session_state.menu_opcao
+
+# PASSO 1: Adicionar esta função no app.py (depois das outras funções do banco)
+
+import requests
+import json
+import base64
+
+def get_github_config():
+    """Obtém configurações do GitHub"""
+    
+    # Configuração padrão (fallback)
+    config_local = {
+        "token": "",  # ← Vazio agora!
+        "repo": "psrs2000/Agenda_Livre",
+        "branch": "main",
+        "config_file": "configuracoes.json"
+    }    
+    # Tentar usar secrets primeiro (para Streamlit Cloud)
+    try:
+        return {
+            "token": st.secrets["GITHUB_TOKEN"],
+            "repo": st.secrets["GITHUB_REPO"],
+            "branch": st.secrets.get("GITHUB_BRANCH", "main"),
+            "config_file": st.secrets.get("CONFIG_FILE", "configuracoes.json")
+        }
+    except:
+        # Fallback para configuração local
+        return config_local
+
+def backup_configuracoes_github():
+    """Faz backup de todas as configurações para GitHub"""
+    try:
+        github_config = get_github_config()
+        if not github_config or not github_config.get("token"):
+            print("❌ Configuração GitHub não encontrada")
+            return False
+        
+        # Buscar todas as configurações do banco local
+        conn = conectar()
+        c = conn.cursor()
+        
+        try:
+            c.execute("SELECT chave, valor FROM configuracoes")
+            configs = dict(c.fetchall())
+        except:
+            configs = {}
+        finally:
+            conn.close()
+        
+        # Adicionar informações do backup
+        configs['_backup_timestamp'] = datetime.now().isoformat()
+        configs['_backup_version'] = '1.0'
+        configs['_sistema'] = 'Agenda Online'
+        
+        # Converter para JSON bonito
+        config_json = json.dumps(configs, indent=2, ensure_ascii=False)
+        
+        # Enviar para GitHub
+        return upload_to_github(config_json, github_config)
+        
+    except Exception as e:
+        print(f"❌ Erro no backup GitHub: {e}")
+        return False
+
+def upload_to_github(content, github_config):
+    """Upload de arquivo para GitHub"""
+    try:
+        headers = {
+            "Authorization": f"token {github_config['token']}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Sistema-Agendamento"
+        }
+        
+        # URL da API GitHub
+        api_url = f"https://api.github.com/repos/{github_config['repo']}/contents/{github_config['config_file']}"
+        
+        print(f"🔗 Conectando: {api_url}")
+        
+        # Verificar se arquivo já existe (para obter SHA)
+        response = requests.get(api_url, headers=headers)
+        sha = None
+        
+        if response.status_code == 200:
+            sha = response.json()["sha"]
+            print("📄 Arquivo existente encontrado, atualizando...")
+        elif response.status_code == 404:
+            print("📄 Criando arquivo novo...")
+        else:
+            print(f"⚠️ Resposta inesperada: {response.status_code}")
+        
+        # Preparar dados para upload
+        content_encoded = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        
+        data = {
+            "message": f"Backup configurações - {datetime.now().strftime('%d/%m/%Y às %H:%M')}",
+            "content": content_encoded,
+            "branch": github_config['branch']
+        }
+        
+        if sha:
+            data["sha"] = sha
+        
+        # Fazer upload
+        print("📤 Enviando backup...")
+        response = requests.put(api_url, headers=headers, json=data)
+        
+        if response.status_code in [200, 201]:
+            print("✅ Backup enviado para GitHub com sucesso!")
+            return True
+        else:
+            print(f"❌ Erro no upload GitHub: {response.status_code}")
+            print(f"📋 Resposta: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Erro no upload GitHub: {e}")
+        return False
+
+
+def restaurar_configuracoes_github():
+    """Restaura configurações do GitHub"""
+    try:
+        github_config = get_github_config()
+        if not github_config or not github_config.get("token"):
+            print("⚠️ Configuração GitHub não encontrada para restauração")
+            return False
+        
+        # Baixar arquivo do GitHub
+        config_json = download_from_github(github_config)
+        if not config_json:
+            print("📄 Nenhum backup encontrado no GitHub")
+            return False
+        
+        # Parse do JSON
+        configs = json.loads(config_json)
+        
+        # Remover metadados do backup
+        configs.pop('_backup_timestamp', None)
+        configs.pop('_backup_version', None)
+        configs.pop('_sistema', None)
+        
+        # Salvar no banco local
+        conn = conectar()
+        c = conn.cursor()
+        
+        try:
+            for chave, valor in configs.items():
+                c.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)", 
+                         (chave, valor))
+            conn.commit()
+            print(f"✅ {len(configs)} configurações restauradas do GitHub")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Erro ao salvar configurações restauradas: {e}")
+            return False
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        print(f"❌ Erro na restauração GitHub: {e}")
+        return False
+
+def download_from_github(github_config):
+    """Download de arquivo do GitHub"""
+    try:
+        headers = {
+            "Authorization": f"token {github_config['token']}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Sistema-Agendamento"
+        }
+        
+        # URL da API GitHub
+        api_url = f"https://api.github.com/repos/{github_config['repo']}/contents/{github_config['config_file']}"
+        
+        print(f"📥 Baixando backup: {api_url}")
+        
+        response = requests.get(api_url, headers=headers)
+        
+        if response.status_code == 200:
+            # Decodificar conteúdo base64
+            content_encoded = response.json()["content"]
+            content = base64.b64decode(content_encoded).decode('utf-8')
+            print("✅ Backup baixado com sucesso")
+            return content
+        elif response.status_code == 404:
+            print("📄 Arquivo de backup não encontrado no GitHub")
+            return None
+        else:
+            print(f"❌ Erro no download GitHub: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Erro no download GitHub: {e}")
+        return None
+
+def get_google_calendar_service():
+    """Configura Google Calendar usando Streamlit Secrets"""
+    try:
+        print("🔍 Iniciando get_google_calendar_service...")
+        
+        # Obter credenciais dos secrets
+        creds_info = {
+            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
+            "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
+            "token_uri": "https://oauth2.googleapis.com/token"
+        }
+        
+        print("🔍 Secrets lidos com sucesso")
+        
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+        
+        print("🔍 Imports OK")
+        
+        credentials = Credentials.from_authorized_user_info(creds_info)
+        print("🔍 Credentials criadas")
+        
+        # Renovar token se necessário
+        if credentials.expired:
+            print("🔍 Token expirado, renovando...")
+            credentials.refresh(Request())
+            print("🔍 Token renovado")
+        
+        print("🔍 Criando service...")
+        service = build('calendar', 'v3', credentials=credentials)
+        print("✅ Service criado com sucesso")
+        return service
+        
+    except Exception as e:
+        print(f"❌ ERRO NA FUNÇÃO: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario):
+    """Cria evento no Google Calendar"""
+    try:
+        service = get_google_calendar_service()
+        if not service:
+            return False
+        
+        # Configurações do calendário
+        calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+        
+        # Montar data/hora do evento
+        data_inicio = datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
+        
+        # Duração baseada na configuração
+        intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+        data_fim = data_inicio + timedelta(minutes=intervalo_consultas)
+        
+        # Dados do profissional
+        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+        especialidade = obter_configuracao("especialidade", "Clínico Geral")
+        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+        
+        evento = {
+            'summary': f'📅 {nome_cliente} - {especialidade}',
+            'description': f'''
+🏥 {nome_clinica}
+👨‍⚕️ {nome_profissional} - {especialidade}
+
+👤 Cliente: {nome_cliente}
+📱 Telefone: {telefone}
+📧 Email: {email}
+
+🆔 ID: {agendamento_id}
+📝 Sistema de Agendamento Online
+            '''.strip(),
+            'start': {
+                'dateTime': data_inicio.isoformat(),
+                'timeZone': 'America/Sao_Paulo',
+            },
+            'end': {
+                'dateTime': data_fim.isoformat(),
+                'timeZone': 'America/Sao_Paulo',
+            },
+            'attendees': [
+                {'email': email}
+            ] if email else [],
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                    {'method': 'email', 'minutes': 24 * 60},  # 1 dia antes
+                    {'method': 'popup', 'minutes': 60},       # 1 hora antes
+                ],
+            },
+            'colorId': '2',  # Verde para consultas
+        }
+        
+        evento_criado = service.events().insert(
+            calendarId=calendar_id, 
+            body=evento
+        ).execute()
+        
+        # Salvar ID do evento no banco
+        salvar_event_id_google(agendamento_id, evento_criado['id'])
+        
+        print(f"✅ Evento criado no Google Calendar: {nome_cliente} - {data} {horario}")
+        return evento_criado['id']
+        
+    except Exception as e:
+        print(f"❌ Erro ao criar evento Google Calendar: {e}")
+        return False
+
+def deletar_evento_google_calendar(agendamento_id):
+    """Deleta evento do Google Calendar"""
+    try:
+        service = get_google_calendar_service()
+        if not service:
+            return False
+        
+        # Buscar ID do evento
+        event_id = obter_event_id_google(agendamento_id)
+        if not event_id:
+            print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+            return False
+        
+        calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+        
+        service.events().delete(
+            calendarId=calendar_id, 
+            eventId=event_id
+        ).execute()
+        
+        # Remover ID do banco
+        remover_event_id_google(agendamento_id)
+        
+        print(f"🗑️ Evento deletado do Google Calendar: ID {agendamento_id}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao deletar evento Google Calendar: {e}")
+        return False
+
+def atualizar_evento_google_calendar(agendamento_id, nome_cliente, status):
+    """Atualiza evento no Google Calendar"""
+    try:
+        service = get_google_calendar_service()
+        if not service:
+            return False
+        
+        event_id = obter_event_id_google(agendamento_id)
+        if not event_id:
+            print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+            return False
+        
+        calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+        
+        # Buscar evento atual
+        evento = service.events().get(
+            calendarId=calendar_id, 
+            eventId=event_id
+        ).execute()
+        
+        # Atualizar título baseado no status
+        if status == 'atendido':
+            evento['summary'] = f'✅ ATENDIDO - {nome_cliente}'
+            evento['colorId'] = '10'  # Verde escuro para atendidos
+        elif status == 'cancelado':
+            evento['summary'] = f'❌ CANCELADO - {nome_cliente}'
+            evento['colorId'] = '4'  # Vermelho para cancelados
+        
+        service.events().update(
+            calendarId=calendar_id, 
+            eventId=event_id, 
+            body=evento
+        ).execute()
+        
+        print(f"🔄 Evento atualizado no Google Calendar: {nome_cliente} - {status}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao atualizar evento Google Calendar: {e}")
+        return False
+
+def salvar_event_id_google(agendamento_id, event_id):
+    """Salva ID do evento Google Calendar no banco"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        # Criar coluna se não existir
+        try:
+            c.execute("ALTER TABLE agendamentos ADD COLUMN google_event_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # Coluna já existe
+        
+        c.execute("UPDATE agendamentos SET google_event_id = ? WHERE id = ?", 
+                  (event_id, agendamento_id))
+        conn.commit()
+        print(f"💾 Event ID salvo: {event_id}")
+    except Exception as e:
+        print(f"❌ Erro ao salvar event ID: {e}")
+    finally:
+        conn.close()
+
+def obter_event_id_google(agendamento_id):
+    """Obtém ID do evento Google Calendar"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT google_event_id FROM agendamentos WHERE id = ?", (agendamento_id,))
+        resultado = c.fetchone()
+        return resultado[0] if resultado and resultado[0] else None
+    except sqlite3.OperationalError:
+        return None  # Coluna não existe ainda
+    except Exception as e:
+        print(f"❌ Erro ao obter event ID: {e}")
+        return None
+    finally:
+        conn.close()
+
+def remover_event_id_google(agendamento_id):
+    """Remove ID do evento Google Calendar"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE agendamentos SET google_event_id = NULL WHERE id = ?", 
+                  (agendamento_id,))
+        conn.commit()
+        print(f"🗑️ Event ID removido para agendamento {agendamento_id}")
+    except Exception as e:
+        print(f"❌ Erro ao remover event ID: {e}")
+    finally:
+        conn.close()
     
 # Inicializar banco
 init_config()
+
+# Restaurar configurações do GitHub
+restaurar_configuracoes_github()
 
 # INTERFACE PRINCIPAL
 if is_admin:
@@ -1691,10 +2220,159 @@ Sistema de Agendamento Online
                                     st.error(f"❌ Erro ao enviar email: {str(e)}")
                             else:
                                 st.warning("⚠️ Preencha o email de teste e configure o sistema primeiro")
+   
+                    
+                    # Seção Google Calendar
+                    st.markdown("---")
+                    st.markdown("**📅 Integração Google Calendar**")
+                    
+                    google_calendar_ativo = st.checkbox(
+                        "Ativar sincronização com Google Calendar",
+                        value=obter_configuracao("google_calendar_ativo", False),
+                        help="Sincroniza automaticamente agendamentos confirmados com seu Google Calendar"
+                    )
+                    
+                    if google_calendar_ativo:
+                        st.success("✅ Google Calendar ativado - agendamentos serão sincronizados automaticamente!")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.info("""
+                            **📋 Como funciona:**
+                            • Agendamento confirmado → Cria evento
+                            • Agendamento cancelado → Remove evento  
+                            • Agendamento atendido → Marca como concluído
+                            """)
+                        
+                        with col2:
+
+                            if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
+                                try:
+                                    st.write("🔍 Testando imports...")
+                                    
+                                    # Teste de import direto
+                                    import importlib
+                                    
+                                    # Testar cada biblioteca individualmente
+                                    try:
+                                        google_auth = importlib.import_module('google.auth')
+                                        st.write("✅ google.auth OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.auth: {e}")
+                                        
+                                    try:
+                                        google_oauth2 = importlib.import_module('google.oauth2.credentials')
+                                        st.write("✅ google.oauth2.credentials OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.oauth2.credentials: {e}")
+                                        
+                                    try:
+                                        googleapiclient = importlib.import_module('googleapiclient.discovery')
+                                        st.write("✅ googleapiclient.discovery OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ googleapiclient.discovery: {e}")
+                                        
+                                    st.info("📝 Se algum import falhou, o problema é falta de bibliotecas no requirements.txt")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Erro geral: {e}")
+
+                                with st.spinner("Testando conexão..."):
+                                    try:
+                                        service = get_google_calendar_service()
+                                        if service:
+                                            # Testar listando calendários
+                                            calendars = service.calendarList().list().execute()
+                                            st.success("✅ Conexão com Google Calendar funcionando!")
+                                            
+                                            # Mostrar calendários disponíveis
+                                            with st.expander("📅 Calendários disponíveis"):
+                                                for calendar in calendars.get('items', []):
+                                                    if calendar['id'] == 'primary':
+                                                        st.write(f"📋 **{calendar['summary']}** (Principal) ⭐")
+                                                    else:
+                                                        st.write(f"📋 **{calendar['summary']}**")
+                                                        
+                                        else:
+                                            st.error("❌ Não foi possível conectar. Verifique as credenciais nos Secrets.")
+                                    except Exception as e:
+                                        st.error(f"❌ Erro na conexão: {str(e)}")
+                    else:
+                        st.info("💡 Ative a sincronização para ter seus agendamentos automaticamente no Google Calendar!")
+                        
+                        st.markdown("""
+                        **🔧 Configuração necessária:**
+                        
+                        Configure nos **Streamlit Secrets**:
+                        - `GOOGLE_CLIENT_ID`
+                        - `GOOGLE_CLIENT_SECRET` 
+                        - `GOOGLE_REFRESH_TOKEN`
+                        - `GOOGLE_CALENDAR_ID` (opcional, padrão: "primary")
+                        """)
+                    
+                    # Seção de backup GitHub (manter como está)
+                    st.markdown("---")
+                    st.markdown("**☁️ Backup de Configurações**")   
+                
+                    # Seção de backup GitHub (ADICIONAR DEPOIS da seção de teste de email)
+                    st.markdown("---")
+                    st.markdown("**☁️ Backup de Configurações**")
+                    
+                    backup_github_ativo = st.checkbox(
+                        "Ativar backup automático no GitHub",
+                        value=obter_configuracao("backup_github_ativo", False),
+                        help="Salva automaticamente suas configurações em repositório GitHub privado"
+                    )
+                    
+                    if backup_github_ativo:
+                        st.success("✅ Backup automático ativado - suas configurações serão salvas automaticamente!")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            if st.button("💾 Fazer Backup Manual", type="secondary"):
+                                with st.spinner("Enviando backup para GitHub..."):
+                                    try:
+                                        if backup_configuracoes_github():
+                                            st.success("✅ Backup enviado com sucesso!")
+                                            st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
+                                        else:
+                                            st.error("❌ Erro no backup. Verifique as configurações.")
+                                    except Exception as e:
+                                        st.error(f"❌ Erro: {e}")
+                        
+                        with col2:
+                            # Mostrar última data de backup se disponível
+                            ultima_config = obter_configuracao("_backup_timestamp", "")
+                            if ultima_config:
+                                try:
+                                    from datetime import datetime
+                                    data_backup = datetime.fromisoformat(ultima_config)
+                                    data_formatada = data_backup.strftime("%d/%m/%Y às %H:%M")
+                                    st.info(f"📅 Último backup: {data_formatada}")
+                                except:
+                                    st.info("📅 Backup disponível no GitHub")
+                            else:
+                                st.info("📅 Primeiro backup será feito automaticamente")
+                    
+                    else:
+                        st.info("💡 Ative o backup automático para nunca perder suas configurações quando o Streamlit reiniciar!")
+                        
+                        # Botão para fazer backup mesmo com função desativada
+                        if st.button("💾 Fazer Backup Único", help="Fazer backup sem ativar função automática"):
+                            with st.spinner("Enviando backup..."):
+                                try:
+                                    if backup_configuracoes_github():
+                                        st.success("✅ Backup enviado com sucesso!")
+                                        st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
+                                    else:
+                                        st.error("❌ Erro no backup. Verifique token GitHub.")
+                                except Exception as e:
+                                    st.error(f"❌ Erro: {e}")
                 
                 else:
-                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")
-            
+                    st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")            
             # Botão para salvar todas as configurações
             st.markdown("---")
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
@@ -1720,6 +2398,7 @@ Sistema de Agendamento Online
                 
                 # Salvar configurações da tab 3
                 salvar_configuracao("envio_automatico", envio_automatico)
+                salvar_configuracao("google_calendar_ativo", google_calendar_ativo)
                 salvar_configuracao("email_teste", email_teste if envio_automatico else "")
                 if envio_automatico:
                     salvar_configuracao("email_sistema", email_sistema)
@@ -1730,7 +2409,21 @@ Sistema de Agendamento Online
                     salvar_configuracao("enviar_cancelamento", enviar_cancelamento)
                     salvar_configuracao("template_confirmacao", template_confirmacao)
                 
+                # NOVO: Salvar configuração de backup GitHub
+                salvar_configuracao("backup_github_ativo", backup_github_ativo)
+                
                 st.success("✅ Todas as configurações foram salvas com sucesso!")
+                
+                # NOVO: Backup automático no GitHub (se ativado)
+                if backup_github_ativo:
+                    try:
+                        with st.spinner("📤 Fazendo backup no GitHub..."):
+                            if backup_configuracoes_github():
+                                st.success("☁️ Backup automático enviado para GitHub!")
+                            else:
+                                st.warning("⚠️ Erro no backup automático. Configurações salvas localmente.")
+                    except Exception as e:
+                        st.warning(f"⚠️ Erro no backup automático: {e}")
                 
                 # Mostrar resumo
                 st.markdown("**📋 Resumo das configurações salvas:**")
@@ -1739,6 +2432,7 @@ Sistema de Agendamento Online
                 ⏰ **Antecedência:** {antecedencia_selecionada}
                 🔄 **Confirmação:** {'Automática' if confirmacao_automatica else 'Manual'}
                 📧 **Email:** {'Ativado' if envio_automatico else 'Desativado'}
+                ☁️ **Backup:** {'Ativado' if backup_github_ativo else 'Desativado'}
                 👨‍⚕️ **Profissional:** {nome_profissional} - {especialidade}
                 🏥 **Local:** {nome_clinica}
                 """)
@@ -1791,8 +2485,8 @@ Sistema de Agendamento Online
                 
                 with col2:
                     st.subheader("📋 Bloquear Período")
-                    data_inicio = st.date_input("Data inicial:", min_value=datetime.today(), key="data_inicio_periodo")
-                    data_fim = st.date_input("Data final:", min_value=data_inicio, key="data_fim_periodo")
+                    data_inicio = st.date_input("Data inicial:", min_value=datetime.today().date(), key="data_inicio_periodo")
+                    data_fim = st.date_input("Data final:", min_value=data_inicio if data_inicio else datetime.today().date(), key="data_fim_periodo")
                     
                     if st.button("🚫 Bloquear Período", type="primary", key="btn_bloquear_periodo"):
                         if data_fim >= data_inicio:
