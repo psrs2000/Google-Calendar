@@ -561,7 +561,7 @@ def cancelar_agendamento(nome, telefone, data):
             pass
     
     # Verificar se agendamento existe
-    c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+    c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status != 'cancelado'", (nome, telefone, data))
     existe = c.fetchone()[0] > 0
     
     if existe:
