@@ -2645,26 +2645,30 @@ Sistema de Agendamento Online
                                 min_value=datetime.today().date(), 
                                 key="periodo_inicio"
                             )
-                            
-                            # Garantir que min_value seja sempre um objeto date
-                            min_value_fim = data_inicio_periodo if data_inicio_periodo else datetime.today().date()
-                            if hasattr(min_value_fim, 'date'):
-                                min_value_fim = min_value_fim.date()
 
                             data_fim_periodo = st.date_input(
                                 "Data final:", 
-                                min_value=min_value_fim, 
                                 key="periodo_fim"
                             )
-                            
+
+                            # Validação manual das datas
+                            if data_inicio_periodo and data_fim_periodo:
+                                if data_fim_periodo < data_inicio_periodo:
+                                    st.error("❌ A data final deve ser posterior à data inicial!")
+                                    datas_validas = False
+                                else:
+                                    datas_validas = True
+                            else:
+                                datas_validas = False
+
                             descricao_periodo = st.text_input(
                                 "Descrição:",
                                 placeholder="Ex: Férias de Janeiro, Viagem Europa, Congresso...",
                                 key="desc_periodo"
                             )
-                            
+
                             if st.button("🚫 Bloquear Período", type="primary", key="btn_bloquear_periodo_novo"):
-                                if data_fim_periodo >= data_inicio_periodo:
+                                if datas_validas:
                                     if descricao_periodo.strip():
                                         periodo_id = adicionar_bloqueio_periodo(
                                             data_inicio_periodo.strftime("%Y-%m-%d"),
@@ -2681,7 +2685,7 @@ Sistema de Agendamento Online
                                     else:
                                         st.warning("⚠️ Digite uma descrição para o período.")
                                 else:
-                                    st.error("❌ Data final deve ser posterior à data inicial.")
+                                    st.warning("⚠️ Verifique se as datas estão corretas.")
                         
                         with col2:
                             st.markdown("**ℹ️ Vantagens dos Períodos:**")
