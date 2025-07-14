@@ -2515,25 +2515,12 @@ def data_em_periodo_bloqueado(data):
     
 # Inicializar banco
 init_config()
-
 # Inicializar monitoramento de backup automático
 iniciar_monitoramento_backup()
-
 # Inicializar tabela de períodos
 init_config_periodos()
-
-# Inicializar controle de restauração
-if 'dados_restaurados' not in st.session_state:
-    st.session_state.dados_restaurados = False
-
-# Restaurar configurações do GitHub (apenas uma vez por sessão)
-if not st.session_state.dados_restaurados:
-    print("🔄 Primeira execução - restaurando dados do GitHub...")
-    restaurar_configuracoes_github()
-    st.session_state.dados_restaurados = True
-    print("✅ Dados restaurados! Próximos st.rerun() não acessarão GitHub.")
-else:
-    print("✅ Dados já restaurados nesta sessão - pulando GitHub.")
+# Restaurar configurações do GitHub
+restaurar_configuracoes_github()
 
 # INTERFACE PRINCIPAL
 if is_admin:
@@ -3547,7 +3534,7 @@ Sistema de Agendamento Online
                                 if horarios_selecionados_semanal:
                                     if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
                                         st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
-                                        
+                                        st.rerun()
                                     else:
                                         st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
                                 else:
