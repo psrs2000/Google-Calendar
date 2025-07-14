@@ -1516,7 +1516,7 @@ def backup_configuracoes_github():
         
         # Adicionar informações do backup
         backup_data['_backup_timestamp'] = datetime.now().isoformat()
-        backup_data['_backup_version'] = '2.0'  # Versão expandida!
+            # Versão expandida!
         backup_data['_sistema'] = 'Agenda Online - Backup Completo'
         backup_data['_conteudo'] = [
             'configuracoes_gerais',
@@ -3554,7 +3554,17 @@ Sistema de Agendamento Online
                             # Botão para salvar bloqueio semanal
                             if st.button("💾 Salvar Bloqueio Semanal", type="primary", key="btn_salvar_semanal"):
                                 if horarios_selecionados_semanal:
-                                    if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
+                                    
+                                    # DEBUG: Antes de salvar
+                                    st.write(f"🔍 ANTES: {len(obter_bloqueios_semanais())} bloqueios")
+                                    
+                                    resultado = adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal)
+                                    
+                                    # DEBUG: Resultado e depois de salvar
+                                    st.write(f"🔍 RESULTADO: {resultado}")
+                                    st.write(f"🔍 DEPOIS: {len(obter_bloqueios_semanais())} bloqueios")
+                                    
+                                    if resultado:
                                         st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
                                         st.rerun()
                                     else:
