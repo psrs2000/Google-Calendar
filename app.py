@@ -540,64 +540,90 @@ def cancelar_agendamento(nome, telefone, data):
     conn = conectar()
     c = conn.cursor()
     
-    # Buscar o agendamento com dados completos ANTES de alterar
-    email_cliente = None
-    horario_cliente = None
-    agendamento_id = None
+    # MUDANÇA PRINCIPAL: Buscar TODOS os agendamentos do dia, não só o primeiro
+    agendamentos_do_dia = []
     
     try:
-        # Tentar buscar com email e ID
-        c.execute("SELECT id, email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
-        resultado = c.fetchone()
-        if resultado:
-            agendamento_id, email_cliente, horario_cliente = resultado
+        # Tentar buscar com email e ID - TODOS OS AGENDAMENTOS DO DIA
+        c.execute("SELECT id, email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
+        agendamentos_do_dia = c.fetchall()
     except sqlite3.OperationalError:
-        # Se não tem coluna email, buscar só ID e horário
+        # Se não tem coluna email, buscar só ID e horário - TODOS OS AGENDAMENTOS DO DIA
         try:
-            c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
-            resultado = c.fetchone()
-            if resultado:
-                agendamento_id, horario_cliente = resultado
-                email_cliente = ""
+            c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
+            agendamentos_sem_email = c.fetchall()
+            # Adicionar email vazio para manter formato
+            agendamentos_do_dia = [(ag[0], '', ag[1]) for ag in agendamentos_sem_email]
         except:
-            pass
+            # Fallback para versões muito antigas sem coluna status
+            c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+            agendamentos_sem_email = c.fetchall()
+            agendamentos_do_dia = [(ag[0], '', ag[1]) for ag in agendamentos_sem_email]
     
-    # Verificar se agendamento existe
-    c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status != 'cancelado'", (nome, telefone, data))
-    existe = c.fetchone()[0] > 0
+    # Verificar se existem agendamentos CANCELÁVEIS
+    try:
+        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
+        existe = c.fetchone()[0] > 0
+    except sqlite3.OperationalError:
+        # Fallback para versões antigas sem coluna status
+        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
+        existe = c.fetchone()[0] > 0
     
-    if existe:
-        # NOVO: Mudar status para 'cancelado' em vez de deletar
+    if existe and agendamentos_do_dia:
+        # Cancelar TODOS os agendamentos do dia no sistema
         try:
             c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
                      (nome, telefone, data))
             conn.commit()
             conn.close()
 
-            # NOVO: Integração com Google Calendar
-            google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+            print(f"✅ {len(agendamentos_do_dia)} agendamento(s) cancelado(s): {nome} - {data}")
 
-            if google_calendar_ativo and agendamento_id:
-                try:
-                    deletar_evento_google_calendar(agendamento_id)
-                except Exception as e:
-                    print(f"❌ Erro ao deletar evento Google Calendar: {e}")
+            # NOVO: Integração com Google Calendar para MÚLTIPLOS eventos
+            google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
             
-            print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
+            if google_calendar_ativo:
+                eventos_deletados = 0
+                for agendamento in agendamentos_do_dia:
+                    agendamento_id = agendamento[0]
+                    horario = agendamento[2]
+                    
+                    try:
+                        sucesso = deletar_evento_google_calendar(agendamento_id)
+                        if sucesso:
+                            eventos_deletados += 1
+                            print(f"✅ Evento Google Calendar deletado: {horario}")
+                        else:
+                            print(f"⚠️ Falha ao deletar evento Google Calendar: {horario}")
+                    except Exception as e:
+                        print(f"❌ Erro ao deletar evento Google Calendar {horario}: {e}")
+                
+                print(f"📅 Google Calendar: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
             
-            # Enviar email de cancelamento se tiver email e configurações ativas
+            # Enviar email de cancelamento (usando dados do primeiro agendamento)
             envio_automatico = obter_configuracao("envio_automatico", False)
             enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
             
-            if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
-                try:
-                    sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
-                    if sucesso:
-                        print(f"✅ Email de cancelamento enviado para {email_cliente}")
+            if envio_automatico and enviar_cancelamento and agendamentos_do_dia:
+                primeiro_agendamento = agendamentos_do_dia[0]
+                email_cliente = primeiro_agendamento[1] if len(primeiro_agendamento) > 1 else ""
+                
+                if email_cliente:
+                    # Se múltiplos agendamentos, mencionar no email
+                    if len(agendamentos_do_dia) > 1:
+                        horarios_cancelados = ", ".join([ag[2] for ag in agendamentos_do_dia])
+                        horario_para_email = f"Horários: {horarios_cancelados}"
                     else:
-                        print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
-                except Exception as e:
-                    print(f"❌ Erro ao enviar email de cancelamento: {e}")
+                        horario_para_email = agendamentos_do_dia[0][2]
+                    
+                    try:
+                        sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_para_email, "cliente")
+                        if sucesso:
+                            print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                        else:
+                            print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
+                    except Exception as e:
+                        print(f"❌ Erro ao enviar email de cancelamento: {e}")
             
             return True
             
@@ -613,21 +639,48 @@ def cancelar_agendamento(nome, telefone, data):
                 conn.commit()
                 conn.close()
                 
-                print(f"✅ Agendamento cancelado: {nome} - {data} {horario_cliente}")
+                print(f"✅ {len(agendamentos_do_dia)} agendamento(s) cancelado(s): {nome} - {data}")
                 
-                # Enviar email de cancelamento
+                # Google Calendar e email (mesmo código de cima)
+                google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+                
+                if google_calendar_ativo:
+                    eventos_deletados = 0
+                    for agendamento in agendamentos_do_dia:
+                        agendamento_id = agendamento[0]
+                        horario = agendamento[2]
+                        
+                        try:
+                            sucesso = deletar_evento_google_calendar(agendamento_id)
+                            if sucesso:
+                                eventos_deletados += 1
+                                print(f"✅ Evento Google Calendar deletado: {horario}")
+                        except Exception as e:
+                            print(f"❌ Erro ao deletar evento Google Calendar {horario}: {e}")
+                    
+                    print(f"📅 Google Calendar: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
+                
+                # Email de cancelamento
                 envio_automatico = obter_configuracao("envio_automatico", False)
                 enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
                 
-                if email_cliente and horario_cliente and envio_automatico and enviar_cancelamento:
-                    try:
-                        sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_cliente, "cliente")
-                        if sucesso:
-                            print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                if envio_automatico and enviar_cancelamento and agendamentos_do_dia:
+                    primeiro_agendamento = agendamentos_do_dia[0]
+                    email_cliente = primeiro_agendamento[1] if len(primeiro_agendamento) > 1 else ""
+                    
+                    if email_cliente:
+                        if len(agendamentos_do_dia) > 1:
+                            horarios_cancelados = ", ".join([ag[2] for ag in agendamentos_do_dia])
+                            horario_para_email = f"Horários: {horarios_cancelados}"
                         else:
-                            print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
-                    except Exception as e:
-                        print(f"❌ Erro ao enviar email de cancelamento: {e}")
+                            horario_para_email = agendamentos_do_dia[0][2]
+                        
+                        try:
+                            sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_para_email, "cliente")
+                            if sucesso:
+                                print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                        except Exception as e:
+                            print(f"❌ Erro ao enviar email de cancelamento: {e}")
                 
                 return True
                 
