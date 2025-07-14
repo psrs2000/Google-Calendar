@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit as st
 import sqlite3
 from datetime import datetime, timedelta
 import pandas as pd
@@ -1457,38 +1456,98 @@ def get_github_config():
         return config_local
 
 def backup_configuracoes_github():
-    """Faz backup de todas as configurações para GitHub"""
+    """Faz backup COMPLETO de todas as configurações para GitHub"""
     try:
         github_config = get_github_config()
         if not github_config or not github_config.get("token"):
             print("❌ Configuração GitHub não encontrada")
             return False
         
-        # Buscar todas as configurações do banco local
+        # 1. Buscar CONFIGURAÇÕES GERAIS do banco local
         conn = conectar()
         c = conn.cursor()
+        
+        backup_data = {}
         
         try:
             c.execute("SELECT chave, valor FROM configuracoes")
             configs = dict(c.fetchall())
+            backup_data.update(configs)
         except:
-            configs = {}
-        finally:
-            conn.close()
+            backup_data = {}
+        
+        # 2. Buscar DIAS ÚTEIS
+        try:
+            backup_data['dias_uteis'] = obter_dias_uteis()
+        except:
+            backup_data['dias_uteis'] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        
+        # 3. Buscar BLOQUEIOS INDIVIDUAIS
+        try:
+            backup_data['bloqueios_individuais'] = obter_bloqueios()
+        except:
+            backup_data['bloqueios_individuais'] = []
+        
+        # 4. Buscar BLOQUEIOS DE PERÍODOS
+        try:
+            backup_data['bloqueios_periodos'] = obter_bloqueios_periodos()
+        except:
+            backup_data['bloqueios_periodos'] = []
+        
+        # 5. Buscar BLOQUEIOS PERMANENTES
+        try:
+            backup_data['bloqueios_permanentes'] = obter_bloqueios_permanentes()
+        except:
+            backup_data['bloqueios_permanentes'] = []
+        
+        # 6. Buscar BLOQUEIOS SEMANAIS
+        try:
+            backup_data['bloqueios_semanais'] = obter_bloqueios_semanais()
+        except:
+            backup_data['bloqueios_semanais'] = []
+        
+        # 7. Buscar BLOQUEIOS DE HORÁRIOS ESPECÍFICOS
+        try:
+            backup_data['bloqueios_horarios'] = obter_bloqueios_horarios()
+        except:
+            backup_data['bloqueios_horarios'] = []
+        
+        conn.close()
         
         # Adicionar informações do backup
-        configs['_backup_timestamp'] = datetime.now().isoformat()
-        configs['_backup_version'] = '1.0'
-        configs['_sistema'] = 'Agenda Online'
+        backup_data['_backup_timestamp'] = datetime.now().isoformat()
+        backup_data['_backup_version'] = '2.0'  # Versão expandida!
+        backup_data['_sistema'] = 'Agenda Online - Backup Completo'
+        backup_data['_conteudo'] = [
+            'configuracoes_gerais',
+            'dias_uteis', 
+            'bloqueios_individuais',
+            'bloqueios_periodos',
+            'bloqueios_permanentes', 
+            'bloqueios_semanais',
+            'bloqueios_horarios'
+        ]
         
         # Converter para JSON bonito
-        config_json = json.dumps(configs, indent=2, ensure_ascii=False)
+        config_json = json.dumps(backup_data, indent=2, ensure_ascii=False)
         
         # Enviar para GitHub
-        return upload_to_github(config_json, github_config)
+        sucesso = upload_to_github(config_json, github_config)
+        
+        if sucesso:
+            print(f"✅ Backup COMPLETO enviado para GitHub!")
+            print(f"📊 Incluído: {len(backup_data)} configurações")
+            print(f"📅 Dias úteis: {len(backup_data.get('dias_uteis', []))}")
+            print(f"🗓️ Bloqueios: {len(backup_data.get('bloqueios_individuais', []))} individuais")
+            print(f"📆 Períodos: {len(backup_data.get('bloqueios_periodos', []))}")
+            print(f"⏰ Permanentes: {len(backup_data.get('bloqueios_permanentes', []))}")
+            print(f"📋 Semanais: {len(backup_data.get('bloqueios_semanais', []))}")
+            print(f"🕐 Horários: {len(backup_data.get('bloqueios_horarios', []))}")
+        
+        return sucesso
         
     except Exception as e:
-        print(f"❌ Erro no backup GitHub: {e}")
+        print(f"❌ Erro no backup GitHub expandido: {e}")
         return False
 
 def upload_to_github(content, github_config):
@@ -1547,7 +1606,7 @@ def upload_to_github(content, github_config):
 
 
 def restaurar_configuracoes_github():
-    """Restaura configurações do GitHub"""
+    """Restaura TODAS as configurações do GitHub"""
     try:
         github_config = get_github_config()
         if not github_config or not github_config.get("token"):
@@ -1561,27 +1620,133 @@ def restaurar_configuracoes_github():
             return False
         
         # Parse do JSON
-        configs = json.loads(config_json)
+        backup_data = json.loads(config_json)
         
-        # Remover metadados do backup
-        configs.pop('_backup_timestamp', None)
-        configs.pop('_backup_version', None)
-        configs.pop('_sistema', None)
+        # Verificar versão do backup
+        versao = backup_data.get('_backup_version', '1.0')
+        print(f"📦 Restaurando backup versão {versao}")
         
-        # Salvar no banco local
         conn = conectar()
         c = conn.cursor()
         
+        restaurados = 0
+        
         try:
-            for chave, valor in configs.items():
+            # 1. RESTAURAR CONFIGURAÇÕES GERAIS
+            configs_gerais = {k: v for k, v in backup_data.items() if not k.startswith('_') and k not in [
+                'dias_uteis', 'bloqueios_individuais', 'bloqueios_periodos', 
+                'bloqueios_permanentes', 'bloqueios_semanais', 'bloqueios_horarios'
+            ]}
+            
+            for chave, valor in configs_gerais.items():
                 c.execute("INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)", 
                          (chave, valor))
+                restaurados += 1
+            
+            print(f"✅ {len(configs_gerais)} configurações gerais restauradas")
+            
+            # 2. RESTAURAR DIAS ÚTEIS
+            if 'dias_uteis' in backup_data:
+                try:
+                    # Limpar dias atuais
+                    c.execute("DELETE FROM dias_uteis")
+                    
+                    # Inserir dias do backup
+                    for dia in backup_data['dias_uteis']:
+                        c.execute("INSERT INTO dias_uteis (dia) VALUES (?)", (dia,))
+                    
+                    print(f"✅ {len(backup_data['dias_uteis'])} dias úteis restaurados")
+                except Exception as e:
+                    print(f"⚠️ Erro ao restaurar dias úteis: {e}")
+            
+            # 3. RESTAURAR BLOQUEIOS INDIVIDUAIS
+            if 'bloqueios_individuais' in backup_data:
+                try:
+                    # Limpar bloqueios atuais
+                    c.execute("DELETE FROM bloqueios")
+                    
+                    # Inserir bloqueios do backup
+                    for data in backup_data['bloqueios_individuais']:
+                        c.execute("INSERT OR IGNORE INTO bloqueios (data) VALUES (?)", (data,))
+                    
+                    print(f"✅ {len(backup_data['bloqueios_individuais'])} bloqueios individuais restaurados")
+                except Exception as e:
+                    print(f"⚠️ Erro ao restaurar bloqueios individuais: {e}")
+            
+            # 4. RESTAURAR BLOQUEIOS DE PERÍODOS
+            if 'bloqueios_periodos' in backup_data:
+                try:
+                    # Limpar períodos atuais
+                    c.execute("DELETE FROM bloqueios_periodos")
+                    
+                    # Inserir períodos do backup
+                    for periodo in backup_data['bloqueios_periodos']:
+                        if len(periodo) >= 4:  # id, data_inicio, data_fim, descricao, criado_em
+                            c.execute("""INSERT INTO bloqueios_periodos 
+                                        (data_inicio, data_fim, descricao, criado_em) 
+                                        VALUES (?, ?, ?, ?)""",
+                                     (periodo[1], periodo[2], periodo[3], 
+                                      periodo[4] if len(periodo) > 4 else datetime.now().isoformat()))
+                    
+                    print(f"✅ {len(backup_data['bloqueios_periodos'])} períodos restaurados")
+                except Exception as e:
+                    print(f"⚠️ Erro ao restaurar períodos: {e}")
+            
+            # 5. RESTAURAR BLOQUEIOS PERMANENTES
+            if 'bloqueios_permanentes' in backup_data:
+                try:
+                    c.execute("DELETE FROM bloqueios_permanentes")
+                    
+                    for bloqueio in backup_data['bloqueios_permanentes']:
+                        if len(bloqueio) >= 4:  # id, horario_inicio, horario_fim, dias_semana, descricao
+                            c.execute("""INSERT INTO bloqueios_permanentes 
+                                        (horario_inicio, horario_fim, dias_semana, descricao) 
+                                        VALUES (?, ?, ?, ?)""",
+                                     (bloqueio[1], bloqueio[2], bloqueio[3], bloqueio[4]))
+                    
+                    print(f"✅ {len(backup_data['bloqueios_permanentes'])} bloqueios permanentes restaurados")
+                except Exception as e:
+                    print(f"⚠️ Erro ao restaurar bloqueios permanentes: {e}")
+            
+            # 6. RESTAURAR BLOQUEIOS SEMANAIS
+            if 'bloqueios_semanais' in backup_data:
+                try:
+                    c.execute("DELETE FROM bloqueios_semanais")
+                    
+                    for bloqueio in backup_data['bloqueios_semanais']:
+                        if len(bloqueio) >= 3:  # id, dia_semana, horarios, descricao
+                            c.execute("""INSERT INTO bloqueios_semanais 
+                                        (dia_semana, horarios, descricao) 
+                                        VALUES (?, ?, ?)""",
+                                     (bloqueio[1], bloqueio[2], 
+                                      bloqueio[3] if len(bloqueio) > 3 else ""))
+                    
+                    print(f"✅ {len(backup_data['bloqueios_semanais'])} bloqueios semanais restaurados")
+                except Exception as e:
+                    print(f"⚠️ Erro ao restaurar bloqueios semanais: {e}")
+            
+            # 7. RESTAURAR BLOQUEIOS DE HORÁRIOS
+            if 'bloqueios_horarios' in backup_data:
+                try:
+                    c.execute("DELETE FROM bloqueios_horarios")
+                    
+                    for data, horario in backup_data['bloqueios_horarios']:
+                        c.execute("INSERT OR IGNORE INTO bloqueios_horarios (data, horario) VALUES (?, ?)", 
+                                 (data, horario))
+                    
+                    print(f"✅ {len(backup_data['bloqueios_horarios'])} bloqueios de horários restaurados")
+                except Exception as e:
+                    print(f"⚠️ Erro ao restaurar bloqueios de horários: {e}")
+            
             conn.commit()
-            print(f"✅ {len(configs)} configurações restauradas do GitHub")
+            
+            print(f"🎉 RESTAURAÇÃO COMPLETA FINALIZADA!")
+            print(f"📊 Total de itens processados: {restaurados + len(backup_data.get('dias_uteis', []))}")
+            
             return True
             
         except Exception as e:
-            print(f"❌ Erro ao salvar configurações restauradas: {e}")
+            print(f"❌ Erro durante restauração: {e}")
             return False
         finally:
             conn.close()
