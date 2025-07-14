@@ -1925,8 +1925,6 @@ def remover_event_id_google(agendamento_id):
 # FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
 # ========================================
 
-import hashlib
-
 def calcular_hash_agendamentos():
     """Calcula hash dos agendamentos para detectar mudanças"""
     try:
@@ -2058,6 +2056,134 @@ def enviar_backup_email_agendamentos(forcar_envio=False):
     except Exception as e:
         print(f"❌ Erro ao enviar backup por email: {e}")
         return False
+
+def interface_backup_email():
+    """Interface para configurar backup automático por email"""
+    
+    st.subheader("📧 Backup Automático por Email")
+    
+    # Status atual
+    backup_ativo = obter_configuracao("backup_email_ativo", False)
+    
+    if backup_ativo:
+        st.success("✅ Backup automático por email ATIVADO")
+        
+        # Mostrar configurações atuais
+        frequencia = obter_configuracao("backup_email_frequencia", "semanal")
+        horario = obter_configuracao("backup_email_horario", "08:00")
+        email_destino = obter_configuracao("email_backup_destino", "")
+        
+        st.info(f"""
+**📋 Configurações Atuais:**
+• **Frequência:** {frequencia.title()}
+• **Horário:** {horario}
+• **Email de destino:** {email_destino}
+        """)
+        
+        # Mostrar último backup
+        ultimo_backup_str = obter_configuracao("ultimo_backup_email_data", "")
+        if ultimo_backup_str:
+            try:
+                ultimo_backup = datetime.fromisoformat(ultimo_backup_str)
+                ultimo_formatado = ultimo_backup.strftime("%d/%m/%Y às %H:%M")
+                st.info(f"📅 **Último backup enviado:** {ultimo_formatado}")
+            except:
+                pass
+    else:
+        st.warning("⚠️ Backup automático por email DESATIVADO")
+    
+    # Configurações
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**⚙️ Configurações do Backup**")
+        
+        # Ativar/desativar
+        backup_email_ativo = st.checkbox(
+            "Ativar backup automático por email",
+            value=backup_ativo,
+            help="Envia backup dos agendamentos automaticamente por email"
+        )
+        
+        # Frequência
+        frequencia_backup = st.selectbox(
+            "Frequência do backup:",
+            ["diario", "semanal", "mensal"],
+            index=["diario", "semanal", "mensal"].index(obter_configuracao("backup_email_frequencia", "semanal")),
+            format_func=lambda x: {"diario": "Diário", "semanal": "Semanal", "mensal": "Mensal"}[x],
+            help="Com que frequência enviar o backup"
+        )
+        
+        # Horário
+        try:
+            horario_atual = datetime.strptime(obter_configuracao("backup_email_horario", "08:00"), "%H:%M").time()
+        except:
+            horario_atual = datetime.strptime("08:00", "%H:%M").time()
+        
+        horario_backup = st.time_input(
+            "Horário do backup:",
+            value=horario_atual,
+            help="Horário para enviar o backup automaticamente"
+        )
+        
+        # Email de destino
+        email_backup_destino = st.text_input(
+            "Email de destino:",
+            value=obter_configuracao("email_backup_destino", obter_configuracao("email_sistema", "")),
+            placeholder="backup@clinica.com",
+            help="Email que receberá os backups automáticos"
+        )
+    
+    with col2:
+        st.markdown("**🧪 Teste e Backup Manual**")
+        
+        # Backup manual
+        if st.button("📤 Enviar Backup Agora", type="secondary", help="Enviar backup manual independente das configurações"):
+            with st.spinner("Gerando e enviando backup..."):
+                sucesso = enviar_backup_email_agendamentos(forcar_envio=True)
+                if sucesso:
+                    st.success("✅ Backup enviado com sucesso!")
+                else:
+                    st.error("❌ Erro ao enviar backup. Verifique as configurações de email.")
+        
+        # Verificar mudanças
+        if st.button("🔍 Verificar Mudanças", help="Verificar se há mudanças desde último backup"):
+            if agendamentos_mudaram():
+                st.info("📊 Há mudanças nos agendamentos desde último backup")
+            else:
+                st.success("✅ Nenhuma mudança desde último backup")
+        
+        # Informações
+        st.markdown("**ℹ️ Como Funciona:**")
+        st.info("""
+• **Automático:** Verifica mudanças e envia apenas se necessário
+• **Inteligente:** Não envia spam se não houver alterações  
+• **Seguro:** Anexa CSV com todos os agendamentos
+• **Informativo:** Email com estatísticas detalhadas
+        """)
+    
+    # Botão para salvar configurações
+    if st.button("💾 Salvar Configurações de Backup", type="primary", use_container_width=True):
+        salvar_configuracao("backup_email_ativo", backup_email_ativo)
+        salvar_configuracao("backup_email_frequencia", frequencia_backup)
+        salvar_configuracao("backup_email_horario", horario_backup.strftime("%H:%M"))
+        salvar_configuracao("email_backup_destino", email_backup_destino)
+        
+        st.success("✅ Configurações de backup salvas!")
+        
+        if backup_email_ativo:
+            st.info(f"""
+🎯 **Backup configurado:**
+• **Frequência:** {frequencia_backup.title()}
+• **Horário:** {horario_backup.strftime('%H:%M')}  
+• **Email:** {email_backup_destino}
+
+📧 Próximo backup será enviado automaticamente se houver mudanças!
+            """)
+        else:
+            st.warning("⚠️ Backup automático foi desativado")
+        
+        st.rerun()
 
 # ========================================
 # FUNÇÕES NOVAS PARA BLOQUEIOS DE PERÍODO
@@ -3869,7 +3995,7 @@ Sistema de Agendamento Online
             # ============================================
             
             with tab_auto:
-                st.subheader("🔄 Backup Automático")
+                interface_backup_email()
                 
                 st.info("""
                 🚧 **Em Desenvolvimento**
