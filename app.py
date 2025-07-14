@@ -2185,6 +2185,74 @@ def interface_backup_email():
         
         st.rerun()
 
+def verificar_hora_backup():
+    """Verifica se chegou a hora do backup automático"""
+    try:
+        backup_ativo = obter_configuracao("backup_email_ativo", False)
+        if not backup_ativo:
+            return False
+        
+        # Configurações de agendamento
+        frequencia = obter_configuracao("backup_email_frequencia", "semanal")
+        horario = obter_configuracao("backup_email_horario", "08:00")
+        
+        agora = datetime.now()
+        hora_backup = datetime.strptime(horario, "%H:%M").time()
+        
+        # Verificar se é a hora do backup (com tolerância de 1 minuto)
+        if abs((agora.time().hour * 60 + agora.time().minute) - 
+               (hora_backup.hour * 60 + hora_backup.minute)) > 1:
+            return False
+        
+        # Verificar frequência
+        ultimo_backup_str = obter_configuracao("ultimo_backup_email_data", "")
+        
+        if not ultimo_backup_str:
+            return True  # Primeiro backup
+        
+        try:
+            ultimo_backup = datetime.fromisoformat(ultimo_backup_str)
+        except:
+            return True  # Se der erro, fazer backup
+        
+        if frequencia == "diario":
+            return (agora - ultimo_backup).days >= 1
+        elif frequencia == "semanal":
+            return (agora - ultimo_backup).days >= 7
+        elif frequencia == "mensal":
+            return (agora - ultimo_backup).days >= 30
+        
+        return False
+        
+    except Exception as e:
+        print(f"❌ Erro ao verificar hora do backup: {e}")
+        return False
+
+def iniciar_monitoramento_backup():
+    """Inicia thread para monitoramento automático de backup"""
+    def monitorar():
+        print("🔄 Monitoramento de backup automático iniciado")
+        while True:
+            try:
+                if verificar_hora_backup():
+                    print("⏰ Hora do backup automático!")
+                    sucesso = enviar_backup_email_agendamentos()
+                    if sucesso:
+                        print("✅ Backup automático enviado com sucesso!")
+                    else:
+                        print("❌ Falha no backup automático")
+                
+                # Verificar a cada minuto
+                time.sleep(60)
+                
+            except Exception as e:
+                print(f"❌ Erro no monitoramento de backup: {e}")
+                time.sleep(300)  # Esperar 5 minutos se der erro
+    
+    # Iniciar thread em background
+    thread = threading.Thread(target=monitorar, daemon=True)
+    thread.start()
+
 # ========================================
 # FUNÇÕES NOVAS PARA BLOQUEIOS DE PERÍODO
 # ========================================
@@ -2282,6 +2350,9 @@ def data_em_periodo_bloqueado(data):
     
 # Inicializar banco
 init_config()
+
+# Inicializar monitoramento de backup automático
+iniciar_monitoramento_backup()
 
 # Inicializar tabela de períodos
 init_config_periodos()
