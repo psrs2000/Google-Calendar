@@ -9,6 +9,8 @@ from email.mime.multipart import MIMEMultipart
 import calendar
 import time
 import random
+import hashlib
+import threading
 try:
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
@@ -1918,6 +1920,33 @@ def remover_event_id_google(agendamento_id):
         print(f"❌ Erro ao remover event ID: {e}")
     finally:
         conn.close()
+
+# ========================================
+# FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
+# ========================================
+
+import hashlib
+
+def calcular_hash_agendamentos():
+    """Calcula hash dos agendamentos para detectar mudanças"""
+    try:
+        agendamentos = buscar_agendamentos()
+        # Converter para string ordenada para hash consistente
+        dados_str = str(sorted(agendamentos))
+        return hashlib.md5(dados_str.encode()).hexdigest()
+    except:
+        return ""
+
+def agendamentos_mudaram():
+    """Verifica se houve mudanças desde último backup"""
+    hash_atual = calcular_hash_agendamentos()
+    hash_anterior = obter_configuracao("ultimo_backup_hash", "")
+    
+    if hash_atual != hash_anterior:
+        # Salvar novo hash
+        salvar_configuracao("ultimo_backup_hash", hash_atual)
+        return True
+    return False
 
 # ========================================
 # FUNÇÕES NOVAS PARA BLOQUEIOS DE PERÍODO
