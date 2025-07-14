@@ -1948,6 +1948,117 @@ def agendamentos_mudaram():
         return True
     return False
 
+def enviar_backup_email_agendamentos(forcar_envio=False):
+    """Envia backup dos agendamentos por email"""
+    
+    # Verificar se backup automático está ativo
+    backup_automatico_ativo = obter_configuracao("backup_email_ativo", False)
+    if not backup_automatico_ativo and not forcar_envio:
+        print("📧 Backup automático por email desativado")
+        return False
+    
+    # Verificar se há mudanças (se não for forçado)
+    if not forcar_envio and not agendamentos_mudaram():
+        print("📊 Sem mudanças desde último backup - não enviando")
+        return False
+    
+    try:
+        # Obter configurações de email
+        email_sistema = obter_configuracao("email_sistema", "")
+        senha_email = obter_configuracao("senha_email", "")
+        servidor_smtp = obter_configuracao("servidor_smtp", "smtp.gmail.com")
+        porta_smtp = obter_configuracao("porta_smtp", 587)
+        
+        # Email de destino para backup
+        email_backup = obter_configuracao("email_backup_destino", email_sistema)
+        
+        if not email_sistema or not senha_email or not email_backup:
+            print("❌ Configurações de email incompletas para backup")
+            return False
+        
+        # Gerar CSV dos agendamentos
+        csv_data = exportar_agendamentos_csv()
+        if not csv_data:
+            print("❌ Nenhum agendamento para fazer backup")
+            return False
+        
+        # Estatísticas para o email
+        agendamentos = buscar_agendamentos()
+        total_agendamentos = len(agendamentos)
+        
+        # Contar por status
+        pendentes = len([a for a in agendamentos if len(a) > 6 and a[6] == "pendente"])
+        confirmados = len([a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"])
+        atendidos = len([a for a in agendamentos if len(a) > 6 and a[6] == "atendido"])
+        cancelados = len([a for a in agendamentos if len(a) > 6 and a[6] == "cancelado"])
+        
+        # Data/hora atual
+        agora = datetime.now()
+        data_formatada = agora.strftime("%d/%m/%Y às %H:%M")
+        
+        # Nome do arquivo
+        nome_arquivo = f"agendamentos_backup_{agora.strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        # Dados do profissional/clínica
+        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+        
+        # Criar email
+        msg = MIMEMultipart()
+        msg['From'] = email_sistema
+        msg['To'] = email_backup
+        msg['Subject'] = f"📊 Backup Agendamentos - {nome_clinica} - {agora.strftime('%d/%m/%Y')}"
+        
+        # Corpo do email
+        corpo = f"""
+📋 Backup Automático de Agendamentos
+
+🏥 {nome_clinica}
+👨‍⚕️ {nome_profissional}
+
+📅 Data/Hora do Backup: {data_formatada}
+📊 Total de Agendamentos: {total_agendamentos}
+
+📈 Estatísticas por Status:
+⏳ Pendentes: {pendentes}
+✅ Confirmados: {confirmados}
+🎉 Atendidos: {atendidos}
+❌ Cancelados: {cancelados}
+
+📎 Arquivo em Anexo: {nome_arquivo}
+💾 Tamanho: {len(csv_data.encode('utf-8')) / 1024:.1f} KB
+
+🤖 Mensagem automática do Sistema de Agendamento
+"""
+        
+        # Anexar corpo do email
+        msg.attach(MIMEText(corpo, 'plain', 'utf-8'))
+        
+        # Anexar arquivo CSV
+        from email.mime.application import MIMEApplication
+        anexo = MIMEApplication(csv_data.encode('utf-8'), _subtype="csv")
+        anexo.add_header('Content-Disposition', 'attachment', filename=nome_arquivo)
+        msg.attach(anexo)
+        
+        # Enviar email
+        server = smtplib.SMTP(servidor_smtp, porta_smtp)
+        server.starttls()
+        server.login(email_sistema, senha_email)
+        server.send_message(msg)
+        server.quit()
+        
+        # Salvar data do último backup
+        salvar_configuracao("ultimo_backup_email_data", agora.isoformat())
+        
+        print(f"✅ Backup enviado por email para {email_backup}")
+        print(f"📊 {total_agendamentos} agendamentos incluídos no backup")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao enviar backup por email: {e}")
+        return False
+
 # ========================================
 # FUNÇÕES NOVAS PARA BLOQUEIOS DE PERÍODO
 # ========================================
