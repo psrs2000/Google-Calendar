@@ -2515,12 +2515,25 @@ def data_em_periodo_bloqueado(data):
     
 # Inicializar banco
 init_config()
+
 # Inicializar monitoramento de backup automático
 iniciar_monitoramento_backup()
+
 # Inicializar tabela de períodos
 init_config_periodos()
-# Restaurar configurações do GitHub
-restaurar_configuracoes_github()
+
+# Inicializar controle de restauração
+if 'dados_restaurados' not in st.session_state:
+    st.session_state.dados_restaurados = False
+
+# Restaurar configurações do GitHub (apenas uma vez por sessão)
+if not st.session_state.dados_restaurados:
+    print("🔄 Primeira execução - restaurando dados do GitHub...")
+    restaurar_configuracoes_github()
+    st.session_state.dados_restaurados = True
+    print("✅ Dados restaurados! Próximos st.rerun() não acessarão GitHub.")
+else:
+    print("✅ Dados já restaurados nesta sessão - pulando GitHub.")
 
 # INTERFACE PRINCIPAL
 if is_admin:
@@ -2561,7 +2574,26 @@ if is_admin:
         agendamentos_hoje = [a for a in agendamentos if a[1] == hoje]
         agendamentos_mes = [a for a in agendamentos if a[1].startswith(datetime.now().strftime("%Y-%m"))]
         
-
+        st.markdown("""
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-number">{}</div>
+                <div class="stat-label">Agendamentos Hoje</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-number">{}</div>
+                <div class="stat-label">Total Este Mês</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-number">{}</div>
+                <div class="stat-label">Datas Bloqueadas</div>
+            </div>
+            <div class="stat-card danger">
+                <div class="stat-number">{}</div>
+                <div class="stat-label">Total de Agendamentos</div>
+            </div>
+        </div>
+        """.format(len(agendamentos_hoje), len(agendamentos_mes), len(bloqueios), len(agendamentos)), unsafe_allow_html=True)
         
         # Conteúdo baseado na opção
                 # Interface administrativa autenticada com menu horizontal
@@ -3534,7 +3566,7 @@ Sistema de Agendamento Online
                                 if horarios_selecionados_semanal:
                                     if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
                                         st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
-                                        
+                                        st.rerun()
                                     else:
                                         st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
                                 else:
@@ -3666,7 +3698,7 @@ Sistema de Agendamento Online
                                     
                                     if adicionar_bloqueio_permanente(inicio_str, fim_str, dias_selecionados_perm, descricao_perm):
                                         st.success("✅ Bloqueio permanente criado com sucesso!")
-                                        
+                                        st.rerun()
                                     else:
                                         st.error("❌ Erro ao criar bloqueio.")
                                 else:
