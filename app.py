@@ -3996,19 +3996,7 @@ Sistema de Agendamento Online
             
             with tab_auto:
                 interface_backup_email()
-                
 
-                
-                # Placeholder para futuras implementações
-                st.markdown("---")
-                st.markdown("**⚙️ Configurações Futuras:**")
-                
-                backup_auto_ativo = st.checkbox("Ativar backup automático", disabled=True, help="Será implementado em breve")
-                backup_email = st.text_input("Email para backup:", disabled=True, placeholder="Em desenvolvimento...")
-                backup_frequencia = st.selectbox("Frequência:", ["Diário", "Semanal", "Mensal"], disabled=True)
-                
-                st.button("💾 Salvar Configurações", disabled=True, help="Será implementado em breve")
-            
             st.markdown('</div>', unsafe_allow_html=True)
 
 else:
