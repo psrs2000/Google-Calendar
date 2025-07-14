@@ -1629,6 +1629,42 @@ def restaurar_configuracoes_github():
         conn = conectar()
         c = conn.cursor()
         
+        # IMPORTANTE: Criar TODAS as tabelas necessárias ANTES de restaurar
+        # Tabela de bloqueios permanentes
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS bloqueios_permanentes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                horario_inicio TEXT,
+                horario_fim TEXT,
+                dias_semana TEXT,
+                descricao TEXT
+            )
+        ''')
+        
+        # Tabela de bloqueios semanais
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS bloqueios_semanais (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                dia_semana TEXT,
+                horarios TEXT,
+                descricao TEXT,
+                UNIQUE(dia_semana, horarios)
+            )
+        ''')
+        
+        # Tabela de bloqueios de período
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS bloqueios_periodos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                data_inicio TEXT,
+                data_fim TEXT,
+                descricao TEXT,
+                criado_em TEXT
+            )
+        ''')
+        
+        conn.commit()
+        
         restaurados = 0
         
         try:
@@ -1695,6 +1731,7 @@ def restaurar_configuracoes_github():
             # 5. RESTAURAR BLOQUEIOS PERMANENTES
             if 'bloqueios_permanentes' in backup_data:
                 try:
+                    # Agora é seguro fazer DELETE pois a tabela existe
                     c.execute("DELETE FROM bloqueios_permanentes")
                     
                     for bloqueio in backup_data['bloqueios_permanentes']:
@@ -1702,7 +1739,8 @@ def restaurar_configuracoes_github():
                             c.execute("""INSERT INTO bloqueios_permanentes 
                                         (horario_inicio, horario_fim, dias_semana, descricao) 
                                         VALUES (?, ?, ?, ?)""",
-                                     (bloqueio[1], bloqueio[2], bloqueio[3], bloqueio[4]))
+                                     (bloqueio[1], bloqueio[2], bloqueio[3], 
+                                      bloqueio[4] if len(bloqueio) > 4 else ""))
                     
                     print(f"✅ {len(backup_data['bloqueios_permanentes'])} bloqueios permanentes restaurados")
                 except Exception as e:
@@ -1711,6 +1749,7 @@ def restaurar_configuracoes_github():
             # 6. RESTAURAR BLOQUEIOS SEMANAIS
             if 'bloqueios_semanais' in backup_data:
                 try:
+                    # Agora é seguro fazer DELETE pois a tabela existe
                     c.execute("DELETE FROM bloqueios_semanais")
                     
                     for bloqueio in backup_data['bloqueios_semanais']:
