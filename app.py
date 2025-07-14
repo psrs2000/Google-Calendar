@@ -3554,19 +3554,9 @@ Sistema de Agendamento Online
                             # Botão para salvar bloqueio semanal
                             if st.button("💾 Salvar Bloqueio Semanal", type="primary", key="btn_salvar_semanal"):
                                 if horarios_selecionados_semanal:
-                                    
-                                    # DEBUG: Antes de salvar
-                                    st.write(f"🔍 ANTES: {len(obter_bloqueios_semanais())} bloqueios")
-                                    
-                                    resultado = adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal)
-                                    
-                                    # DEBUG: Resultado e depois de salvar
-                                    st.write(f"🔍 RESULTADO: {resultado}")
-                                    st.write(f"🔍 DEPOIS: {len(obter_bloqueios_semanais())} bloqueios")
-                                    
-                                    if resultado:
+                                    if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
                                         st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
-                                        
+
                                     else:
                                         st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
                                 else:
