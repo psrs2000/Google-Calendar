@@ -2574,27 +2574,7 @@ if is_admin:
         agendamentos_hoje = [a for a in agendamentos if a[1] == hoje]
         agendamentos_mes = [a for a in agendamentos if a[1].startswith(datetime.now().strftime("%Y-%m"))]
         
-        st.markdown("""
-        <div class="stats-container">
-            <div class="stat-card">
-                <div class="stat-number">{}</div>
-                <div class="stat-label">Agendamentos Hoje</div>
-            </div>
-            <div class="stat-card success">
-                <div class="stat-number">{}</div>
-                <div class="stat-label">Total Este Mês</div>
-            </div>
-            <div class="stat-card warning">
-                <div class="stat-number">{}</div>
-                <div class="stat-label">Datas Bloqueadas</div>
-            </div>
-            <div class="stat-card danger">
-                <div class="stat-number">{}</div>
-                <div class="stat-label">Total de Agendamentos</div>
-            </div>
-        </div>
-        """.format(len(agendamentos_hoje), len(agendamentos_mes), len(bloqueios), len(agendamentos)), unsafe_allow_html=True)
-        
+
         # Conteúdo baseado na opção
                 # Interface administrativa autenticada com menu horizontal
         opcao = criar_menu_horizontal()
