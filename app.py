@@ -3534,7 +3534,7 @@ Sistema de Agendamento Online
                                 if horarios_selecionados_semanal:
                                     if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
                                         st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
-                                        st.rerun()
+                                        
                                     else:
                                         st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
                                 else:
