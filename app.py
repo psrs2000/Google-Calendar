@@ -1373,7 +1373,7 @@ def criar_menu_horizontal():
                     use_container_width=True,
                     help="Configurações gerais do sistema"):
             st.session_state.menu_opcao = "⚙️ Configurações Gerais"
-            #st.rerun()
+            st.rerun()
     
     with col2:
         if st.button("📅 **Agenda**", 
@@ -1381,7 +1381,7 @@ def criar_menu_horizontal():
                     use_container_width=True,
                     help="Configurar dias úteis"):
             st.session_state.menu_opcao = "📅 Configurar Agenda"
-            #st.rerun()
+            st.rerun()
     
     with col3:
         if st.button("🗓️ **Bloqueios**", 
@@ -1389,7 +1389,7 @@ def criar_menu_horizontal():
                     use_container_width=True,
                     help="Gerenciar bloqueios de datas/horários"):
             st.session_state.menu_opcao = "🗓️ Gerenciar Bloqueios"
-            #st.rerun()
+            st.rerun()
     
     with col4:
         if st.button("👥 **Agendamentos**", 
@@ -1397,7 +1397,7 @@ def criar_menu_horizontal():
                     use_container_width=True,
                     help="Lista de todos os agendamentos"):
             st.session_state.menu_opcao = "👥 Lista de Agendamentos"
-            #st.rerun()
+            st.rerun()
     
     with col5:
         if st.button("💾 **Backup**", 
@@ -1405,7 +1405,7 @@ def criar_menu_horizontal():
                     use_container_width=True,
                     help="Backup e restauração de dados"):
             st.session_state.menu_opcao = "💾 Backup & Restauração"
-            #st.rerun()
+            st.rerun()
     
     with col6:
         if st.button("🚪 **Sair**", 
@@ -1414,7 +1414,7 @@ def criar_menu_horizontal():
                     help="Fazer logout do painel admin"):
             st.session_state.authenticated = False
             st.session_state.menu_opcao = "⚙️ Configurações Gerais"  # Reset
-            #st.rerun()
+            st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
     
@@ -2348,7 +2348,7 @@ def interface_backup_email():
         else:
             st.warning("⚠️ Backup automático foi desativado")
         
-        #st.rerun()
+        st.rerun()
 
 def verificar_hora_backup():
     """Verifica se chegou a hora do backup automático"""
@@ -2531,7 +2531,7 @@ if not st.session_state.dados_restaurados:
     print("🔄 Primeira execução - restaurando dados do GitHub...")
     restaurar_configuracoes_github()
     st.session_state.dados_restaurados = True
-    print("✅ Dados restaurados! Próximos #st.rerun() não acessarão GitHub.")
+    print("✅ Dados restaurados! Próximos st.rerun() não acessarão GitHub.")
 else:
     print("✅ Dados já restaurados nesta sessão - pulando GitHub.")
 
@@ -2559,7 +2559,7 @@ if is_admin:
             if st.button("🚪 Entrar", type="primary", use_container_width=True):
                 if senha == SENHA_CORRETA:
                     st.session_state.authenticated = True
-                    #st.rerun()
+                    st.rerun()
                 else:
                     st.error("❌ Senha incorreta!")
         
@@ -3198,7 +3198,7 @@ Sistema de Agendamento Online
                             if st.button("🚫 Bloquear Dia", type="primary", key="btn_bloquear_dia"):
                                 if adicionar_bloqueio(data_bloqueio.strftime("%Y-%m-%d")):
                                     st.success("✅ Dia bloqueado!")
-                                    #st.rerun()
+                                    st.rerun()
                                 else:
                                     st.warning("⚠️ Data já bloqueada.")
                         
@@ -3239,7 +3239,7 @@ Sistema de Agendamento Online
                                 with col_btn:
                                     if st.button("🗑️", key=f"remove_dia_{data}", help="Remover bloqueio"):
                                         remover_bloqueio(data)
-                                        #st.rerun()
+                                        st.rerun()
                         else:
                             st.info("📅 Nenhum dia individual bloqueado atualmente.")
                     
@@ -3291,7 +3291,7 @@ Sistema de Agendamento Online
                                         if periodo_id:
                                             dias_total = (data_fim_periodo - data_inicio_periodo).days + 1
                                             st.success(f"✅ Período bloqueado com sucesso! ({dias_total} dias)")
-                                            #st.rerun()
+                                            st.rerun()
                                         else:
                                             st.error("❌ Erro ao bloquear período.")
                                     else:
@@ -3373,7 +3373,7 @@ Sistema de Agendamento Online
                                     if st.button("🗑️", key=f"remove_periodo_{periodo_id}", help="Remover período completo"):
                                         if remover_bloqueio_periodo(periodo_id):
                                             st.success(f"✅ Período '{descricao}' removido!")
-                                            #st.rerun()
+                                            st.rerun()
                                         else:
                                             st.error("❌ Erro ao remover período.")
                         else:
@@ -3457,7 +3457,7 @@ Sistema de Agendamento Online
                                         
                                         if bloqueados > 0:
                                             st.success(f"✅ {bloqueados} horário(s) bloqueado(s) com sucesso!")
-                                            #st.rerun()
+                                            st.rerun()
                                         else:
                                             st.warning("⚠️ Horários já estavam bloqueados.")
                                     else:
@@ -3470,7 +3470,7 @@ Sistema de Agendamento Online
                                             remover_bloqueio_horario(data_horario_str, horario)
                                         
                                         st.success(f"✅ Todos os horários do dia {data_horario.strftime('%d/%m/%Y')} foram desbloqueados!")
-                                        #st.rerun()
+                                        st.rerun()
                                     else:
                                         st.info("ℹ️ Nenhum horário bloqueado neste dia.")
                         
@@ -3546,7 +3546,7 @@ Sistema de Agendamento Online
                                 if horarios_selecionados_semanal:
                                     if adicionar_bloqueio_semanal(dia_semana_selecionado, horarios_selecionados_semanal, descricao_semanal):
                                         st.success(f"✅ Bloqueio semanal para {dias_opcoes[dia_semana_selecionado]} criado com sucesso!")
-                                        #st.rerun()
+                                        st.rerun()
                                     else:
                                         st.warning("⚠️ Esse bloqueio semanal já existe ou ocorreu um erro.")
                                 else:
@@ -3582,7 +3582,7 @@ Sistema de Agendamento Online
                                         if st.button("🗑️", key=f"remove_semanal_{bloqueio_id}", help="Remover bloqueio semanal"):
                                             if remover_bloqueio_semanal(bloqueio_id):
                                                 st.success("Bloqueio semanal removido!")
-                                                #st.rerun()
+                                                st.rerun()
                             else:
                                 st.info("📅 Nenhum bloqueio semanal configurado.")
                         
@@ -3618,7 +3618,7 @@ Sistema de Agendamento Online
                                         with col2:
                                             if st.button("🗑️", key=f"remove_horario_{data}_{horario}", help="Remover bloqueio"):
                                                 remover_bloqueio_horario(data, horario)
-                                                #st.rerun()
+                                                st.rerun()
                                 
                                 st.markdown("---")
                         else:
@@ -3678,7 +3678,7 @@ Sistema de Agendamento Online
                                     
                                     if adicionar_bloqueio_permanente(inicio_str, fim_str, dias_selecionados_perm, descricao_perm):
                                         st.success("✅ Bloqueio permanente criado com sucesso!")
-                                        #st.rerun()
+                                        st.rerun()
                                     else:
                                         st.error("❌ Erro ao criar bloqueio.")
                                 else:
@@ -3718,7 +3718,7 @@ Sistema de Agendamento Online
                                     if st.button("🗑️", key=f"remove_perm_{bloqueio_id}", help="Remover bloqueio permanente"):
                                         if remover_bloqueio_permanente(bloqueio_id):
                                             st.success("Bloqueio removido!")
-                                            #st.rerun()
+                                            st.rerun()
                         else:
                             st.info("📅 Nenhum bloqueio permanente configurado.")
                     
@@ -3946,32 +3946,32 @@ Sistema de Agendamento Online
                                 if st.button("✅ Confirmar", key=f"confirm_{agendamento_id}", help="Confirmar agendamento", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'confirmado')
                                     st.success(f"✅ Agendamento de {nome} confirmado!")
-                                    #st.rerun()
+                                    st.rerun()
                             
                             if 'reject' in config['actions']:
                                 if st.button("❌ Recusar", key=f"reject_{agendamento_id}", help="Recusar agendamento", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'cancelado')
                                     st.success(f"❌ Agendamento de {nome} recusado!")
-                                    #st.rerun()
+                                    st.rerun()
                             
                             if 'attend' in config['actions']:
                                 if st.button("🎉 Atender", key=f"attend_{agendamento_id}", help="Marcar como atendido", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'atendido')
                                     st.success(f"🎉 {nome} marcado como atendido!")
-                                    #st.rerun()
+                                    st.rerun()
                             
                             if 'cancel' in config['actions']:
                                 if st.button("❌ Cancelar", key=f"cancel_{agendamento_id}", help="Cancelar agendamento", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'cancelado')
                                     st.success(f"❌ Agendamento de {nome} cancelado!")
-                                    #st.rerun()
+                                    st.rerun()
                             
                             if 'delete' in config['actions']:
                                 if st.button("🗑️ Excluir", key=f"delete_{agendamento_id}", help="Excluir registro", use_container_width=True):
                                     if st.session_state.get(f"confirm_delete_{agendamento_id}", False):
                                         deletar_agendamento(agendamento_id)
                                         st.success(f"🗑️ Registro de {nome} excluído!")
-                                        #st.rerun()
+                                        st.rerun()
                                     else:
                                         st.session_state[f"confirm_delete_{agendamento_id}"] = True
                                         st.warning("⚠️ Clique novamente para confirmar")
@@ -3992,7 +3992,7 @@ Sistema de Agendamento Online
                                 atualizar_status_agendamento(agendamento_id, 'confirmado')
                             if pendentes_ids:
                                 st.success(f"✅ {len(pendentes_ids)} agendamento(s) confirmado(s)!")
-                                #st.rerun()
+                                st.rerun()
                             else:
                                 st.info("ℹ️ Nenhum agendamento pendente na lista atual.")
                     
@@ -4003,7 +4003,7 @@ Sistema de Agendamento Online
                                 atualizar_status_agendamento(agendamento_id, 'atendido')
                             if confirmados_ids:
                                 st.success(f"🎉 {len(confirmados_ids)} agendamento(s) marcado(s) como atendido!")
-                                #st.rerun()
+                                st.rerun()
                             else:
                                 st.info("ℹ️ Nenhum agendamento confirmado na lista atual.")
                     
@@ -4016,7 +4016,7 @@ Sistema de Agendamento Online
                                 deletar_agendamento(agendamento_id)
                             if cancelados_antigos:
                                 st.success(f"🗑️ {len(cancelados_antigos)} registro(s) antigo(s) removido(s)!")
-                                #st.rerun()
+                                st.rerun()
                             else:
                                 st.info("ℹ️ Nenhum cancelamento antigo para remover.")
                 
@@ -4192,7 +4192,7 @@ Sistema de Agendamento Online
                                 # Atualizar a página para mostrar os novos dados
                                 if resultado['importados'] > 0:
                                     st.balloons()
-                                    #st.rerun()
+                                    st.rerun()
                                     
                             else:
                                 st.error(f"❌ Erro na restauração: {resultado.get('erro', 'Erro desconhecido')}")
@@ -4333,7 +4333,7 @@ else:
                                 ano, mes = nova_chave.split("-")
                                 st.session_state.ano_atual = int(ano)
                                 st.session_state.mes_atual = int(mes)
-                                #st.rerun()
+                                st.rerun()
                         except ValueError:
                             pass
 
@@ -4355,7 +4355,7 @@ else:
                                 ano, mes = nova_chave.split("-")
                                 st.session_state.ano_atual = int(ano)
                                 st.session_state.mes_atual = int(mes)
-                                #st.rerun()
+                                st.rerun()
                         except ValueError:
                             pass
 
@@ -4494,7 +4494,7 @@ else:
                                             use_container_width=True
                                         ):
                                             st.session_state.data_selecionada_cal = data_atual
-                                            #st.rerun()
+                                            st.rerun()
                                     else:
                                         # Data indisponível
                                         st.markdown(f"""
