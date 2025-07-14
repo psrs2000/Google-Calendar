@@ -3666,7 +3666,7 @@ Sistema de Agendamento Online
                                     
                                     if adicionar_bloqueio_permanente(inicio_str, fim_str, dias_selecionados_perm, descricao_perm):
                                         st.success("✅ Bloqueio permanente criado com sucesso!")
-                                        st.rerun()
+                                        
                                     else:
                                         st.error("❌ Erro ao criar bloqueio.")
                                 else:
