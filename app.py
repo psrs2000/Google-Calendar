@@ -3997,17 +3997,7 @@ Sistema de Agendamento Online
             with tab_auto:
                 interface_backup_email()
                 
-                st.info("""
-                🚧 **Em Desenvolvimento**
-                
-                Esta seção será implementada em breve com as seguintes funcionalidades:
-                
-                • 📧 **Backup por Email:** Envio automático de backups por email
-                • 📅 **Google Calendar:** Sincronização automática com Google Calendar  
-                • ⏰ **Agendamento:** Backups automáticos em horários programados
-                • 📊 **Histórico:** Log de backups realizados
-                • 🔔 **Notificações:** Alertas sobre status dos backups
-                """)
+
                 
                 # Placeholder para futuras implementações
                 st.markdown("---")
