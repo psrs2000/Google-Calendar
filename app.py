@@ -4836,6 +4836,13 @@ else:
                                     
                                     if not st.session_state.codigo_enviado:
                                         # PASSO 1: Enviar código
+                                        st.markdown("""
+                                        <div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+                                            <h4 style="color: #0369a1; margin: 0 0 0.5rem 0;">🔐 Verificação de Segurança</h4>
+                                            <p style="color: #0c4a6e; margin: 0;">Vamos enviar um código para confirmar seu email.</p>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                        
                                         if st.button("📧 Enviar Código de Verificação", type="primary", use_container_width=True):
                                             # Validar dados primeiro
                                             if not nome or not telefone or not email:
@@ -4843,67 +4850,69 @@ else:
                                             elif "@" not in email or "." not in email.split("@")[-1]:
                                                 st.error("❌ Digite um email válido!")
                                             else:
-                                                # Gerar e enviar código
-                                                codigo = gerar_codigo_verificacao()
-                                                salvar_codigo_verificacao(email, codigo)
-                                                
-                                                if enviar_codigo_verificacao(email, nome, codigo):
-                                                    st.success(f"✅ Código enviado para {email}")
-                                                    st.info("📧 Verifique sua caixa de entrada (pode estar no spam)")
+                                                with st.spinner("Enviando código..."):
+                                                    # Gerar e enviar código
+                                                    codigo = gerar_codigo_verificacao()
+                                                    salvar_codigo_verificacao(email, codigo)
                                                     
-                                                    # Salvar dados temporariamente
-                                                    st.session_state.codigo_enviado = True
-                                                    st.session_state.email_verificacao = email
-                                                    st.session_state.dados_agendamento = {
-                                                        'nome': nome,
-                                                        'telefone': telefone,
-                                                        'email': email,
-                                                        'data': data_str,
-                                                        'horario': horario
-                                                    }
-                                                    st.rerun()
-                                                else:
-                                                    st.error("❌ Erro ao enviar código. Verifique o email e tente novamente.")
+                                                    if enviar_codigo_verificacao(email, nome, codigo):
+                                                        st.success(f"✅ Código enviado para {email}")
+                                                        st.info("📧 Verifique sua caixa de entrada (pode estar no spam)")
+                                                        
+                                                        # Salvar dados temporariamente
+                                                        st.session_state.codigo_enviado = True
+                                                        st.session_state.email_verificacao = email
+                                                        st.session_state.dados_agendamento = {
+                                                            'nome': nome,
+                                                            'telefone': telefone,
+                                                            'email': email,
+                                                            'data': data_str,
+                                                            'horario': horario
+                                                        }
+                                                        time.sleep(1)  # Dar tempo para ler a mensagem
+                                                        st.rerun()
+                                                    else:
+                                                        st.error("❌ Erro ao enviar código. Verifique o email e tente novamente.")
                                     
                                     else:
                                         # PASSO 2: Verificar código
-                                        st.success(f"📧 Código enviado para: {st.session_state.email_verificacao}")
+                                        st.markdown("""
+                                        <div style="background: #f0fdf4; border: 1px solid #10b981; border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+                                            <h4 style="color: #047857; margin: 0 0 0.5rem 0;">✅ Código Enviado!</h4>
+                                            <p style="color: #064e3b; margin: 0;">Enviamos um código de 4 dígitos para:</p>
+                                            <p style="color: #047857; font-weight: bold; margin: 0.5rem 0 0 0;">📧 {}</p>
+                                        </div>
+                                        """.format(st.session_state.email_verificacao), unsafe_allow_html=True)
                                         
-                                        # Verificar se os dados ainda são os mesmos
+                                        # Verificar se mudou o email
                                         if email != st.session_state.email_verificacao:
-                                            if st.button("📧 Usar novo email", type="secondary"):
+                                            st.warning(f"⚠️ Você alterou o email. O código foi enviado para: {st.session_state.email_verificacao}")
+                                            if st.button("📧 Usar novo email e reenviar código", use_container_width=True):
                                                 st.session_state.codigo_enviado = False
                                                 st.session_state.email_verificacao = ""
                                                 st.rerun()
+                                            st.markdown("---")
                                         
-                                        col1_code, col2_code = st.columns([2, 1])
+                                        # Campo para código
+                                        codigo_digitado = st.text_input(
+                                            "Digite o código de 4 dígitos:",
+                                            max_chars=4,
+                                            placeholder="0000",
+                                            help="Código enviado para seu email"
+                                        )
                                         
-                                        with col1_code:
-                                            codigo_digitado = st.text_input(
-                                                "Digite o código recebido:",
-                                                max_chars=4,
-                                                placeholder="0000",
-                                                help="Código de 4 dígitos enviado por email"
-                                            )
+                                        # Informação sobre validade
+                                        st.caption("⏱️ Código válido por 30 minutos • 5 tentativas disponíveis")
                                         
-                                        with col2_code:
-                                            st.markdown("<br>", unsafe_allow_html=True)
-                                            if st.button("🔄 Reenviar", help="Enviar novo código"):
-                                                codigo = gerar_codigo_verificacao()
-                                                salvar_codigo_verificacao(email, codigo)
-                                                
-                                                if enviar_codigo_verificacao(email, nome, codigo):
-                                                    st.success("✅ Novo código enviado!")
-                                                else:
-                                                    st.error("❌ Erro ao reenviar código")
+                                        # Container para ações
+                                        st.markdown("<div style='margin-top: 1rem;'>", unsafe_allow_html=True)
                                         
-                                        col1_action, col2_action = st.columns(2)
-                                        
-                                        with col1_action:
-                                            if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True):
-                                                if len(codigo_digitado) == 4:
+                                        # Botão principal de confirmar
+                                        if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True, disabled=(len(codigo_digitado) != 4)):
+                                            if len(codigo_digitado) == 4:
+                                                with st.spinner("Verificando código..."):
                                                     # Verificar código
-                                                    valido, mensagem = verificar_codigo(email, codigo_digitado)
+                                                    valido, mensagem = verificar_codigo(st.session_state.email_verificacao, codigo_digitado)
                                                     
                                                     if valido:
                                                         # Código correto - fazer agendamento
@@ -4922,16 +4931,28 @@ else:
                                                             st.session_state.email_verificacao = ""
                                                             st.session_state.dados_agendamento = {}
                                                             
+                                                            # Mensagens de sucesso
+                                                            st.balloons()
+                                                            
                                                             if status_inicial == "confirmado":
                                                                 st.success("✅ Agendamento confirmado com sucesso!")
                                                             else:
                                                                 st.success("✅ Agendamento solicitado! Aguarde confirmação.")
                                                             
-                                                            st.info(f"📅 {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
-                                                            
-                                                            # Mostrar informações de contato
+                                                            # Resumo do agendamento
                                                             st.markdown(f"""
-                                                            <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                                                            <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                                                                <h3 style="color: #047857; margin: 0 0 1rem 0;">📅 Seu Agendamento</h3>
+                                                                <p style="margin: 0.5rem 0;"><strong>Data:</strong> {data_selecionada.strftime('%d/%m/%Y')}</p>
+                                                                <p style="margin: 0.5rem 0;"><strong>Horário:</strong> {horario}</p>
+                                                                <p style="margin: 0.5rem 0;"><strong>Local:</strong> {nome_clinica}</p>
+                                                                <p style="margin: 0.5rem 0;"><strong>Endereço:</strong> {endereco_completo}</p>
+                                                            </div>
+                                                            """, unsafe_allow_html=True)
+                                                            
+                                                            # Informações de contato
+                                                            st.markdown(f"""
+                                                            <div style="background: #f8f9fa; border-left: 4px solid #0ea5e9; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
                                                                 <strong>📞 Em caso de dúvidas:</strong><br>
                                                                 📱 Telefone: {telefone_contato}<br>
                                                                 💬 WhatsApp: {whatsapp}
@@ -4942,15 +4963,35 @@ else:
                                                             st.error(f"❌ Erro ao agendar: {str(e)}")
                                                     else:
                                                         st.error(f"❌ {mensagem}")
-                                                else:
-                                                    st.warning("⚠️ Digite o código de 4 dígitos")
+                                            else:
+                                                st.warning("⚠️ Digite o código de 4 dígitos")
                                         
-                                        with col2_action:
-                                            if st.button("❌ Cancelar", type="secondary", use_container_width=True):
+                                        # Espaçamento
+                                        st.markdown("<div style='margin: 0.5rem 0;'></div>", unsafe_allow_html=True)
+                                        
+                                        # Ações secundárias em linha única
+                                        col1, col2 = st.columns([1, 1])
+                                        
+                                        with col1:
+                                            if st.button("🔄 Reenviar Código", use_container_width=True, type="secondary"):
+                                                with st.spinner("Enviando novo código..."):
+                                                    codigo = gerar_codigo_verificacao()
+                                                    salvar_codigo_verificacao(st.session_state.email_verificacao, codigo)
+                                                    
+                                                    if enviar_codigo_verificacao(st.session_state.email_verificacao, nome, codigo):
+                                                        st.success("✅ Novo código enviado!")
+                                                        st.info("📧 Verifique seu email novamente")
+                                                    else:
+                                                        st.error("❌ Erro ao reenviar código")
+                                        
+                                        with col2:
+                                            if st.button("❌ Cancelar", use_container_width=True, type="secondary"):
                                                 st.session_state.codigo_enviado = False
                                                 st.session_state.email_verificacao = ""
                                                 st.session_state.dados_agendamento = {}
                                                 st.rerun()
+                                        
+                                        st.markdown("</div>", unsafe_allow_html=True)
 
                                 else:
                                     # Sistema sem verificação (código original)
