@@ -2551,137 +2551,6 @@ def data_em_periodo_bloqueado(data):
     except:
         conn.close()
         return False
-
-def gerar_codigo_verificacao():
-    """Gera código aleatório de 4 dígitos"""
-    return str(random.randint(1000, 9999))
-
-def salvar_codigo_verificacao(email, codigo):
-    """Salva código de verificação temporário no banco"""
-    conn = conectar()
-    c = conn.cursor()
-    
-    try:
-        # Criar tabela se não existir
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS codigos_verificacao (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT,
-                codigo TEXT,
-                criado_em TEXT,
-                usado INTEGER DEFAULT 0
-            )
-        ''')
-        
-        # Limpar códigos antigos (mais de 10 minutos)
-        limite_tempo = (datetime.now() - timedelta(minutes=10)).isoformat()
-        c.execute("DELETE FROM codigos_verificacao WHERE criado_em < ?", (limite_tempo,))
-        
-        # Salvar novo código
-        agora = datetime.now().isoformat()
-        c.execute("""INSERT INTO codigos_verificacao 
-                    (email, codigo, criado_em, usado) 
-                    VALUES (?, ?, ?, 0)""", 
-                 (email, codigo, agora))
-        
-        conn.commit()
-        return True
-        
-    except Exception as e:
-        print(f"Erro ao salvar código: {e}")
-        return False
-    finally:
-        conn.close()
-
-def verificar_codigo(email, codigo_digitado):
-    """Verifica se código está correto e não expirou"""
-    conn = conectar()
-    c = conn.cursor()
-    
-    try:
-        # Buscar código válido (últimos 10 minutos, não usado)
-        limite_tempo = (datetime.now() - timedelta(minutes=10)).isoformat()
-        c.execute("""SELECT id FROM codigos_verificacao 
-                    WHERE email = ? AND codigo = ? 
-                    AND criado_em > ? AND usado = 0 
-                    ORDER BY criado_em DESC LIMIT 1""", 
-                 (email, codigo_digitado, limite_tempo))
-        
-        resultado = c.fetchone()
-        
-        if resultado:
-            # Marcar código como usado
-            c.execute("UPDATE codigos_verificacao SET usado = 1 WHERE id = ?", 
-                     (resultado[0],))
-            conn.commit()
-            return True
-        
-        return False
-        
-    except Exception as e:
-        print(f"Erro ao verificar código: {e}")
-        return False
-    finally:
-        conn.close()
-
-def enviar_codigo_verificacao(nome, email, codigo):
-    """Envia código de verificação por email"""
-    
-    # Verificar se email está configurado
-    envio_automatico = obter_configuracao("envio_automatico", False)
-    if not envio_automatico:
-        return False
-    
-    try:
-        # Obter configurações de email
-        email_sistema = obter_configuracao("email_sistema", "")
-        senha_email = obter_configuracao("senha_email", "")
-        servidor_smtp = obter_configuracao("servidor_smtp", "smtp.gmail.com")
-        porta_smtp = obter_configuracao("porta_smtp", 587)
-        
-        if not email_sistema or not senha_email:
-            return False
-        
-        # Dados da clínica
-        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
-        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
-        
-        # Criar mensagem
-        msg = MIMEMultipart()
-        msg['From'] = email_sistema
-        msg['To'] = email
-        msg['Subject'] = f"🔐 Código de Verificação - {nome_clinica}"
-        
-        corpo = f"""
-Olá {nome}!
-
-Para completar seu agendamento, digite o código de verificação abaixo:
-
-🔐 CÓDIGO: {codigo}
-
-⏰ Este código é válido por 10 minutos.
-
-Se você não solicitou este agendamento, ignore este email.
-
-Atenciosamente,
-{nome_profissional}
-{nome_clinica}
-"""
-        
-        msg.attach(MIMEText(corpo, 'plain', 'utf-8'))
-        
-        # Enviar email
-        server = smtplib.SMTP(servidor_smtp, porta_smtp)
-        server.starttls()
-        server.login(email_sistema, senha_email)
-        server.send_message(msg)
-        server.quit()
-        
-        return True
-        
-    except Exception as e:
-        print(f"Erro ao enviar código: {e}")
-        return False
     
 # Inicializar banco
 init_config()
@@ -3007,44 +2876,6 @@ if is_admin:
                             value=porta_smtp_value,
                             help="Para Gmail: 587 | Para Outlook: 587"
                         )                    
-
-                        st.markdown("---")
-                        st.markdown("**🔐 Verificação de Segurança**")
-                        
-                        verificacao_codigo_ativa = st.checkbox(
-                            "Exigir código de verificação por email",
-                            value=obter_configuracao("verificacao_codigo_ativa", True),
-                            help="Cliente precisa verificar email com código antes de finalizar agendamento",
-                            key="verificacao_codigo_checkbox"
-                        )
-                        
-                        if verificacao_codigo_ativa:
-                            st.success("✅ Verificação ativa - maior segurança contra spam e agendamentos falsos")
-                            st.info("""
-                            **🔄 Como funciona:**
-                            1. Cliente preenche dados e escolhe horário
-                            2. Sistema envia código de 4 dígitos por email
-                            3. Cliente digita código para confirmar
-                            4. Agendamento é finalizado
-                            """)
-                        else:
-                            st.warning("⚠️ Verificação desativa - agendamentos diretos (menos seguro)")
-                        # ====================================
-                        # <<<< ATÉ AQUI >>>>
-                        
-                        # Configurações de envio (esta seção JÁ EXISTE - não mexer)
-                        st.markdown("---")
-                        st.markdown("**📬 Tipos de Email Automático**")
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            enviar_confirmacao = st.checkbox(
-                                "Enviar email de confirmação",
-                                value=obter_configuracao("enviar_confirmacao", True),
-                                help="Envia email quando agendamento é confirmado"
-                            )
-
                     # Configurações de envio
                     st.markdown("---")
                     st.markdown("**📬 Tipos de Email Automático**")
@@ -3332,7 +3163,7 @@ Sistema de Agendamento Online
                     salvar_configuracao("enviar_confirmacao", enviar_confirmacao)
                     salvar_configuracao("enviar_cancelamento", enviar_cancelamento)
                     salvar_configuracao("template_confirmacao", template_confirmacao)
-                    salvar_configuracao("verificacao_codigo_ativa", verificacao_codigo_ativa)
+                
                 # NOVO: Salvar configuração de backup GitHub
                 salvar_configuracao("backup_github_ativo", backup_github_ativo)
                 
@@ -4463,16 +4294,13 @@ else:
         tab_agendar, tab_cancelar = st.tabs(["📅 Agendar Horário", "❌ Cancelar Agendamento"])
         
         with tab_agendar:
-            # Verificar se sistema de verificação está ativo
-            verificacao_ativa = obter_configuracao("verificacao_codigo_ativa", True)  # Padrão: ativo
-            
             # Obter configurações dinâmicas para agendamento
             hoje = datetime.today()
             dias_futuros_config = obter_configuracao("dias_futuros", 30)
             antecedencia_minima = obter_configuracao("antecedencia_minima", 2)
             horario_inicio = obter_configuracao("horario_inicio", "09:00")
             horario_fim = obter_configuracao("horario_fim", "18:00")
-            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)  # AGORA USA A CONFIGURAÇÃO!
             
             dias_uteis = obter_dias_uteis()
             datas_bloqueadas = obter_datas_bloqueadas()
@@ -4485,271 +4313,378 @@ else:
             for i in range(1, dias_futuros_config + 1):
                 data = hoje + timedelta(days=i)
                 dia_semana = data.strftime("%A")
-                data_str = data.strftime("%Y-%m-%d")
+                data_str = data.strftime("%Y-%m-%d")  # Formato para verificar períodos
                 
+                # Verificar todas as condições:
+                # 1. Dia da semana permitido
+                # 2. Não está na lista de bloqueios individuais  
+                # 3. Não está em nenhum período bloqueado
+                # 4. Respeita antecedência mínima
                 if (dia_semana in dias_uteis and 
                     data.date() not in datas_bloqueadas_dt and 
-                    not data_em_periodo_bloqueado(data_str) and
+                    not data_em_periodo_bloqueado(data_str) and  # NOVA VERIFICAÇÃO!
                     data.date() > data_limite_antecedencia.date()):
                     datas_validas.append(data.date())
             
             if not datas_validas:
                 st.warning("⚠️ Nenhuma data disponível no momento.")
             else:
-                # Inicializar estados do formulário
-                if 'etapa_agendamento' not in st.session_state:
-                    st.session_state.etapa_agendamento = "dados"  # "dados", "codigo", "finalizado"
+                st.subheader("📋 Dados do Cliente")
                 
-                if 'dados_temporarios' not in st.session_state:
-                    st.session_state.dados_temporarios = {}
+                nome = st.text_input("Nome completo *", placeholder="Digite seu nome")
                 
-                if 'codigo_enviado' not in st.session_state:
-                    st.session_state.codigo_enviado = False
+                telefone = st.text_input("Telefone *", placeholder="(11) 99999-9999")
                 
-                # ====== ETAPA 1: COLETA DE DADOS ======
-                if st.session_state.etapa_agendamento == "dados":
-                    st.subheader("📋 Dados do Cliente")
-                    
-                    nome = st.text_input("Nome completo *", placeholder="Digite seu nome")
-                    telefone = st.text_input("Telefone *", placeholder="(11) 99999-9999")
-                    email = st.text_input("E-mail *", placeholder="seu@email.com")
-                    
-                    st.subheader("📅 Escolha a Data")
-                    
-                    # Inicializar estado do calendário
-                    if 'data_selecionada_cal' not in st.session_state:
-                        st.session_state.data_selecionada_cal = datas_validas[0] if datas_validas else None
+                email = st.text_input("E-mail *", placeholder="seu@email.com")
+                
+                st.subheader("📅 Escolha a Data")
+                # Substitua a seção do calendário (a partir de "st.subheader("📅 Escolha a Data")") por este código:
 
-                    if 'mes_atual' not in st.session_state:
-                        hoje = datetime.now()
-                        st.session_state.mes_atual = hoje.month
-                        st.session_state.ano_atual = hoje.year
+                
+                # Inicializar estado do calendário
+                if 'data_selecionada_cal' not in st.session_state:
+                    st.session_state.data_selecionada_cal = datas_validas[0] if datas_validas else None
 
-                    # [AQUI MANTÉM TODO O CÓDIGO DO CALENDÁRIO IGUAL - não vou repetir para economizar espaço]
-                    # ... código do calendário ...
-                    
-                    # Definir data selecionada para o resto do código
-                    data_selecionada = st.session_state.data_selecionada_cal
-                    
-                    if data_selecionada:
-                        st.subheader("⏰ Horários Disponíveis")
-                        
-                        data_str = data_selecionada.strftime("%Y-%m-%d")
-                        
-                        # Gerar horários baseados nas configurações
+                if 'mes_atual' not in st.session_state:
+                    hoje = datetime.now()
+                    st.session_state.mes_atual = hoje.month
+                    st.session_state.ano_atual = hoje.year
+
+                # Criar lista de meses disponíveis
+                meses_disponiveis = {}
+                for data in datas_validas:
+                    chave_mes = f"{data.year}-{data.month:02d}"
+                    nome_mes = f"{calendar.month_name[data.month]} {data.year}"
+                    if chave_mes not in meses_disponiveis:
+                        meses_disponiveis[chave_mes] = nome_mes
+
+                # Navegação entre meses
+                col_prev, col_mes, col_next = st.columns([1, 3, 1])
+
+                with col_prev:
+                    if st.button("◀️", key="prev_month", help="Mês anterior"):
+                        chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
+                        chaves_ordenadas = sorted(meses_disponiveis.keys())
                         try:
-                            hora_inicio = datetime.strptime(horario_inicio, "%H:%M").time()
-                            hora_fim = datetime.strptime(horario_fim, "%H:%M").time()
-                            
-                            inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
-                            fim_min = hora_fim.hour * 60 + hora_fim.minute
-                            
-                            horarios_possiveis = []
-                            horario_atual = inicio_min
-                            
-                            while horario_atual + intervalo_consultas <= fim_min:
-                                h = horario_atual // 60
-                                m = horario_atual % 60
-                                horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
-                                horario_atual += intervalo_consultas
-                                
-                        except:
-                            horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
+                            indice_atual = chaves_ordenadas.index(chave_atual)
+                            if indice_atual > 0:
+                                nova_chave = chaves_ordenadas[indice_atual - 1]
+                                ano, mes = nova_chave.split("-")
+                                st.session_state.ano_atual = int(ano)
+                                st.session_state.mes_atual = int(mes)
+                                st.rerun()
+                        except ValueError:
+                            pass
+
+                with col_mes:
+                    st.markdown(f"""
+                    <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.5rem;">
+                        📅 {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_next:
+                    if st.button("▶️", key="next_month", help="Próximo mês"):
+                        chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
+                        chaves_ordenadas = sorted(meses_disponiveis.keys())
+                        try:
+                            indice_atual = chaves_ordenadas.index(chave_atual)
+                            if indice_atual < len(chaves_ordenadas) - 1:
+                                nova_chave = chaves_ordenadas[indice_atual + 1]
+                                ano, mes = nova_chave.split("-")
+                                st.session_state.ano_atual = int(ano)
+                                st.session_state.mes_atual = int(mes)
+                                st.rerun()
+                        except ValueError:
+                            pass
+
+                # Forçar colunas a não empilhar usando CSS
+                st.markdown("""
+                <style>
+                /* Forçar TODAS as colunas do Streamlit a ficarem lado a lado no calendário */
+                div[data-testid="stHorizontalBlock"] {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    gap: 2px !important;
+                    width: 100% !important;
+                }
+
+                div[data-testid="stHorizontalBlock"] > div {
+                    flex: 1 1 14.28% !important;
+                    max-width: 14.28% !important;
+                    min-width: 0 !important;
+                    padding: 0 1px !important;
+                }
+
+                /* Forçar também pela classe */
+                .row-widget.stColumns {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    gap: 2px !important;
+                    width: 100% !important;
+                }
+
+                .row-widget.stColumns > div {
+                    flex: 1 1 14.28% !important;
+                    max-width: 14.28% !important;
+                    min-width: 0 !important;
+                    padding: 0 1px !important;
+                }
+
+                /* Prevenir quebra em qualquer nível */
+                div[data-testid="column"] {
+                    flex: 1 1 14.28% !important;
+                    max-width: 14.28% !important;
+                    min-width: 0 !important;
+                }
+
+                /* Container do calendário */
+                .calendar-container {
+                    width: 100%;
+                    max-width: 400px;
+                    margin: 1rem auto;
+                    background: white;
+                    border-radius: 12px;
+                    padding: 0.5rem;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+
+                /* Ajustar botões para serem menores em mobile */
+                .stButton > button {
+                    width: 100% !important;
+                    padding: 0.25rem !important;
+                    min-height: 2rem !important;
+                    font-size: 0.8rem !important;
+                    margin: 1px 0 !important;
+                }
+
+                /* Em telas muito pequenas, ajustar ainda mais */
+                @media (max-width: 400px) {
+                    .stButton > button {
+                        font-size: 0.75rem !important;
+                        padding: 0.2rem !important;
+                        min-height: 1.8rem !important;
+                    }
+                    
+                    .calendar-container {
+                        padding: 0.3rem;
+                    }
+                }
+
+                /* Forçar layout horizontal mesmo em mobile */
+                @media (max-width: 768px) {
+                    div[data-testid="stHorizontalBlock"] {
+                        display: flex !important;
+                        flex-direction: row !important;
+                    }
+                    
+                    div[data-testid="column"] {
+                        flex: 1 1 14.28% !important;
+                        max-width: 14.28% !important;
+                    }
+                }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # Container do calendário
+                st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
+
+                # Gerar calendário do mês
+                cal = calendar.monthcalendar(st.session_state.ano_atual, st.session_state.mes_atual)
+
+                # Dias da semana - bem curtos para mobile
+                st.markdown("""
+                <div style="display: flex; gap: 2px; margin-bottom: 6px;">
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">SEG</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">TER</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">QUA</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">QUI</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">SEX</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">SAB</div>
+                    <div style="flex: 1; text-align: center; font-size: 0.8rem; font-weight: 700; color: #374151; background: #f1f5f9; padding: 6px 3px; border-radius: 4px; border: 1px solid #e2e8f0;">DOM</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Gerar cada semana do calendário
+                for semana_idx, semana in enumerate(cal):
+                    cols = st.columns(7)
+                    for dia_idx, dia in enumerate(semana):
+                        with cols[dia_idx]:
+                            if dia == 0:
+                                # Célula vazia
+                                st.markdown('<div style="height: 2rem;"></div>', unsafe_allow_html=True)
+                            else:
+                                # Verificar se data está disponível
+                                try:
+                                    data_atual = datetime(st.session_state.ano_atual, st.session_state.mes_atual, dia).date()
+                                    data_disponivel = data_atual in datas_validas
+                                    data_selecionada_atual = st.session_state.data_selecionada_cal == data_atual
+                                    
+                                    if data_disponivel:
+                                        # Data disponível - botão clicável
+                                        button_type = "primary" if data_selecionada_atual else "secondary"
+                                        
+                                        if st.button(
+                                            str(dia),
+                                            key=f"cal_{semana_idx}_{dia_idx}_{dia}",
+                                            type=button_type,
+                                            use_container_width=True
+                                        ):
+                                            st.session_state.data_selecionada_cal = data_atual
+                                            st.rerun()
+                                    else:
+                                        # Data indisponível
+                                        st.markdown(f"""
+                                        <div style="
+                                            height: 2rem; 
+                                            display: flex; 
+                                            align-items: center; 
+                                            justify-content: center;
+                                            color: #cbd5e1;
+                                            font-size: 0.8rem;
+                                        ">{dia}</div>
+                                        """, unsafe_allow_html=True)
+                                        
+                                except ValueError:
+                                    st.markdown('<div style="height: 2rem;"></div>', unsafe_allow_html=True)
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                # Mostrar data selecionada
+                if st.session_state.data_selecionada_cal:
+                    data_formatada = st.session_state.data_selecionada_cal.strftime("%A, %d de %B de %Y").replace("Monday", "Segunda-feira")\
+                        .replace("Tuesday", "Terça-feira").replace("Wednesday", "Quarta-feira")\
+                        .replace("Thursday", "Quinta-feira").replace("Friday", "Sexta-feira")\
+                        .replace("Saturday", "Sábado").replace("Sunday", "Domingo")\
+                        .replace("January", "Janeiro").replace("February", "Fevereiro").replace("March", "Março")\
+                        .replace("April", "Abril").replace("May", "Maio").replace("June", "Junho")\
+                        .replace("July", "Julho").replace("August", "Agosto").replace("September", "Setembro")\
+                        .replace("October", "Outubro").replace("November", "Novembro").replace("December", "Dezembro")
+                    
+                    st.success(f"📅 **Data selecionada:** {data_formatada}")
+
+                # Definir data selecionada para o resto do código
+                data_selecionada = st.session_state.data_selecionada_cal
+                
+                if data_selecionada:
+                    st.subheader("⏰ Horários Disponíveis")
+                    
+                    data_str = data_selecionada.strftime("%Y-%m-%d")
+                    
+                    # Gerar horários baseados nas configurações ATUALIZADAS
+                    try:
+                        hora_inicio = datetime.strptime(horario_inicio, "%H:%M").time()
+                        hora_fim = datetime.strptime(horario_fim, "%H:%M").time()
                         
-                        horarios_disponiveis = [h for h in horarios_possiveis if horario_disponivel(data_str, h)]
+                        inicio_min = hora_inicio.hour * 60 + hora_inicio.minute
+                        fim_min = hora_fim.hour * 60 + hora_fim.minute
                         
-                        if horarios_disponiveis:
-                            horario = st.selectbox("Escolha o horário:", horarios_disponiveis)
+                        horarios_possiveis = []
+                        horario_atual = inicio_min
+                        
+                        # USAR O INTERVALO CONFIGURADO!
+                        while horario_atual + intervalo_consultas <= fim_min:
+                            h = horario_atual // 60
+                            m = horario_atual % 60
+                            horarios_possiveis.append(f"{str(h).zfill(2)}:{str(m).zfill(2)}")
+                            horario_atual += intervalo_consultas
                             
-                            if horario and nome and telefone and email:
-                                email_valido = "@" in email and "." in email.split("@")[-1]
+                    except:
+                        horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
+                    
+                    horarios_disponiveis = [h for h in horarios_possiveis if horario_disponivel(data_str, h)]
+                    
+                    if horarios_disponiveis:
+                        horario = st.selectbox("Escolha o horário:", horarios_disponiveis)
+                        
+                        if horario and nome and telefone and email:
+                            email_valido = "@" in email and "." in email.split("@")[-1]
+                            
+                            if not email_valido:
+                                st.warning("⚠️ Digite um e-mail válido.")
+                            else:
+                                st.markdown(f"""
+                                <div class="appointment-summary">
+                                    <h3>📋 Resumo do Agendamento</h3>
+                                    <div class="summary-item">
+                                        <span>👤 Nome:</span>
+                                        <strong>{nome}</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>📱 Telefone:</span>
+                                        <strong>{telefone}</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>📧 E-mail:</span>
+                                        <strong>{email}</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>📅 Data:</span>
+                                        <strong>{data_selecionada.strftime('%d/%m/%Y')}</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>⏰ Horário:</span>
+                                        <strong>{horario}</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>👨‍⚕️ Profissional:</span>
+                                        <strong>{nome_profissional}</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>🏥 Local:</span>
+                                        <strong>{nome_clinica}</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>📍 Endereço:</span>
+                                        <strong>{endereco_completo}</strong>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 
-                                if not email_valido:
-                                    st.warning("⚠️ Digite um e-mail válido.")
-                                else:
-                                    # Mostrar resumo dos dados
+                                # Mostrar instruções se existirem
+                                if instrucoes_chegada:
                                     st.markdown(f"""
-                                    <div class="appointment-summary">
-                                        <h3>📋 Confirme os Dados</h3>
-                                        <div class="summary-item">
-                                            <span>👤 Nome:</span>
-                                            <strong>{nome}</strong>
-                                        </div>
-                                        <div class="summary-item">
-                                            <span>📱 Telefone:</span>
-                                            <strong>{telefone}</strong>
-                                        </div>
-                                        <div class="summary-item">
-                                            <span>📧 E-mail:</span>
-                                            <strong>{email}</strong>
-                                        </div>
-                                        <div class="summary-item">
-                                            <span>📅 Data:</span>
-                                            <strong>{data_selecionada.strftime('%d/%m/%Y')}</strong>
-                                        </div>
-                                        <div class="summary-item">
-                                            <span>⏰ Horário:</span>
-                                            <strong>{horario}</strong>
-                                        </div>
+                                    <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                                        <strong>📝 Instruções importantes:</strong><br>
+                                        {instrucoes_chegada}
                                     </div>
                                     """, unsafe_allow_html=True)
-                                    
-                                    # Verificar se verificação por código está ativa
-                                    if verificacao_ativa and obter_configuracao("envio_automatico", False):
-                                        if st.button("📧 Continuar → Enviar Código de Verificação", type="primary", use_container_width=True):
-                                            # Salvar dados temporários
-                                            st.session_state.dados_temporarios = {
-                                                'nome': nome,
-                                                'telefone': telefone,
-                                                'email': email,
-                                                'data': data_str,
-                                                'horario': horario
-                                            }
-                                            
-                                            # Gerar e enviar código
-                                            codigo = gerar_codigo_verificacao()
-                                            
-                                            if salvar_codigo_verificacao(email, codigo):
-                                                if enviar_codigo_verificacao(nome, email, codigo):
-                                                    st.session_state.etapa_agendamento = "codigo"
-                                                    st.session_state.codigo_enviado = True
-                                                    st.success("📧 Código de verificação enviado para seu email!")
-                                                    st.rerun()
-                                                else:
-                                                    st.error("❌ Erro ao enviar código. Verifique se o email está correto.")
-                                            else:
-                                                st.error("❌ Erro interno. Tente novamente.")
-                                    else:
-                                        # Sistema sem verificação - agendamento direto
-                                        if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True):
-                                            try:
-                                                status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
-                                                
-                                                if status_inicial == "confirmado":
-                                                    st.success("✅ Agendamento confirmado automaticamente!")
-                                                else:
-                                                    st.success("✅ Agendamento solicitado! Aguarde confirmação.")
-                                                
-                                                st.session_state.etapa_agendamento = "finalizado"
-                                                st.rerun()
-                                                
-                                            except Exception as e:
-                                                st.error(f"❌ Erro ao agendar: {str(e)}")
-                            
-                            elif nome or telefone or email:
-                                campos_faltando = []
-                                if not nome: campos_faltando.append("Nome")
-                                if not telefone: campos_faltando.append("Telefone") 
-                                if not email: campos_faltando.append("E-mail")
                                 
-                                if campos_faltando:
-                                    st.info(f"📝 Para continuar, preencha: {', '.join(campos_faltando)}")
-                        else:
-                            st.warning("⚠️ Nenhum horário disponível para esta data.")
-                
-                # ====== ETAPA 2: VERIFICAÇÃO DO CÓDIGO ======
-                elif st.session_state.etapa_agendamento == "codigo":
-                    st.subheader("🔐 Verificação de Segurança")
-                    
-                    dados = st.session_state.dados_temporarios
-                    
-                    st.info(f"📧 Enviamos um código de 4 dígitos para **{dados['email']}**")
-                    st.warning("⏰ O código expira em 10 minutos")
-                    
-                    col1, col2 = st.columns([2, 1])
-                    
-                    with col1:
-                        codigo_digitado = st.text_input(
-                            "Digite o código de verificação:",
-                            placeholder="1234",
-                            max_chars=4,
-                            help="Verifique sua caixa de entrada e spam"
-                        )
-                    
-                    with col2:
-                        if st.button("🔄 Reenviar Código", help="Enviar novo código"):
-                            codigo = gerar_codigo_verificacao()
-                            if salvar_codigo_verificacao(dados['email'], codigo):
-                                if enviar_codigo_verificacao(dados['nome'], dados['email'], codigo):
-                                    st.success("📧 Novo código enviado!")
-                                else:
-                                    st.error("❌ Erro ao reenviar.")
-                            else:
-                                st.error("❌ Erro interno.")
-                    
-                    # Botões de ação
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        if st.button("✅ Verificar e Agendar", type="primary", use_container_width=True):
-                            if len(codigo_digitado) == 4 and codigo_digitado.isdigit():
-                                if verificar_codigo(dados['email'], codigo_digitado):
-                                    # Código válido - fazer agendamento
+                                if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True):
                                     try:
-                                        status_inicial = adicionar_agendamento(
-                                            dados['nome'], dados['telefone'], dados['email'], 
-                                            dados['data'], dados['horario']
-                                        )
+                                        status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
                                         
-                                        st.session_state.etapa_agendamento = "finalizado"
-                                        st.success("✅ Código verificado! Agendamento confirmado!")
-                                        st.rerun()
+                                        if status_inicial == "confirmado":
+                                            st.success("✅ Agendamento confirmado automaticamente!")
+                                        else:
+                                            st.success("✅ Agendamento solicitado! Aguarde confirmação.")
+                                        
+                                        st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
+                                        
+                                        # Mostrar informações de contato
+                                        st.markdown(f"""
+                                        <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                                            <strong>📞 Em caso de dúvidas:</strong><br>
+                                            📱 Telefone: {telefone_contato}<br>
+                                            💬 WhatsApp: {whatsapp}
+                                        </div>
+                                        """, unsafe_allow_html=True)
                                         
                                     except Exception as e:
                                         st.error(f"❌ Erro ao agendar: {str(e)}")
-                                else:
-                                    st.error("❌ Código inválido ou expirado. Tente novamente.")
-                            else:
-                                st.warning("⚠️ Digite um código de 4 dígitos.")
-                    
-                    with col2:
-                        if st.button("← Voltar aos Dados", use_container_width=True):
-                            st.session_state.etapa_agendamento = "dados"
-                            st.rerun()
-                
-                # ====== ETAPA 3: AGENDAMENTO FINALIZADO ======
-                elif st.session_state.etapa_agendamento == "finalizado":
-                    st.success("🎉 Agendamento realizado com sucesso!")
-                    
-                    dados = st.session_state.dados_temporarios
-                    
-                    st.markdown(f"""
-                    <div class="appointment-summary">
-                        <h3>✅ Seu Agendamento</h3>
-                        <div class="summary-item">
-                            <span>👤 Nome:</span>
-                            <strong>{dados['nome']}</strong>
-                        </div>
-                        <div class="summary-item">
-                            <span>📅 Data:</span>
-                            <strong>{datetime.strptime(dados['data'], '%Y-%m-%d').strftime('%d/%m/%Y')}</strong>
-                        </div>
-                        <div class="summary-item">
-                            <span>⏰ Horário:</span>
-                            <strong>{dados['horario']}</strong>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Mostrar informações de contato
-                    nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
-                    telefone_contato = obter_configuracao("telefone_contato", "(11) 3333-4444")
-                    whatsapp = obter_configuracao("whatsapp", "(11) 99999-9999")
-                    
-                    st.markdown(f"""
-                    <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
-                        <strong>📞 Em caso de dúvidas:</strong><br>
-                        📱 Telefone: {telefone_contato}<br>
-                        💬 WhatsApp: {whatsapp}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if st.button("🔄 Fazer Novo Agendamento", use_container_width=True):
-                        # Resetar estados
-                        st.session_state.etapa_agendamento = "dados"
-                        st.session_state.dados_temporarios = {}
-                        st.session_state.codigo_enviado = False
-                        st.rerun()
+                        
+                        elif nome or telefone or email:
+                            campos_faltando = []
+                            if not nome: campos_faltando.append("Nome")
+                            if not telefone: campos_faltando.append("Telefone") 
+                            if not email: campos_faltando.append("E-mail")
+                            
+                            if campos_faltando:
+                                st.info(f"📝 Para continuar, preencha: {', '.join(campos_faltando)}")
+                    else:
+                        st.warning("⚠️ Nenhum horário disponível para esta data.")
         
         with tab_cancelar:
             st.subheader("❌ Cancelar Agendamento")
