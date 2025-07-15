@@ -2551,6 +2551,144 @@ def data_em_periodo_bloqueado(data):
     except:
         conn.close()
         return False
+
+def gerar_codigo_verificacao():
+    """Gera código de verificação de 4 dígitos"""
+    return str(random.randint(1000, 9999))
+
+def salvar_codigo_verificacao(email, codigo):
+    """Salva código de verificação temporário"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    # Criar tabela se não existir
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS codigos_verificacao (
+            email TEXT PRIMARY KEY,
+            codigo TEXT,
+            criado_em TIMESTAMP,
+            tentativas INTEGER DEFAULT 0
+        )
+    ''')
+    
+    # Limpar códigos antigos (mais de 30 minutos)
+    from datetime import datetime, timedelta
+    limite = (datetime.now() - timedelta(minutes=30)).isoformat()
+    c.execute("DELETE FROM codigos_verificacao WHERE criado_em < ?", (limite,))
+    
+    # Salvar novo código
+    c.execute("""INSERT OR REPLACE INTO codigos_verificacao 
+                 (email, codigo, criado_em) VALUES (?, ?, ?)""",
+              (email, codigo, datetime.now().isoformat()))
+    
+    conn.commit()
+    conn.close()
+
+def verificar_codigo(email, codigo_informado):
+    """Verifica se o código está correto"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    try:
+        # Buscar código
+        c.execute("""SELECT codigo, tentativas, criado_em 
+                    FROM codigos_verificacao WHERE email = ?""", (email,))
+        resultado = c.fetchone()
+        
+        if not resultado:
+            conn.close()
+            return False, "Código não encontrado. Solicite um novo código."
+        
+        codigo_salvo, tentativas, criado_em = resultado
+        
+        # Verificar se não expirou (30 minutos)
+        criado_dt = datetime.fromisoformat(criado_em)
+        if (datetime.now() - criado_dt).seconds > 1800:  # 30 minutos
+            c.execute("DELETE FROM codigos_verificacao WHERE email = ?", (email,))
+            conn.commit()
+            conn.close()
+            return False, "Código expirado. Solicite um novo código."
+        
+        # Verificar tentativas (máximo 5)
+        if tentativas >= 5:
+            c.execute("DELETE FROM codigos_verificacao WHERE email = ?", (email,))
+            conn.commit()
+            conn.close()
+            return False, "Muitas tentativas. Solicite um novo código."
+        
+        # Verificar código
+        if codigo_informado == codigo_salvo:
+            # Código correto - deletar da tabela
+            c.execute("DELETE FROM codigos_verificacao WHERE email = ?", (email,))
+            conn.commit()
+            conn.close()
+            return True, "Código verificado com sucesso!"
+        else:
+            # Código incorreto - incrementar tentativas
+            c.execute("""UPDATE codigos_verificacao 
+                        SET tentativas = tentativas + 1 
+                        WHERE email = ?""", (email,))
+            conn.commit()
+            tentativas_restantes = 4 - tentativas
+            conn.close()
+            return False, f"Código incorreto. {tentativas_restantes} tentativas restantes."
+            
+    except Exception as e:
+        conn.close()
+        return False, f"Erro ao verificar código: {str(e)}"
+
+def enviar_codigo_verificacao(email, nome, codigo):
+    """Envia código de verificação por email"""
+    try:
+        # Obter configurações
+        email_sistema = obter_configuracao("email_sistema", "")
+        senha_email = obter_configuracao("senha_email", "")
+        servidor_smtp = obter_configuracao("servidor_smtp", "smtp.gmail.com")
+        porta_smtp = obter_configuracao("porta_smtp", 587)
+        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+        
+        if not email_sistema or not senha_email:
+            return False
+        
+        # Criar email
+        msg = MIMEMultipart()
+        msg['From'] = email_sistema
+        msg['To'] = email
+        msg['Subject'] = f"🔐 Código de Verificação - {nome_clinica}"
+        
+        corpo = f"""
+Olá {nome}!
+
+Seu código de verificação para agendamento é:
+
+🔐 **{codigo}**
+
+Este código é válido por 30 minutos.
+
+⚠️ Não compartilhe este código com ninguém.
+
+Se você não solicitou este código, ignore este email.
+
+Atenciosamente,
+{nome_profissional}
+{nome_clinica}
+"""
+        
+        msg.attach(MIMEText(corpo, 'plain', 'utf-8'))
+        
+        # Enviar
+        server = smtplib.SMTP(servidor_smtp, porta_smtp)
+        server.starttls()
+        server.login(email_sistema, senha_email)
+        server.send_message(msg)
+        server.quit()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Erro ao enviar código: {e}")
+        return False
     
 # Inicializar banco
 init_config()
@@ -2876,6 +3014,36 @@ if is_admin:
                             value=porta_smtp_value,
                             help="Para Gmail: 587 | Para Outlook: 587"
                         )                    
+                    
+                        st.markdown("---")
+                        st.markdown("**🔐 Verificação de Segurança**")
+                        
+                        verificacao_codigo = st.checkbox(
+                            "Exigir código de verificação para agendamentos",
+                            value=obter_configuracao("verificacao_codigo_ativa", False),
+                            help="Envia um código por email que o cliente deve inserir para confirmar o agendamento"
+                        )
+                        
+                        if verificacao_codigo:
+                            col1_ver, col2_ver = st.columns(2)
+                            
+                            with col1_ver:
+                                st.info("""
+                                **Como funciona:**
+                                • Cliente preenche os dados
+                                • Sistema envia código por email
+                                • Cliente insere o código
+                                • Agendamento é confirmado
+                                """)
+                            
+                            with col2_ver:
+                                tempo_expiracao = st.selectbox(
+                                    "Tempo de expiração do código:",
+                                    ["15 minutos", "30 minutos", "60 minutos"],
+                                    index=1,
+                                    help="Após este tempo, o código expira"
+                                )                    
+                    
                     # Configurações de envio
                     st.markdown("---")
                     st.markdown("**📬 Tipos de Email Automático**")
@@ -3163,6 +3331,7 @@ Sistema de Agendamento Online
                     salvar_configuracao("enviar_confirmacao", enviar_confirmacao)
                     salvar_configuracao("enviar_cancelamento", enviar_cancelamento)
                     salvar_configuracao("template_confirmacao", template_confirmacao)
+                    salvar_configuracao("verificacao_codigo_ativa", verificacao_codigo if envio_automatico else False)
                 
                 # NOVO: Salvar configuração de backup GitHub
                 salvar_configuracao("backup_github_ativo", backup_github_ativo)
@@ -4652,28 +4821,161 @@ else:
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
-                                if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True):
-                                    try:
-                                        status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
+                                verificacao_ativa = obter_configuracao("verificacao_codigo_ativa", False)
+
+                                if verificacao_ativa and obter_configuracao("envio_automatico", False):
+                                    # Sistema com verificação
+                                    
+                                    # Gerenciar estado da verificação
+                                    if 'codigo_enviado' not in st.session_state:
+                                        st.session_state.codigo_enviado = False
+                                    if 'email_verificacao' not in st.session_state:
+                                        st.session_state.email_verificacao = ""
+                                    if 'dados_agendamento' not in st.session_state:
+                                        st.session_state.dados_agendamento = {}
+                                    
+                                    if not st.session_state.codigo_enviado:
+                                        # PASSO 1: Enviar código
+                                        if st.button("📧 Enviar Código de Verificação", type="primary", use_container_width=True):
+                                            # Validar dados primeiro
+                                            if not nome or not telefone or not email:
+                                                st.error("❌ Preencha todos os campos obrigatórios!")
+                                            elif "@" not in email or "." not in email.split("@")[-1]:
+                                                st.error("❌ Digite um email válido!")
+                                            else:
+                                                # Gerar e enviar código
+                                                codigo = gerar_codigo_verificacao()
+                                                salvar_codigo_verificacao(email, codigo)
+                                                
+                                                if enviar_codigo_verificacao(email, nome, codigo):
+                                                    st.success(f"✅ Código enviado para {email}")
+                                                    st.info("📧 Verifique sua caixa de entrada (pode estar no spam)")
+                                                    
+                                                    # Salvar dados temporariamente
+                                                    st.session_state.codigo_enviado = True
+                                                    st.session_state.email_verificacao = email
+                                                    st.session_state.dados_agendamento = {
+                                                        'nome': nome,
+                                                        'telefone': telefone,
+                                                        'email': email,
+                                                        'data': data_str,
+                                                        'horario': horario
+                                                    }
+                                                    st.rerun()
+                                                else:
+                                                    st.error("❌ Erro ao enviar código. Verifique o email e tente novamente.")
+                                    
+                                    else:
+                                        # PASSO 2: Verificar código
+                                        st.success(f"📧 Código enviado para: {st.session_state.email_verificacao}")
                                         
-                                        if status_inicial == "confirmado":
-                                            st.success("✅ Agendamento confirmado automaticamente!")
-                                        else:
-                                            st.success("✅ Agendamento solicitado! Aguarde confirmação.")
+                                        # Verificar se os dados ainda são os mesmos
+                                        if email != st.session_state.email_verificacao:
+                                            if st.button("📧 Usar novo email", type="secondary"):
+                                                st.session_state.codigo_enviado = False
+                                                st.session_state.email_verificacao = ""
+                                                st.rerun()
                                         
-                                        st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
+                                        col1_code, col2_code = st.columns([2, 1])
                                         
-                                        # Mostrar informações de contato
-                                        st.markdown(f"""
-                                        <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
-                                            <strong>📞 Em caso de dúvidas:</strong><br>
-                                            📱 Telefone: {telefone_contato}<br>
-                                            💬 WhatsApp: {whatsapp}
-                                        </div>
-                                        """, unsafe_allow_html=True)
+                                        with col1_code:
+                                            codigo_digitado = st.text_input(
+                                                "Digite o código recebido:",
+                                                max_chars=4,
+                                                placeholder="0000",
+                                                help="Código de 4 dígitos enviado por email"
+                                            )
                                         
-                                    except Exception as e:
-                                        st.error(f"❌ Erro ao agendar: {str(e)}")
+                                        with col2_code:
+                                            st.markdown("<br>", unsafe_allow_html=True)
+                                            if st.button("🔄 Reenviar", help="Enviar novo código"):
+                                                codigo = gerar_codigo_verificacao()
+                                                salvar_codigo_verificacao(email, codigo)
+                                                
+                                                if enviar_codigo_verificacao(email, nome, codigo):
+                                                    st.success("✅ Novo código enviado!")
+                                                else:
+                                                    st.error("❌ Erro ao reenviar código")
+                                        
+                                        col1_action, col2_action = st.columns(2)
+                                        
+                                        with col1_action:
+                                            if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True):
+                                                if len(codigo_digitado) == 4:
+                                                    # Verificar código
+                                                    valido, mensagem = verificar_codigo(email, codigo_digitado)
+                                                    
+                                                    if valido:
+                                                        # Código correto - fazer agendamento
+                                                        dados = st.session_state.dados_agendamento
+                                                        try:
+                                                            status_inicial = adicionar_agendamento(
+                                                                dados['nome'], 
+                                                                dados['telefone'], 
+                                                                dados['email'], 
+                                                                dados['data'], 
+                                                                dados['horario']
+                                                            )
+                                                            
+                                                            # Limpar estado
+                                                            st.session_state.codigo_enviado = False
+                                                            st.session_state.email_verificacao = ""
+                                                            st.session_state.dados_agendamento = {}
+                                                            
+                                                            if status_inicial == "confirmado":
+                                                                st.success("✅ Agendamento confirmado com sucesso!")
+                                                            else:
+                                                                st.success("✅ Agendamento solicitado! Aguarde confirmação.")
+                                                            
+                                                            st.info(f"📅 {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
+                                                            
+                                                            # Mostrar informações de contato
+                                                            st.markdown(f"""
+                                                            <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                                                                <strong>📞 Em caso de dúvidas:</strong><br>
+                                                                📱 Telefone: {telefone_contato}<br>
+                                                                💬 WhatsApp: {whatsapp}
+                                                            </div>
+                                                            """, unsafe_allow_html=True)
+                                                            
+                                                        except Exception as e:
+                                                            st.error(f"❌ Erro ao agendar: {str(e)}")
+                                                    else:
+                                                        st.error(f"❌ {mensagem}")
+                                                else:
+                                                    st.warning("⚠️ Digite o código de 4 dígitos")
+                                        
+                                        with col2_action:
+                                            if st.button("❌ Cancelar", type="secondary", use_container_width=True):
+                                                st.session_state.codigo_enviado = False
+                                                st.session_state.email_verificacao = ""
+                                                st.session_state.dados_agendamento = {}
+                                                st.rerun()
+
+                                else:
+                                    # Sistema sem verificação (código original)
+                                    if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True):
+                                        try:
+                                            status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
+                                            
+                                            if status_inicial == "confirmado":
+                                                st.success("✅ Agendamento confirmado automaticamente!")
+                                            else:
+                                                st.success("✅ Agendamento solicitado! Aguarde confirmação.")
+                                            
+                                            st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
+                                            
+                                            # Mostrar informações de contato
+                                            st.markdown(f"""
+                                            <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                                                <strong>📞 Em caso de dúvidas:</strong><br>
+                                                📱 Telefone: {telefone_contato}<br>
+                                                💬 WhatsApp: {whatsapp}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                            
+                                        except Exception as e:
+                                            st.error(f"❌ Erro ao agendar: {str(e)}")
                         
                         elif nome or telefone or email:
                             campos_faltando = []
