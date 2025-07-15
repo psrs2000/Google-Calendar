@@ -3014,7 +3014,8 @@ if is_admin:
                         verificacao_codigo_ativa = st.checkbox(
                             "Exigir código de verificação por email",
                             value=obter_configuracao("verificacao_codigo_ativa", True),
-                            help="Cliente precisa verificar email com código antes de finalizar agendamento"
+                            help="Cliente precisa verificar email com código antes de finalizar agendamento",
+                            key="verificacao_codigo_checkbox"
                         )
                         
                         if verificacao_codigo_ativa:
