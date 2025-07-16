@@ -2759,8 +2759,7 @@ if is_admin:
         # Conteúdo baseado na opção
         if opcao == "⚙️ Configurações Gerais":
 
-            st.markdown('<div class="main-card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header"><h2 class="card-title">⚙️ Configurações Gerais</h2></div>', unsafe_allow_html=True)
+
             
             # Tabs para organizar as configurações
             tab1, tab2, tab3 = st.tabs(["📅 Agendamento", "📞 Contato & Local", "📧 Email & Notificações"])
