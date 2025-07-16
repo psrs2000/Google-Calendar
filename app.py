@@ -4237,8 +4237,6 @@ Sistema de Agendamento Online
             st.markdown('</div>', unsafe_allow_html=True)
 
         elif opcao == "💾 Backup & Restauração":
-            st.markdown('<div class="main-card fade-in">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header"><h2 class="card-title">💾 Backup & Restauração</h2></div>', unsafe_allow_html=True)
             
             # Informações gerais
             st.info("""
