@@ -309,7 +309,7 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         margin-bottom: 4px;   /* ← MENOS ESPAÇO */
-        padding: 2px 0;      /* ← MENOS PADDING */
+        padding: 6px 0;      /* ← MENOS PADDING */
         border-bottom: 1px solid #dee2e6;
     }
     
