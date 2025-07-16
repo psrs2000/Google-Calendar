@@ -110,13 +110,13 @@ st.markdown("""
     }
     
     .main-header {
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        background: transparent;
+        border-radius: 0px;
+        padding: 0rem;
+        margin-bottom: 0rem;
+        box-shadow: none;
         text-align: center;
-        border: 1px solid #e9ecef;
+        border: none;
     }
     
     .main-header h1 {
@@ -4399,8 +4399,7 @@ Sistema de Agendamento Online
                                 
                                 # Atualizar a página para mostrar os novos dados
                                 if resultado['importados'] > 0:
-                                    st.balloons()
-                                    st.rerun()
+                                     st.rerun()
                                     
                             else:
                                 st.error(f"❌ Erro na restauração: {resultado.get('erro', 'Erro desconhecido')}")
@@ -4932,8 +4931,6 @@ else:
                                                             st.session_state.dados_agendamento = {}
                                                             
                                                             # Mensagens de sucesso
-                                                            st.balloons()
-                                                            
                                                             if status_inicial == "confirmado":
                                                                 st.success("✅ Agendamento confirmado com sucesso!")
                                                             else:
