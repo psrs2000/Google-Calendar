@@ -110,13 +110,13 @@ st.markdown("""
     }
     
     .main-header {
-        background: transparent;
-        border-radius: 0px;
-        padding: 0rem;
-        margin-bottom: 0rem;
-        box-shadow: none;
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         text-align: center;
-        border: none;
+        border: 1px solid #e9ecef;
     }
     
     .main-header h1 {
