@@ -4503,7 +4503,7 @@ else:
                     hoje = datetime.now()
                     st.session_state.mes_atual = hoje.month
                     st.session_state.ano_atual = hoje.year
-                
+
                 # Criar lista de meses disponíveis
                 meses_disponiveis = {}
                 for data in datas_validas:
@@ -4511,12 +4511,12 @@ else:
                     nome_mes = f"{calendar.month_name[data.month]} {data.year}"
                     if chave_mes not in meses_disponiveis:
                         meses_disponiveis[chave_mes] = nome_mes
-                
+
                 # Navegação em linha única: Data [◀️] Mês Ano [▶️]
                 st.markdown('<h4 style="font-size: 18px; margin-bottom: 0.5rem;">📅 Data</h4>', unsafe_allow_html=True)
-                
+
                 col_prev, col_mes, col_next = st.columns([1, 4, 1])
-                
+
                 with col_prev:
                     if st.button("◀️", key="prev_month", help="Mês anterior", use_container_width=True):
                         chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
@@ -4531,14 +4531,14 @@ else:
                                 st.rerun()
                         except ValueError:
                             pass
-                
+
                 with col_mes:
                     st.markdown(f"""
                     <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.3rem; margin: 0;">
                        {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
                     </div>
                     """, unsafe_allow_html=True)
-                
+
                 with col_next:
                     if st.button("▶️", key="next_month", help="Próximo mês", use_container_width=True):
                         chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
@@ -4553,7 +4553,7 @@ else:
                                 st.rerun()
                         except ValueError:
                             pass
-                
+
                 # Reduzir espaço antes do calendário
                 st.markdown('<div style="margin-top: 0.5rem;"></div>', unsafe_allow_html=True)
 
