@@ -4534,7 +4534,7 @@ else:
                 with col_mes:
                     st.markdown(f"""
                     <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.5rem;">
-                        📅 {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
+                         {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
                     </div>
                     """, unsafe_allow_html=True)
 
