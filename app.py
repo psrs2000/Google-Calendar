@@ -4442,7 +4442,7 @@ else:
 
     st.markdown(f"""
     <div class="main-header">
-        #<h1>⏳ Agendamento Online</h1>
+        # <h1>⏳ Agendamento Online</h1>
         <p>Agende seu horário com {nome_profissional} - {especialidade}</p>
     </div>
     """, unsafe_allow_html=True)
