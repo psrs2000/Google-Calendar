@@ -2726,7 +2726,7 @@ if is_admin:
         st.session_state.authenticated = False
     
     if not st.session_state.authenticated:
-        st.markdown('<div class="main-card">', unsafe_allow_html=True)
+        
         st.subheader("🔒 Acesso Restrito")
         
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -4457,8 +4457,6 @@ else:
     """, unsafe_allow_html=True)
 
     with st.container():
-        
-        
         tab_agendar, tab_cancelar = st.tabs(["📅 Agendar Horário", "❌ Cancelar Agendamento"])
         
         with tab_agendar:
