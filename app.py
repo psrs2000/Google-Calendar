@@ -4495,9 +4495,7 @@ else:
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
                 
                 st.markdown('<h4 style="font-size: 18px;">📅 Data</h4>', unsafe_allow_html=True)
-                # Substitua a seção do calendário (a partir de "st.subheader("📅 Escolha a Data")") por este código:
-
-                
+                                
                 # Inicializar estado do calendário
                 if 'data_selecionada_cal' not in st.session_state:
                     st.session_state.data_selecionada_cal = datas_validas[0] if datas_validas else None
