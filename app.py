@@ -3363,8 +3363,6 @@ Sistema de Agendamento Online
             st.markdown('</div>', unsafe_allow_html=True)
         
         elif opcao == "📅 Configurar Agenda":
-            st.markdown('<div class="main-card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header"><h2 class="card-title">📅 Configuração de Agenda</h2></div>', unsafe_allow_html=True)
             
             dias_pt = {"Monday": "Segunda-feira", "Tuesday": "Terça-feira", "Wednesday": "Quarta-feira", "Thursday": "Quinta-feira", "Friday": "Sexta-feira", "Saturday": "Sábado", "Sunday": "Domingo"}
             dias_atuais = obter_dias_uteis()
