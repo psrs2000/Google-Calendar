@@ -4762,7 +4762,7 @@ else:
                             else:
                                 st.markdown(f"""
                                 <div class="appointment-summary">
-                                    <h3>📋 Resumo do Agendamento</h3>
+                                    <h4>📋 Resumo do Agendamento</h34
                                     <div class="summary-item">
                                         <span>👤 Nome:</span>
                                         <strong>{nome}</strong>
