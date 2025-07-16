@@ -4972,7 +4972,7 @@ else:
                                         # Ações secundárias em linha única
                                         col1, col2 = st.columns([1, 1])
                                         
-                                        with col1:
+                                        
                                             if st.button("🔄 Reenviar Código", use_container_width=True, type="secondary"):
                                                 with st.spinner("Enviando novo código..."):
                                                     codigo = gerar_codigo_verificacao()
@@ -4984,7 +4984,7 @@ else:
                                                     else:
                                                         st.error("❌ Erro ao reenviar código")
                                         
-                                        with col2:
+                                        
                                             if st.button("❌ Cancelar", use_container_width=True, type="secondary"):
                                                 st.session_state.codigo_enviado = False
                                                 st.session_state.email_verificacao = ""
