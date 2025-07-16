@@ -4724,7 +4724,7 @@ else:
                 data_selecionada = st.session_state.data_selecionada_cal
                 
                 if data_selecionada:
-                    st.subheader("⏰ Horários Disponíveis")
+                    st.markdown('<h4 style="font-size: 18px;">⏰ Horários Disponíveis</h4>', unsafe_allow_html=True)
                     
                     data_str = data_selecionada.strftime("%Y-%m-%d")
                     
