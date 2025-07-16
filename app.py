@@ -3384,8 +3384,6 @@ Sistema de Agendamento Online
             st.markdown('</div>', unsafe_allow_html=True)
         
         elif opcao == "🗓️ Gerenciar Bloqueios":
-                    st.markdown('<div class="main-card">', unsafe_allow_html=True)
-                    st.markdown('<div class="card-header"><h2 class="card-title">🗓️ Gerenciar Bloqueios</h2></div>', unsafe_allow_html=True)
                     
                     # Tabs para diferentes tipos de bloqueio
                     tab1, tab2, tab3, tab4 = st.tabs(["📅 Dias Específicos", "📆 Períodos", "🕐 Horários Específicos", "⏰ Bloqueios Permanentes"])
