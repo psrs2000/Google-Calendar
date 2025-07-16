@@ -4457,7 +4457,7 @@ else:
     """, unsafe_allow_html=True)
 
     with st.container():
-        st.markdown('<div class="main-card">', unsafe_allow_html=True)
+        
         
         tab_agendar, tab_cancelar = st.tabs(["📅 Agendar Horário", "❌ Cancelar Agendamento"])
         
