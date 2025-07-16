@@ -292,7 +292,7 @@ st.markdown("""
     
     .appointment-summary {
         background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-        padding: 12px 24px;
+        padding: 6px 24px;
         border-radius: 15px;
         margin: 20px 0;
         border-left: 5px solid #667eea;
