@@ -308,8 +308,8 @@ st.markdown("""
     .summary-item {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 12px;
-        padding: 8px 0;
+        margin-bottom: 6px;   /* ← MENOS ESPAÇO */
+        padding: 4px 0;      /* ← MENOS PADDING */
         border-bottom: 1px solid #dee2e6;
     }
     
