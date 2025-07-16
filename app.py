@@ -5054,7 +5054,7 @@ else:
 
     # Footer dinâmico com configurações atualizadas
     st.markdown(f"""
-    <div style="text-align: center; padding: 2rem; color: rgba(102, 126, 234, 0.8);">
+    #<div style="text-align: center; padding: 2rem; color: rgba(102, 126, 234, 0.8);">
         #<h3 style="color: #1f2937; margin-bottom: 1rem;">{nome_profissional}</h3>
         #<p style="color: #6b7280; margin-bottom: 0.5rem;"><strong>{especialidade}</strong></p>
         <p><strong>{nome_clinica}</strong></p>
