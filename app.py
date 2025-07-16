@@ -4486,7 +4486,7 @@ else:
             if not datas_validas:
                 st.warning("⚠️ Nenhuma data disponível no momento.")
             else:
-                st.subheader("📋 Dados do Cliente")
+               st.markdown('<h3 style="font-size: 24px;">📋 Dados do Cliente</h3>', unsafe_allow_html=True)
                 
                 nome = st.text_input("Nome completo *", placeholder="Digite seu nome")
                 
