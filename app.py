@@ -4783,18 +4783,6 @@ else:
                                         <span>⏰ Horário:</span>
                                         <strong>{horario}</strong>
                                     </div>
-                                    <div class="summary-item">
-                                        <span>👨‍⚕️ Profissional:</span>
-                                        <strong>{nome_profissional}</strong>
-                                    </div>
-                                    <div class="summary-item">
-                                        <span>🏥 Local:</span>
-                                        <strong>{nome_clinica}</strong>
-                                    </div>
-                                    <div class="summary-item">
-                                        <span>📍 Endereço:</span>
-                                        <strong>{endereco_completo}</strong>
-                                    </div>
                                 </div>
                                 """, unsafe_allow_html=True)
                                 
