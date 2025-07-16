@@ -4443,7 +4443,7 @@ else:
     st.markdown(f"""
     <div class="main-header">
         <h5>{nome_clinica}</h5>
-        <p>Agende seu horário com {nome_profissional} - {especialidade}</p>
+        <p>{nome_profissional} - {especialidade}</p>
     </div>
     """, unsafe_allow_html=True)
 
