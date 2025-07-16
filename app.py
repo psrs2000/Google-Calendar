@@ -4499,6 +4499,7 @@ else:
                 # Inicializar estado do calendário
                 if 'data_selecionada_cal' not in st.session_state:
                     st.session_state.data_selecionada_cal = datas_validas[0] if datas_validas else None
+
                 if 'mes_atual' not in st.session_state:
                     hoje = datetime.now()
                     st.session_state.mes_atual = hoje.month
@@ -4512,13 +4513,11 @@ else:
                     if chave_mes not in meses_disponiveis:
                         meses_disponiveis[chave_mes] = nome_mes
 
-                # Navegação em linha única: Data [◀️] Mês Ano [▶️]
-                st.markdown('<h4 style="font-size: 18px; margin-bottom: 0.5rem;">📅 Data</h4>', unsafe_allow_html=True)
-
-                col_prev, col_mes, col_next = st.columns([1, 4, 1])
+                # Navegação entre meses
+                col_prev, col_mes, col_next = st.columns([1, 3, 1])
 
                 with col_prev:
-                    if st.button("◀️", key="prev_month", help="Mês anterior", use_container_width=True):
+                    if st.button("◀️", key="prev_month", help="Mês anterior"):
                         chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
                         chaves_ordenadas = sorted(meses_disponiveis.keys())
                         try:
@@ -4534,13 +4533,13 @@ else:
 
                 with col_mes:
                     st.markdown(f"""
-                    <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.3rem; margin: 0;">
+                    <div style="text-align: center; font-size: 1.1rem; font-weight: 600; color: #1f2937; padding: 0.5rem;">
                        {calendar.month_name[st.session_state.mes_atual]} {st.session_state.ano_atual}
                     </div>
                     """, unsafe_allow_html=True)
 
                 with col_next:
-                    if st.button("▶️", key="next_month", help="Próximo mês", use_container_width=True):
+                    if st.button("▶️", key="next_month", help="Próximo mês"):
                         chave_atual = f"{st.session_state.ano_atual}-{st.session_state.mes_atual:02d}"
                         chaves_ordenadas = sorted(meses_disponiveis.keys())
                         try:
@@ -4553,9 +4552,6 @@ else:
                                 st.rerun()
                         except ValueError:
                             pass
-
-                # Reduzir espaço antes do calendário
-                st.markdown('<div style="margin-top: 0.5rem;"></div>', unsafe_allow_html=True)
 
                 # Forçar colunas a não empilhar usando CSS
                 st.markdown("""
