@@ -3928,8 +3928,6 @@ Sistema de Agendamento Online
                     st.markdown('</div>', unsafe_allow_html=True)
         
         elif opcao == "👥 Lista de Agendamentos":
-            st.markdown('<div class="main-card fade-in">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header"><h2 class="card-title">👥 Lista de Agendamentos</h2></div>', unsafe_allow_html=True)
             
             # Botão de exportação
             st.markdown("---")
