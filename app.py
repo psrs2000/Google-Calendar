@@ -4972,24 +4972,24 @@ else:
                                         # Ações secundárias em linha única
                                         col1, col2 = st.columns([1, 1])
                                         
-                                        with col1:
-                                            if st.button("🔄 Reenviar Código", use_container_width=True, type="secondary"):
-                                                with st.spinner("Enviando novo código..."):
-                                                    codigo = gerar_codigo_verificacao()
-                                                    salvar_codigo_verificacao(st.session_state.email_verificacao, codigo)
-                                                    
-                                                    if enviar_codigo_verificacao(st.session_state.email_verificacao, nome, codigo):
-                                                        st.success("✅ Novo código enviado!")
-                                                        st.info("📧 Verifique seu email novamente")
-                                                    else:
-                                                        st.error("❌ Erro ao reenviar código")
                                         
-                                        with col2:
-                                            if st.button("❌ Cancelar", use_container_width=True, type="secondary"):
-                                                st.session_state.codigo_enviado = False
-                                                st.session_state.email_verificacao = ""
-                                                st.session_state.dados_agendamento = {}
-                                                st.rerun()
+                                        if st.button("🔄 Reenviar Código", use_container_width=True, type="secondary"):
+                                            with st.spinner("Enviando novo código..."):
+                                                codigo = gerar_codigo_verificacao()
+                                                salvar_codigo_verificacao(st.session_state.email_verificacao, codigo)
+                                                
+                                                if enviar_codigo_verificacao(st.session_state.email_verificacao, nome, codigo):
+                                                    st.success("✅ Novo código enviado!")
+                                                    st.info("📧 Verifique seu email novamente")
+                                                else:
+                                                    st.error("❌ Erro ao reenviar código")
+                                    
+                                    
+                                        if st.button("❌ Cancelar", use_container_width=True, type="secondary"):
+                                            st.session_state.codigo_enviado = False
+                                            st.session_state.email_verificacao = ""
+                                            st.session_state.dados_agendamento = {}
+                                            st.rerun()
                                         
                                         st.markdown("</div>", unsafe_allow_html=True)
 
