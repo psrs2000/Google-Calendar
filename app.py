@@ -4440,12 +4440,12 @@ else:
     
     instrucoes_chegada = obter_configuracao("instrucoes_chegada", "Favor chegar 10 minutos antes do horário agendado.")
 
-    #st.markdown(f"""
-    #<div class="main-header">
-    #    #<h1>⏳ Agendamento Online</h1>
-    #    <p>Agende seu horário com {nome_profissional} - {especialidade}</p>
-    #</div>
-    #""", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="main-header">
+        <h3>⏳ Agendamento Online</h3>
+        <p>Agende seu horário com {nome_profissional} - {especialidade}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.container():
         tab_agendar, tab_cancelar = st.tabs(["📅 Agendar Horário", "❌ Cancelar Agendamento"])
