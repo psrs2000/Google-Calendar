@@ -4553,8 +4553,8 @@ else:
                         except ValueError:
                             pass
                 # Reduzir espaço antes do calendário
-                st.markdown('<div style="margin-top: 0.5rem;"></div>', unsafe_allow_html=True)
-
+                st.markdown('<div style="margin-top: -1rem; margin-bottom: -0.5rem;"></div>', unsafe_allow_html=True)
+                
                 # Forçar colunas a não empilhar usando CSS
                 st.markdown("""
                 <style>
