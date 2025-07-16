@@ -4494,7 +4494,7 @@ else:
                 
                 email = st.text_input("E-mail *", placeholder="seu@email.com")
                 
-                st.subheader("📅 Escolha a Data")
+                st.markdown('<h4 style="font-size: 18px;">📅 Escolha a Data</h4>', unsafe_allow_html=True)
                 # Substitua a seção do calendário (a partir de "st.subheader("📅 Escolha a Data")") por este código:
 
                 
