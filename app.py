@@ -3022,6 +3022,18 @@ Atenciosamente,
     except Exception as e:
         print(f"Erro ao enviar código: {e}")
         return False
+
+# TESTE: Debug do backup
+try:
+    print("🧪 TESTE: Tentando backup manual...")
+    if 'backup_agendamentos_futuros_github' in globals():
+        backup_agendamentos_futuros_github()
+        print("✅ TESTE: Função existe e executou")
+    else:
+        print("❌ TESTE: Função não encontrada")
+except Exception as e:
+    print(f"❌ TESTE: Erro - {e}")
+
     
 # Inicializar banco
 init_config()
@@ -5389,13 +5401,3 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-# TESTE: Debug do backup
-try:
-    print("🧪 TESTE: Tentando backup manual...")
-    if 'backup_agendamentos_futuros_github' in globals():
-        backup_agendamentos_futuros_github()
-        print("✅ TESTE: Função existe e executou")
-    else:
-        print("❌ TESTE: Função não encontrada")
-except Exception as e:
-    print(f"❌ TESTE: Erro - {e}")
