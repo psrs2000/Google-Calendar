@@ -3039,19 +3039,22 @@ def testar_backup_agendamentos():
                     st.write("✅ GitHub configurado!")
                     
                     st.write("3. Executando backup...")
-                    sucesso = backup_agendamentos_futuros_github()
-                    
-                    if sucesso:
-                        st.write("✅ Backup executado com sucesso!")
-                    else:
-                        st.write("❌ Erro no backup")
+                    try:
+                        sucesso = backup_agendamentos_futuros_github()
+                        if sucesso:
+                            st.write("✅ Backup executado com sucesso!")
+                        else:
+                            st.write("❌ Backup retornou False")
+                    except Exception as backup_error:
+                        st.write(f"❌ ERRO ESPECÍFICO NO BACKUP: {backup_error}")
+                        st.write(f"❌ TIPO DO ERRO: {type(backup_error).__name__}")
                 else:
                     st.write("❌ GitHub não configurado")
             else:
                 st.write("❌ Função não encontrada")
                 
         except Exception as e:
-            st.write(f"❌ Erro: {e}")
+            st.write(f"❌ Erro geral: {e}")
 
     
 # Inicializar banco
