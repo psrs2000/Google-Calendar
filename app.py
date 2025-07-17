@@ -2830,6 +2830,9 @@ init_config()
 # Inicializar tabela de períodos
 init_config_periodos()
 
+#Recuperar agendamentos Atuais e futuros
+recuperar_agendamentos_automatico()
+
 # Inicializar controle de restauração
 if 'dados_restaurados' not in st.session_state:
     st.session_state.dados_restaurados = False
