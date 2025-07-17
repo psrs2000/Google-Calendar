@@ -1870,18 +1870,10 @@ def backup_agendamentos_futuros_github():
     """Faz backup dos agendamentos futuros para GitHub"""
     try:
         github_config = get_github_config()
-
-        print("🔍 DEBUG: Iniciando backup...")
-        github_config = get_github_config()
-        print(f"🔍 DEBUG: GitHub config obtido: {bool(github_config)}")
-
         if not github_config or not github_config.get("token"):
             print("❌ GitHub não configurado - backup ignorado")
             return False
-
-        print("🔍 DEBUG: Buscando agendamentos...")
-        hoje = datetime.now().date()
-        
+      
         hoje = datetime.now().date()
         
         conn = conectar()
@@ -1889,10 +1881,10 @@ def backup_agendamentos_futuros_github():
         
         # Buscar apenas agendamentos futuros
         c.execute("""
-            SELECT id, data, horario, nome, telefone, email, status, criado_em 
+            SELECT id, Data, Horário, Nome, Telefone, Email, Status, criado_em 
             FROM agendamentos 
-            WHERE data >= ? 
-            ORDER BY data, horario
+            WHERE Data >= ? 
+            ORDER BY Data, Horário
         """, (hoje.strftime("%Y-%m-%d"),))
         
         agendamentos_raw = c.fetchall()
@@ -3059,59 +3051,6 @@ def testar_estrutura_tabela():
             
         except Exception as e:
             st.write(f"❌ Erro: {e}")
-
-# FUNÇÃO DE TESTE - REMOVER DEPOIS
-def testar_backup_agendamentos():
-    st.write("🧪 **Teste de Backup de Agendamentos**")
-    
-    if st.button("🔴 Testar Backup Manual"):
-        # Interceptar os prints e mostrar na tela
-        import io
-        import sys
-        from contextlib import redirect_stdout
-        
-        output = io.StringIO()
-        
-        try:
-            with redirect_stdout(output):
-                sucesso = backup_agendamentos_futuros_github()
-            
-            # Mostrar o que foi "printado"
-            debug_output = output.getvalue()
-            if debug_output:
-                st.text("📝 Debug output:")
-                st.code(debug_output)
-            
-            if sucesso:
-                st.write("✅ Backup executado com sucesso!")
-            else:
-                st.write("❌ Backup retornou False")
-                
-        except Exception as e:
-            st.write(f"❌ ERRO: {e}")
-            st.write(f"❌ TIPO: {type(e).__name__}")
-
-def testar_estrutura_tabela():
-    st.write("🔍 **Verificando Estrutura da Tabela**")
-    
-    if st.button("📋 Ver Colunas da Tabela"):
-        try:
-            conn = conectar()
-            c = conn.cursor()
-            
-            # Verificar estrutura da tabela
-            c.execute("PRAGMA table_info(agendamentos)")
-            colunas = c.fetchall()
-            
-            st.write("**Colunas encontradas:**")
-            for coluna in colunas:
-                st.write(f"- {coluna[1]} ({coluna[2]})")
-                
-            conn.close()
-            
-        except Exception as e:
-            st.write(f"❌ Erro: {e}")
-
     
 # Inicializar banco
 init_config()
@@ -3141,10 +3080,8 @@ else:
 
 # INTERFACE PRINCIPAL
 if is_admin:
-    # Dentro de alguma seção do admin, adicione:
-    testar_backup_agendamentos()    
-    
-    # PAINEL ADMINISTRATIVO
+  
+        # PAINEL ADMINISTRATIVO
     st.markdown("""
     <div class="admin-header">
         <h1>🔐 Painel Administrativo</h1>
