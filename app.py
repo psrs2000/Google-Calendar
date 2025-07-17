@@ -3023,16 +3023,35 @@ Atenciosamente,
         print(f"Erro ao enviar código: {e}")
         return False
 
-# TESTE: Debug do backup
-try:
-    print("🧪 TESTE: Tentando backup manual...")
-    if 'backup_agendamentos_futuros_github' in globals():
-        backup_agendamentos_futuros_github()
-        print("✅ TESTE: Função existe e executou")
-    else:
-        print("❌ TESTE: Função não encontrada")
-except Exception as e:
-    print(f"❌ TESTE: Erro - {e}")
+# FUNÇÃO DE TESTE - REMOVER DEPOIS
+def testar_backup_agendamentos():
+    st.write("🧪 **Teste de Backup de Agendamentos**")
+    
+    if st.button("🔴 Testar Backup Manual"):
+        try:
+            st.write("1. Verificando se função existe...")
+            if 'backup_agendamentos_futuros_github' in globals():
+                st.write("✅ Função encontrada!")
+                
+                st.write("2. Testando configuração GitHub...")
+                github_config = get_github_config()
+                if github_config and github_config.get("token"):
+                    st.write("✅ GitHub configurado!")
+                    
+                    st.write("3. Executando backup...")
+                    sucesso = backup_agendamentos_futuros_github()
+                    
+                    if sucesso:
+                        st.write("✅ Backup executado com sucesso!")
+                    else:
+                        st.write("❌ Erro no backup")
+                else:
+                    st.write("❌ GitHub não configurado")
+            else:
+                st.write("❌ Função não encontrada")
+                
+        except Exception as e:
+            st.write(f"❌ Erro: {e}")
 
     
 # Inicializar banco
@@ -3063,6 +3082,9 @@ else:
 
 # INTERFACE PRINCIPAL
 if is_admin:
+    # Dentro de alguma seção do admin, adicione:
+    testar_backup_agendamentos()    
+    
     # PAINEL ADMINISTRATIVO
     st.markdown("""
     <div class="admin-header">
