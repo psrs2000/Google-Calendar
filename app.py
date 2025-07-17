@@ -5112,11 +5112,11 @@ else:
                                             if status_inicial == "confirmado":
                                                 st.success("✅ Agendamento confirmado automaticamente!")
                                                 st.session_state.form_key = int(time.time())
-                                                st.rerun()
+                                                
                                             else:
                                                 st.success("✅ Agendamento solicitado! Aguarde confirmação.")
                                                 st.session_state.form_key = int(time.time())
-                                                st.rerun()
+                                                
                                             st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
                                             
                                             
