@@ -1881,7 +1881,7 @@ def backup_agendamentos_futuros_github():
         
         # Buscar apenas agendamentos futuros
         c.execute("""
-            SELECT id, Data, Horário, Nome, Telefone, Email, Status, criado_em 
+            SELECT ID, Data, Horário, Nome, Telefone, Email, Status
             FROM agendamentos 
             WHERE Data >= ? 
             ORDER BY Data, Horário
