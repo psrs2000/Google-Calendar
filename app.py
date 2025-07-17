@@ -5039,48 +5039,48 @@ else:
                                                             conn.close()
                                                         else:
                                                             conn.close()                                                        
-                                                        try:
-                                                            status_inicial = adicionar_agendamento(
-                                                                dados['nome'], 
-                                                                dados['telefone'], 
-                                                                dados['email'], 
-                                                                dados['data'], 
-                                                                dados['horario']
-                                                            )
-                                                            
-                                                            # Limpar estado
-                                                            st.session_state.codigo_enviado = False
-                                                            st.session_state.email_verificacao = ""
-                                                            st.session_state.dados_agendamento = {}
-                                                            
-                                                            # Mensagens de sucesso
-                                                            if status_inicial == "confirmado":
-                                                                st.success("✅ Agendamento confirmado com sucesso!")
-                                                            else:
-                                                                st.success("✅ Agendamento solicitado! Aguarde confirmação.")
-                                                            
-                                                            # Resumo do agendamento
-                                                            st.markdown(f"""
-                                                            <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
-                                                                <h3 style="color: #047857; margin: 0 0 1rem 0;">📅 Seu Agendamento</h3>
-                                                                <p style="margin: 0.5rem 0;"><strong>Data:</strong> {data_selecionada.strftime('%d/%m/%Y')}</p>
-                                                                <p style="margin: 0.5rem 0;"><strong>Horário:</strong> {horario}</p>
-                                                                <p style="margin: 0.5rem 0;"><strong>Local:</strong> {nome_clinica}</p>
-                                                                <p style="margin: 0.5rem 0;"><strong>Endereço:</strong> {endereco_completo}</p>
-                                                            </div>
-                                                            """, unsafe_allow_html=True)
-                                                            
-                                                            # Informações de contato
-                                                            st.markdown(f"""
-                                                            <div style="background: #f8f9fa; border-left: 4px solid #0ea5e9; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
-                                                                <strong>📞 Em caso de dúvidas:</strong><br>
-                                                                📱 Telefone: {telefone_contato}<br>
-                                                                💬 WhatsApp: {whatsapp}
-                                                            </div>
-                                                            """, unsafe_allow_html=True)
-                                                            
-                                                        except Exception as e:
-                                                            st.error(f"❌ Erro ao agendar: {str(e)}")
+                                                            try:
+                                                                status_inicial = adicionar_agendamento(
+                                                                    dados['nome'], 
+                                                                    dados['telefone'], 
+                                                                    dados['email'], 
+                                                                    dados['data'], 
+                                                                    dados['horario']
+                                                                )
+                                                                
+                                                                # Limpar estado
+                                                                st.session_state.codigo_enviado = False
+                                                                st.session_state.email_verificacao = ""
+                                                                st.session_state.dados_agendamento = {}
+                                                                
+                                                                # Mensagens de sucesso
+                                                                if status_inicial == "confirmado":
+                                                                    st.success("✅ Agendamento confirmado com sucesso!")
+                                                                else:
+                                                                    st.success("✅ Agendamento solicitado! Aguarde confirmação.")
+                                                                
+                                                                # Resumo do agendamento
+                                                                st.markdown(f"""
+                                                                <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                                                                    <h3 style="color: #047857; margin: 0 0 1rem 0;">📅 Seu Agendamento</h3>
+                                                                    <p style="margin: 0.5rem 0;"><strong>Data:</strong> {data_selecionada.strftime('%d/%m/%Y')}</p>
+                                                                    <p style="margin: 0.5rem 0;"><strong>Horário:</strong> {horario}</p>
+                                                                    <p style="margin: 0.5rem 0;"><strong>Local:</strong> {nome_clinica}</p>
+                                                                    <p style="margin: 0.5rem 0;"><strong>Endereço:</strong> {endereco_completo}</p>
+                                                                </div>
+                                                                """, unsafe_allow_html=True)
+                                                                
+                                                                # Informações de contato
+                                                                st.markdown(f"""
+                                                                <div style="background: #f8f9fa; border-left: 4px solid #0ea5e9; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                                                                    <strong>📞 Em caso de dúvidas:</strong><br>
+                                                                    📱 Telefone: {telefone_contato}<br>
+                                                                    💬 WhatsApp: {whatsapp}
+                                                                </div>
+                                                                """, unsafe_allow_html=True)
+                                                                
+                                                            except Exception as e:
+                                                                st.error(f"❌ Erro ao agendar: {str(e)}")
                                                     else:
                                                         st.error(f"❌ {mensagem}")
                                             else:
@@ -5127,30 +5127,30 @@ else:
                                             conn.close()
                                         else:
                                             conn.close()
-                                        try:
-                                            status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
-                                            
-                                            if status_inicial == "confirmado":
-                                                st.success("✅ Agendamento confirmado automaticamente!")
-                                               
-                                            else:
-                                                st.success("✅ Agendamento solicitado! Aguarde confirmação.")
+                                            try:
+                                                status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
+                                                
+                                                if status_inicial == "confirmado":
+                                                    st.success("✅ Agendamento confirmado automaticamente!")
+                                                   
+                                                else:
+                                                    st.success("✅ Agendamento solicitado! Aguarde confirmação.")
+                                                    
+                                                    
+                                                st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
                                                 
                                                 
-                                            st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
-                                            
-                                            
-                                            # Mostrar informações de contato
-                                            st.markdown(f"""
-                                            <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
-                                                <strong>📞 Em caso de dúvidas:</strong><br>
-                                                📱 Telefone: {telefone_contato}<br>
-                                                💬 WhatsApp: {whatsapp}
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                            
-                                        except Exception as e:
-                                            st.error(f"❌ Erro ao agendar: {str(e)}")
+                                                # Mostrar informações de contato
+                                                st.markdown(f"""
+                                                <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 8px;">
+                                                    <strong>📞 Em caso de dúvidas:</strong><br>
+                                                    📱 Telefone: {telefone_contato}<br>
+                                                    💬 WhatsApp: {whatsapp}
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                                
+                                            except Exception as e:
+                                                st.error(f"❌ Erro ao agendar: {str(e)}")
                         
                         elif nome or telefone or email:
                             campos_faltando = []
