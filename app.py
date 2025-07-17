@@ -1827,338 +1827,102 @@ def download_from_github(github_config):
         print(f"❌ Erro no download GitHub: {e}")
         return None
 
-# ========================================
-# SISTEMA DE BACKUP INDEPENDENTE - MONITORAMENTO AUTOMÁTICO
-# NÃO ALTERA NENHUMA FUNÇÃO EXISTENTE!
-# ========================================
-
-
-# Variável global para controlar o monitoramento
-_backup_monitor_ativo = False
-_ultimo_hash_agendamentos = None
-
-def calcular_hash_agendamentos():
-    """Calcula hash dos agendamentos futuros para detectar mudanças"""
-    try:
-        hoje = datetime.now().date().strftime("%Y-%m-%d")
-        
-        conn = conectar()
-        c = conn.cursor()
-        
-        # Buscar apenas agendamentos futuros ordenados
-        c.execute("""
-            SELECT id, data, horario, nome, telefone, email, status 
-            FROM agendamentos 
-            WHERE data >= ? 
-            ORDER BY data, horario, nome
-        """, (hoje,))
-        
-        agendamentos = c.fetchall()
-        conn.close()
-        
-        # Converter para string e calcular hash
-        dados_str = str(agendamentos)
-        hash_atual = hashlib.md5(dados_str.encode()).hexdigest()
-        
-        return hash_atual, len(agendamentos)
-        
-    except Exception as e:
-        print(f"⚠️ Erro ao calcular hash: {e}")
-        return None, 0
-
 def backup_agendamentos_futuros_github():
-    """Faz backup dos agendamentos futuros para GitHub"""
+    """Usa o CSV que já funciona e envia para GitHub"""
     try:
+        print("🔍 Iniciando backup de agendamentos...")
+        
+        # 1. Gerar CSV usando função que JÁ FUNCIONA
+        csv_data = exportar_agendamentos_csv()
+        
+        if not csv_data:
+            print("❌ Nenhum dado para backup")
+            return False
+        
+        print("✅ CSV gerado com sucesso")
+        
+        # 2. Configurar GitHub para arquivo CSV
         github_config = get_github_config()
         if not github_config or not github_config.get("token"):
-            print("❌ GitHub não configurado - backup ignorado")
+            print("❌ GitHub não configurado")
             return False
-      
-        hoje = datetime.now().date()
         
-        conn = conectar()
-        c = conn.cursor()
+        github_config['config_file'] = 'agendamentos_backup.csv'
         
-        # Buscar apenas agendamentos futuros
-        c.execute("""
-            SELECT ID,Data,Horário,Nome,Telefone,Email,Status
-            FROM agendamentos 
-            WHERE Data >= ? 
-            ORDER BY Data, Horário
-        """, (hoje.strftime("%Y-%m-%d"),))
-        
-        agendamentos_raw = c.fetchall()
-        conn.close()
-        
-        # Converter para formato JSON
-        agendamentos_futuros = []
-        for agendamento in agendamentos_raw:
-            agendamentos_futuros.append({
-                'id': agendamento[0],
-                'data': agendamento[1],
-                'horario': agendamento[2],
-                'nome': agendamento[3],
-                'telefone': agendamento[4] if agendamento[4] else "",
-                'email': agendamento[5] if agendamento[5] else "",
-                'status': agendamento[6] if agendamento[6] else "pendente",
-                'criado_em': agendamento[7] if agendamento[7] else ""
-            })
-        
-        # Estrutura do backup
-        backup_data = {
-            '_backup_timestamp': datetime.now().isoformat(),
-            '_sistema': 'Agenda Online - Backup Automático',
-            '_periodo': f'A partir de {hoje.strftime("%d/%m/%Y")}',
-            '_total_agendamentos': len(agendamentos_futuros),
-            '_hash': calcular_hash_agendamentos()[0],
-            'agendamentos_futuros': agendamentos_futuros
-        }
-        
-        # Converter para JSON
-        agendamentos_json = json.dumps(backup_data, indent=2, ensure_ascii=False)
-        
-        # Configurar arquivo específico no GitHub
-        github_config_agendamentos = github_config.copy()
-        github_config_agendamentos['config_file'] = 'agendamentos_futuros.json'
-        
-        # Enviar para GitHub
-        sucesso = upload_to_github(agendamentos_json, github_config_agendamentos)
+        # 3. Enviar para GitHub
+        print("📤 Enviando para GitHub...")
+        sucesso = upload_to_github(csv_data, github_config)
         
         if sucesso:
-            print(f"✅ Backup automático: {len(agendamentos_futuros)} agendamentos salvos!")
+            print("✅ Backup enviado com sucesso!")
             return True
         else:
-            print("❌ Erro no backup automático")
+            print("❌ Erro ao enviar para GitHub")
             return False
             
     except Exception as e:
         print(f"❌ Erro no backup: {e}")
         return False
 
-def restaurar_agendamentos_futuros_github():
-    """Restaura agendamentos futuros do GitHub"""
+# Variáveis globais para monitoramento
+_monitor_agendamentos_ativo = False
+_ultimo_hash_agendamentos = None
+
+def calcular_hash_agendamentos():
+    """Calcula hash dos agendamentos para detectar mudanças"""
     try:
-        github_config = get_github_config()
-        if not github_config or not github_config.get("token"):
-            return False, "GitHub não configurado"
-        
-        # Configurar arquivo específico
-        github_config_agendamentos = github_config.copy()
-        github_config_agendamentos['config_file'] = 'agendamentos_futuros.json'
-        
-        # Baixar do GitHub
-        agendamentos_json = download_from_github(github_config_agendamentos)
-        if not agendamentos_json:
-            return False, "Nenhum backup encontrado no GitHub"
-        
-        # Parse do JSON
-        backup_data = json.loads(agendamentos_json)
-        agendamentos_futuros = backup_data.get('agendamentos_futuros', [])
-        
-        if not agendamentos_futuros:
-            return True, "Nenhum agendamento no backup"
-        
-        conn = conectar()
-        c = conn.cursor()
-        
-        # Limpar agendamentos futuros atuais
-        hoje = datetime.now().date().strftime("%Y-%m-%d")
-        c.execute("DELETE FROM agendamentos WHERE data >= ?", (hoje,))
-        
-        # Restaurar agendamentos do backup
-        restaurados = 0
-        for agendamento in agendamentos_futuros:
-            try:
-                c.execute("""INSERT INTO agendamentos 
-                            (data, horario, nome, telefone, email, status, criado_em) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?)""", 
-                         (agendamento['data'], 
-                          agendamento['horario'],
-                          agendamento['nome'],
-                          agendamento['telefone'],
-                          agendamento['email'],
-                          agendamento['status'],
-                          agendamento.get('criado_em', datetime.now().isoformat())))
-                restaurados += 1
-            except Exception as e:
-                print(f"⚠️ Erro ao restaurar {agendamento.get('nome', 'N/A')}: {e}")
-        
-        conn.commit()
-        conn.close()
-        
-        return True, f"{restaurados} agendamentos restaurados"
-        
+        agendamentos = buscar_agendamentos()
+        dados_str = str(agendamentos)
+        hash_atual = hashlib.md5(dados_str.encode()).hexdigest()
+        return hash_atual, len(agendamentos)
     except Exception as e:
-        return False, f"Erro na restauração: {str(e)}"
+        print(f"Erro ao calcular hash: {e}")
+        return None, 0
 
 def monitor_agendamentos():
-    """Thread que monitora mudanças nos agendamentos e faz backup automático"""
+    """Thread que monitora mudanças e faz backup automático"""
     global _ultimo_hash_agendamentos
     
-    print("🔍 Monitor de backup de agendamentos iniciado")
+    print("🔍 Monitor de agendamentos iniciado")
     
-    # Calcular hash inicial
-    _ultimo_hash_agendamentos, total_inicial = calcular_hash_agendamentos()
-    print(f"📊 Hash inicial: {_ultimo_hash_agendamentos[:8]}... ({total_inicial} agendamentos)")
+    # Hash inicial
+    _ultimo_hash_agendamentos, total = calcular_hash_agendamentos()
+    print(f"📊 Hash inicial: {_ultimo_hash_agendamentos[:8]}... ({total} agendamentos)")
     
-    while _backup_monitor_ativo:
+    while _monitor_agendamentos_ativo:
         try:
-            # Aguardar intervalo de verificação (30 segundos)
-            time.sleep(30)
+            time.sleep(30)  # Verificar a cada 30 segundos
             
-            # Calcular hash atual
             hash_atual, total_atual = calcular_hash_agendamentos()
             
             if hash_atual and hash_atual != _ultimo_hash_agendamentos:
-                print(f"🔔 Mudança detectada! Hash: {hash_atual[:8]}... ({total_atual} agendamentos)")
+                print(f"🔔 Mudança detectada! Fazendo backup...")
                 
-                # Fazer backup automático
                 sucesso = backup_agendamentos_futuros_github()
                 
                 if sucesso:
-                    print("✅ Backup automático realizado com sucesso!")
+                    print("✅ Backup automático realizado!")
                     _ultimo_hash_agendamentos = hash_atual
                 else:
-                    print("⚠️ Falha no backup automático - tentará novamente")
+                    print("⚠️ Falha no backup automático")
             
         except Exception as e:
-            print(f"⚠️ Erro no monitor de backup: {e}")
-            time.sleep(60)  # Aguardar mais tempo se houver erro
+            print(f"⚠️ Erro no monitor: {e}")
+            time.sleep(60)
 
-def iniciar_monitor_backup_agendamentos():
-    """Inicia o monitoramento automático de backup"""
-    global _backup_monitor_ativo
+def iniciar_monitor_agendamentos():
+    """Inicia o monitoramento automático"""
+    global _monitor_agendamentos_ativo
     
-    if _backup_monitor_ativo:
-        print("ℹ️ Monitor de backup já está ativo")
+    if _monitor_agendamentos_ativo:
         return
     
-    _backup_monitor_ativo = True
-    
-    # Iniciar thread de monitoramento
-    thread_monitor = threading.Thread(target=monitor_agendamentos, daemon=True)
-    thread_monitor.start()
-    
-    print("🚀 Monitor de backup de agendamentos iniciado com sucesso!")
+    _monitor_agendamentos_ativo = True
+    thread = threading.Thread(target=monitor_agendamentos, daemon=True)
+    thread.start()
+    print("🚀 Monitor de agendamentos iniciado!")
 
-def parar_monitor_backup_agendamentos():
-    """Para o monitoramento (para testes/debug)"""
-    global _backup_monitor_ativo
-    _backup_monitor_ativo = False
-    print("⏹️ Monitor de backup parado")
 
-# ========================================
-# INTERFACE SIMPLIFICADA NO ADMIN
-# ========================================
-
-def interface_backup_agendamentos():
-    """Interface para backup automático de agendamentos"""
-    
-    st.subheader("📅 Backup Automático de Agendamentos")
-    
-    # Status do monitor
-    if _backup_monitor_ativo:
-        st.success("""
-        ✅ **Monitor de Backup ATIVO**
-        
-        • Verifica mudanças nos agendamentos a cada 30 segundos
-        • Backup automático quando detecta alterações
-        • Protege apenas agendamentos futuros (arquivo pequeno)
-        • Sistema totalmente independente - não afeta o funcionamento
-        """)
-    else:
-        st.warning("""
-        ⚠️ **Monitor de Backup INATIVO**
-        
-        O sistema de backup automático não está rodando.
-        """)
-    
-    # Estatísticas atuais
-    hash_atual, total_agendamentos = calcular_hash_agendamentos()
-    
-    if hash_atual:
-        st.info(f"""
-        📊 **Status Atual:**
-        • **{total_agendamentos}** agendamentos futuros
-        • **Hash atual:** {hash_atual[:12]}...
-        • **Tamanho estimado:** ~{total_agendamentos * 100} bytes
-        • **Último backup:** {_ultimo_hash_agendamentos[:12] if _ultimo_hash_agendamentos else 'Nenhum'}...
-        """)
-    
-    # Ações disponíveis
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("💾 Backup Manual", type="secondary", use_container_width=True):
-            with st.spinner("Executando backup manual..."):
-                sucesso = backup_agendamentos_futuros_github()
-                if sucesso:
-                    st.success("✅ Backup manual realizado!")
-                    st.rerun()
-                else:
-                    st.error("❌ Erro no backup manual")
-    
-    with col2:
-        if st.button("🔄 Restaurar", type="primary", use_container_width=True):
-            if st.button("⚠️ CONFIRMAR Restauração", key="confirm_restore"):
-                with st.spinner("Restaurando do GitHub..."):
-                    sucesso, mensagem = restaurar_agendamentos_futuros_github()
-                    if sucesso:
-                        st.success(f"✅ {mensagem}")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {mensagem}")
-    
-    with col3:
-        if _backup_monitor_ativo:
-            if st.button("⏹️ Parar Monitor", type="secondary", use_container_width=True):
-                parar_monitor_backup_agendamentos()
-                st.rerun()
-        else:
-            if st.button("🚀 Iniciar Monitor", type="primary", use_container_width=True):
-                iniciar_monitor_backup_agendamentos()
-                st.rerun()
-    
-    # Informações técnicas
-    with st.expander("🔧 Como Funciona"):
-        st.markdown(f"""
-        **Sistema de Monitoramento Independente:**
-        
-        1. **Thread em background** verifica mudanças a cada 30 segundos
-        2. **Calcula hash** dos agendamentos futuros para detectar alterações
-        3. **Backup automático** quando detecta qualquer mudança
-        4. **Zero interferência** no código existente
-        
-        **Mudanças detectadas:**
-        - Novos agendamentos criados
-        - Status alterados (pendente → confirmado, etc.)
-        - Agendamentos cancelados ou excluídos
-        - Qualquer modificação nos dados
-        
-        **Arquivo gerado:**
-        - **GitHub:** {get_github_config().get('repo', 'N/A')}
-        - **Nome:** agendamentos_futuros.json
-        - **Conteúdo:** Apenas agendamentos de hoje em diante
-        
-        **Vantagens:**
-        - Não modifica nenhuma função existente
-        - Sistema totalmente isolado e seguro
-        - Backup em tempo quasi-real (30s de delay)
-        - Arquivo sempre pequeno e relevante
-        """)
-
-# ========================================
-# INICIALIZAÇÃO AUTOMÁTICA
-# ========================================
-
-def auto_iniciar_backup_agendamentos():
-    """Inicia automaticamente o monitor quando o sistema carrega"""
-    try:
-        # Aguardar um pouco para o sistema inicializar completamente
-        time.sleep(5)
-        iniciar_monitor_backup_agendamentos()
-    except Exception as e:
-        print(f"⚠️ Erro ao auto-iniciar backup: {e}")
 
 def get_google_calendar_service():
     """Configura Google Calendar usando Streamlit Secrets"""
@@ -3022,35 +2786,6 @@ Atenciosamente,
     except Exception as e:
         print(f"Erro ao enviar código: {e}")
         return False
-
-def testar_estrutura_tabela():
-    st.write("🔍 **Verificando Estrutura da Tabela**")
-    
-    if st.button("📋 Ver Colunas da Tabela"):
-        try:
-            conn = conectar()
-            c = conn.cursor()
-            
-            # Verificar estrutura da tabela
-            c.execute("PRAGMA table_info(agendamentos)")
-            colunas = c.fetchall()
-            
-            st.write("**Colunas encontradas:**")
-            for coluna in colunas:
-                st.write(f"- {coluna[1]} ({coluna[2]})")
-            
-            # Mostrar alguns dados de exemplo
-            c.execute("SELECT * FROM agendamentos LIMIT 3")
-            dados = c.fetchall()
-            
-            st.write("**Dados de exemplo:**")
-            for linha in dados:
-                st.write(f"- {linha}")
-                
-            conn.close()
-            
-        except Exception as e:
-            st.write(f"❌ Erro: {e}")
     
 # Inicializar banco
 init_config()
@@ -3058,9 +2793,13 @@ init_config()
 # Inicializar monitoramento de backup automático
 iniciar_monitoramento_backup()
 
-# NOVO: Inicializar backup de agendamentos
-thread_backup_agendamentos = threading.Thread(target=auto_iniciar_backup_agendamentos, daemon=True)
-thread_backup_agendamentos.start()
+# NOVO: Monitor de agendamentos com backup automático
+def auto_iniciar_monitor():
+    time.sleep(5)  # Aguardar sistema carregar
+    iniciar_monitor_agendamentos()
+
+thread_monitor = threading.Thread(target=auto_iniciar_monitor, daemon=True)
+thread_monitor.start()
 
 # Inicializar tabela de períodos
 init_config_periodos()
@@ -3080,8 +2819,7 @@ else:
 
 # INTERFACE PRINCIPAL
 if is_admin:
-  
-        # PAINEL ADMINISTRATIVO
+    # PAINEL ADMINISTRATIVO
     st.markdown("""
     <div class="admin-header">
         <h1>🔐 Painel Administrativo</h1>
@@ -5418,4 +5156,3 @@ else:
         <p style="font-size: 0.9rem; opacity: 0.7;">Sistema de Agendamento Online</p>
     </div>
     """, unsafe_allow_html=True)
-
