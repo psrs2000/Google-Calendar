@@ -5105,17 +5105,27 @@ else:
 
                                 else:
                                     # Sistema sem verificação (código original)
-                                    if st.button("✅ Confirmar Agendamento", type="primary", use_container_width=True):
+                                    if st.button("✅ Confirmar Agendamento"):
+                                        # ADICIONAR AQUI (antes do try):
+                                        conn = conectar()
+                                        c = conn.cursor()
+                                        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", 
+                                                  (nome, telefone, data_str))
+                                        
+                                        if c.fetchone()[0] > 0:
+                                            st.error("❌ Você já tem agendamento para esta data!")
+                                            conn.close()
+                                        else:
+                                            conn.close()
                                         try:
                                             status_inicial = adicionar_agendamento(nome, telefone, email, data_str, horario)
                                             
                                             if status_inicial == "confirmado":
                                                 st.success("✅ Agendamento confirmado automaticamente!")
-                                                st.session_state.form_key = int(time.time())
-                                                
+                                               
                                             else:
                                                 st.success("✅ Agendamento solicitado! Aguarde confirmação.")
-                                                st.session_state.form_key = int(time.time())
+                                                
                                                 
                                             st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
                                             
