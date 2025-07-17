@@ -3091,6 +3091,27 @@ def testar_backup_agendamentos():
             st.write(f"❌ ERRO: {e}")
             st.write(f"❌ TIPO: {type(e).__name__}")
 
+def testar_estrutura_tabela():
+    st.write("🔍 **Verificando Estrutura da Tabela**")
+    
+    if st.button("📋 Ver Colunas da Tabela"):
+        try:
+            conn = conectar()
+            c = conn.cursor()
+            
+            # Verificar estrutura da tabela
+            c.execute("PRAGMA table_info(agendamentos)")
+            colunas = c.fetchall()
+            
+            st.write("**Colunas encontradas:**")
+            for coluna in colunas:
+                st.write(f"- {coluna[1]} ({coluna[2]})")
+                
+            conn.close()
+            
+        except Exception as e:
+            st.write(f"❌ Erro: {e}")
+
     
 # Inicializar banco
 init_config()
