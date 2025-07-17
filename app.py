@@ -3036,33 +3036,31 @@ def testar_backup_agendamentos():
     st.write("🧪 **Teste de Backup de Agendamentos**")
     
     if st.button("🔴 Testar Backup Manual"):
+        # Interceptar os prints e mostrar na tela
+        import io
+        import sys
+        from contextlib import redirect_stdout
+        
+        output = io.StringIO()
+        
         try:
-            st.write("1. Verificando se função existe...")
-            if 'backup_agendamentos_futuros_github' in globals():
-                st.write("✅ Função encontrada!")
-                
-                st.write("2. Testando configuração GitHub...")
-                github_config = get_github_config()
-                if github_config and github_config.get("token"):
-                    st.write("✅ GitHub configurado!")
-                    
-                    st.write("3. Executando backup...")
-                    try:
-                        sucesso = backup_agendamentos_futuros_github()
-                        if sucesso:
-                            st.write("✅ Backup executado com sucesso!")
-                        else:
-                            st.write("❌ Backup retornou False")
-                    except Exception as backup_error:
-                        st.write(f"❌ ERRO ESPECÍFICO NO BACKUP: {backup_error}")
-                        st.write(f"❌ TIPO DO ERRO: {type(backup_error).__name__}")
-                else:
-                    st.write("❌ GitHub não configurado")
+            with redirect_stdout(output):
+                sucesso = backup_agendamentos_futuros_github()
+            
+            # Mostrar o que foi "printado"
+            debug_output = output.getvalue()
+            if debug_output:
+                st.text("📝 Debug output:")
+                st.code(debug_output)
+            
+            if sucesso:
+                st.write("✅ Backup executado com sucesso!")
             else:
-                st.write("❌ Função não encontrada")
+                st.write("❌ Backup retornou False")
                 
         except Exception as e:
-            st.write(f"❌ Erro geral: {e}")
+            st.write(f"❌ ERRO: {e}")
+            st.write(f"❌ TIPO: {type(e).__name__}")
 
     
 # Inicializar banco
