@@ -1922,6 +1922,32 @@ def iniciar_monitor_agendamentos():
     thread.start()
     print("🚀 Monitor de agendamentos iniciado!")
 
+def baixar_agendamentos_github():
+    """Baixa arquivo de agendamentos do GitHub"""
+    try:
+        github_config = get_github_config()
+        if not github_config or not github_config.get("token"):
+            print("❌ GitHub não configurado para recuperação")
+            return None
+        
+        # Configurar para buscar arquivo CSV
+        github_config['config_file'] = 'agendamentos_backup.csv'
+        
+        # Baixar do GitHub
+        print("📥 Baixando agendamentos do GitHub...")
+        csv_data = download_from_github(github_config)
+        
+        if csv_data:
+            print("✅ Arquivo baixado com sucesso!")
+            return csv_data
+        else:
+            print("📄 Nenhum backup encontrado no GitHub")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Erro ao baixar: {e}")
+        return None
+
 
 
 def get_google_calendar_service():
