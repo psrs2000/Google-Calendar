@@ -1950,6 +1950,16 @@ def baixar_agendamentos_github():
         print(f"❌ Erro ao baixar: {e}")
         return None
 
+# NOVO: Monitor de agendamentos com backup automático
+def auto_iniciar_sistema():
+    time.sleep(5)  # Aguardar sistema carregar
+    
+    # 1. PRIMEIRO: Recuperar agendamentos do GitHub
+    recuperar_agendamentos_automatico()
+    
+    # 2. DEPOIS: Iniciar monitoramento
+    iniciar_monitor_agendamentos()
+
 def recuperar_agendamentos_automatico():
     """Recupera agendamentos do GitHub automaticamente no boot"""
     try:
@@ -2880,20 +2890,7 @@ def testar_backup_csv():
 init_config()
 
 # Inicializar monitoramento de backup automático
-iniciar_monitoramento_backup()
-
-# NOVO: Monitor de agendamentos com backup automático
-def auto_iniciar_sistema():
-    time.sleep(5)  # Aguardar sistema carregar
-    
-    # 1. PRIMEIRO: Recuperar agendamentos do GitHub
-    recuperar_agendamentos_automatico()
-    
-    # 2. DEPOIS: Iniciar monitoramento
-    iniciar_monitor_agendamentos()
-
-thread_monitor = threading.Thread(target=auto_iniciar_sistema, daemon=True)
-thread_monitor.start()
+#iniciar_monitoramento_backup()
 
 # Inicializar tabela de períodos
 init_config_periodos()
@@ -2910,6 +2907,9 @@ if not st.session_state.dados_restaurados:
     print("✅ Dados restaurados! Próximos st.rerun() não acessarão GitHub.")
 else:
     print("✅ Dados já restaurados nesta sessão - pulando GitHub.")
+
+thread_monitor = threading.Thread(target=auto_iniciar_sistema, daemon=True)
+thread_monitor.start()
 
 # INTERFACE PRINCIPAL
 if is_admin:
