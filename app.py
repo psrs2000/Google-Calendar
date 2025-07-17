@@ -1948,6 +1948,42 @@ def baixar_agendamentos_github():
         print(f"❌ Erro ao baixar: {e}")
         return None
 
+def recuperar_agendamentos_automatico():
+    """Recupera agendamentos do GitHub automaticamente no boot"""
+    try:
+        print("🔄 Verificando se há agendamentos para recuperar...")
+        
+        # Verificar se já tem agendamentos no banco
+        agendamentos_atuais = buscar_agendamentos()
+        
+        if agendamentos_atuais:
+            print(f"✅ Sistema já tem {len(agendamentos_atuais)} agendamentos")
+            return True
+        
+        print("📥 Sistema vazio - buscando backup do GitHub...")
+        
+        # Baixar backup do GitHub
+        csv_data = baixar_agendamentos_github()
+        
+        if not csv_data:
+            print("📄 Nenhum backup encontrado - sistema iniciando vazio")
+            return True
+        
+        # Usar sua função de importação que JÁ FUNCIONA
+        print("📋 Importando agendamentos...")
+        resultado = importar_agendamentos_csv(csv_data)
+        
+        if resultado['sucesso']:
+            print(f"✅ Recuperação completa! {resultado['importados']} agendamentos restaurados")
+            return True
+        else:
+            print(f"❌ Erro na recuperação: {resultado.get('erro', 'Erro desconhecido')}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Erro na recuperação automática: {e}")
+        return False
+
 
 
 def get_google_calendar_service():
@@ -2845,11 +2881,16 @@ init_config()
 iniciar_monitoramento_backup()
 
 # NOVO: Monitor de agendamentos com backup automático
-def auto_iniciar_monitor():
+def auto_iniciar_sistema():
     time.sleep(5)  # Aguardar sistema carregar
+    
+    # 1. PRIMEIRO: Recuperar agendamentos do GitHub
+    recuperar_agendamentos_automatico()
+    
+    # 2. DEPOIS: Iniciar monitoramento
     iniciar_monitor_agendamentos()
 
-thread_monitor = threading.Thread(target=auto_iniciar_monitor, daemon=True)
+thread_monitor = threading.Thread(target=auto_iniciar_sistema, daemon=True)
 thread_monitor.start()
 
 # Inicializar tabela de períodos
