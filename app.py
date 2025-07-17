@@ -5111,10 +5111,12 @@ else:
                                             
                                             if status_inicial == "confirmado":
                                                 st.success("✅ Agendamento confirmado automaticamente!")
+                                                st.rerun()
                                             else:
                                                 st.success("✅ Agendamento solicitado! Aguarde confirmação.")
-                                            
+                                                st.rerun()
                                             st.info(f"💡 Seu agendamento: {data_selecionada.strftime('%d/%m/%Y')} às {horario}")
+                                            
                                             
                                             # Mostrar informações de contato
                                             st.markdown(f"""
