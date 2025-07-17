@@ -2786,6 +2786,31 @@ Atenciosamente,
     except Exception as e:
         print(f"Erro ao enviar código: {e}")
         return False
+
+def testar_backup_csv():
+    st.write("🧪 **Teste Backup CSV**")
+    
+    if st.button("🔴 Testar Backup Manual"):
+        try:
+            st.write("1. Testando geração CSV...")
+            csv_data = exportar_agendamentos_csv()
+            
+            if csv_data:
+                st.write("✅ CSV gerado!")
+                st.write(f"📊 Tamanho: {len(csv_data)} caracteres")
+                
+                st.write("2. Testando envio GitHub...")
+                sucesso = backup_agendamentos_futuros_github()
+                
+                if sucesso:
+                    st.write("✅ Backup enviado para GitHub!")
+                else:
+                    st.write("❌ Erro no envio")
+            else:
+                st.write("❌ Erro na geração do CSV")
+                
+        except Exception as e:
+            st.write(f"❌ Erro: {e}")
     
 # Inicializar banco
 init_config()
