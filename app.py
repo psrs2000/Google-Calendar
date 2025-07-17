@@ -535,7 +535,7 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
             enviar_email_confirmacao(agendamento_id, nome, email, data, horario)
         except Exception as e:
             print(f"❌ Erro ao enviar email de confirmação automática: {e}")
-    
+    backup_agendamentos_futuros_github()
     return status_inicial
 
 def cancelar_agendamento(nome, telefone, data):
@@ -627,6 +627,7 @@ def cancelar_agendamento(nome, telefone, data):
                             print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
                     except Exception as e:
                         print(f"❌ Erro ao enviar email de cancelamento: {e}")
+            backup_agendamentos_futuros_github()
             
             return True
             
@@ -841,6 +842,7 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
                 enviar_email_cancelamento(nome_cliente, email, data, horario, "admin")
             except Exception as e:
                 print(f"❌ Erro ao enviar email de cancelamento: {e}")
+    backup_agendamentos_futuros_github()            
 
 def deletar_agendamento(agendamento_id):
     conn = conectar()
@@ -848,6 +850,7 @@ def deletar_agendamento(agendamento_id):
     c.execute("DELETE FROM agendamentos WHERE id=?", (agendamento_id,))
     conn.commit()
     conn.close()
+    backup_agendamentos_futuros_github()
 
 def adicionar_bloqueio_horario(data, horario):
     conn = conectar()
@@ -1866,64 +1869,6 @@ def backup_agendamentos_futuros_github():
         print(f"❌ Erro no backup: {e}")
         return False
 
-# Variáveis globais para monitoramento
-_monitor_agendamentos_ativo = False
-_ultimo_hash_agendamentos = None
-
-def calcular_hash_agendamentos():
-    """Calcula hash dos agendamentos para detectar mudanças"""
-    try:
-        agendamentos = buscar_agendamentos()
-        dados_str = str(agendamentos)
-        hash_atual = hashlib.md5(dados_str.encode()).hexdigest()
-        return hash_atual, len(agendamentos)
-    except Exception as e:
-        print(f"Erro ao calcular hash: {e}")
-        return None, 0
-
-def monitor_agendamentos():
-    """Thread que monitora mudanças e faz backup automático"""
-    global _ultimo_hash_agendamentos
-    
-    print("🔍 Monitor de agendamentos iniciado")
-    
-    # Hash inicial
-    _ultimo_hash_agendamentos, total = calcular_hash_agendamentos()
-    print(f"📊 Hash inicial: {_ultimo_hash_agendamentos[:8]}... ({total} agendamentos)")
-    
-    while _monitor_agendamentos_ativo:
-        try:
-            time.sleep(30)  # Verificar a cada 30 segundos
-            
-            hash_atual, total_atual = calcular_hash_agendamentos()
-            
-            if hash_atual and hash_atual != _ultimo_hash_agendamentos:
-                print(f"🔔 Mudança detectada! Fazendo backup...")
-                
-                sucesso = backup_agendamentos_futuros_github()
-                
-                if sucesso:
-                    print("✅ Backup automático realizado!")
-                    _ultimo_hash_agendamentos = hash_atual
-                else:
-                    print("⚠️ Falha no backup automático")
-            
-        except Exception as e:
-            print(f"⚠️ Erro no monitor: {e}")
-            time.sleep(60)
-
-def iniciar_monitor_agendamentos():
-    """Inicia o monitoramento automático"""
-    global _monitor_agendamentos_ativo
-    
-    if _monitor_agendamentos_ativo:
-        return
-    
-    _monitor_agendamentos_ativo = True
-    thread = threading.Thread(target=monitor_agendamentos, daemon=True)
-    thread.start()
-    print("🚀 Monitor de agendamentos iniciado!")
-
 def baixar_agendamentos_github():
     """Baixa arquivo de agendamentos do GitHub"""
     try:
@@ -1949,16 +1894,6 @@ def baixar_agendamentos_github():
     except Exception as e:
         print(f"❌ Erro ao baixar: {e}")
         return None
-
-# NOVO: Monitor de agendamentos com backup automático
-def auto_iniciar_sistema():
-    time.sleep(5)  # Aguardar sistema carregar
-    
-    # 1. PRIMEIRO: Recuperar agendamentos do GitHub
-    recuperar_agendamentos_automatico()
-    
-    # 2. DEPOIS: Iniciar monitoramento
-    iniciar_monitor_agendamentos()
 
 def recuperar_agendamentos_automatico():
     """Recupera agendamentos do GitHub automaticamente no boot"""
@@ -2907,9 +2842,6 @@ if not st.session_state.dados_restaurados:
     print("✅ Dados restaurados! Próximos st.rerun() não acessarão GitHub.")
 else:
     print("✅ Dados já restaurados nesta sessão - pulando GitHub.")
-
-thread_monitor = threading.Thread(target=auto_iniciar_sistema, daemon=True)
-thread_monitor.start()
 
 # INTERFACE PRINCIPAL
 if is_admin:
