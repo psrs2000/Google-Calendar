@@ -2844,6 +2844,10 @@ else:
 
 # INTERFACE PRINCIPAL
 if is_admin:
+    
+    # Dentro de alguma seção do admin, adicione:
+    testar_backup_csv()    
+    
     # PAINEL ADMINISTRATIVO
     st.markdown("""
     <div class="admin-header">
