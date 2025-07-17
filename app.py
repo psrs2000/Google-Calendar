@@ -3031,6 +3031,35 @@ Atenciosamente,
         print(f"Erro ao enviar código: {e}")
         return False
 
+def testar_estrutura_tabela():
+    st.write("🔍 **Verificando Estrutura da Tabela**")
+    
+    if st.button("📋 Ver Colunas da Tabela"):
+        try:
+            conn = conectar()
+            c = conn.cursor()
+            
+            # Verificar estrutura da tabela
+            c.execute("PRAGMA table_info(agendamentos)")
+            colunas = c.fetchall()
+            
+            st.write("**Colunas encontradas:**")
+            for coluna in colunas:
+                st.write(f"- {coluna[1]} ({coluna[2]})")
+            
+            # Mostrar alguns dados de exemplo
+            c.execute("SELECT * FROM agendamentos LIMIT 3")
+            dados = c.fetchall()
+            
+            st.write("**Dados de exemplo:**")
+            for linha in dados:
+                st.write(f"- {linha}")
+                
+            conn.close()
+            
+        except Exception as e:
+            st.write(f"❌ Erro: {e}")
+
 # FUNÇÃO DE TESTE - REMOVER DEPOIS
 def testar_backup_agendamentos():
     st.write("🧪 **Teste de Backup de Agendamentos**")
