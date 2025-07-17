@@ -5029,6 +5029,16 @@ else:
                                                     if valido:
                                                         # Código correto - fazer agendamento
                                                         dados = st.session_state.dados_agendamento
+                                                        conn = conectar()
+                                                        c = conn.cursor()
+                                                        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", 
+                                                                  (dados['nome'], dados['telefone'], dados['data']))
+
+                                                        if c.fetchone()[0] > 0:
+                                                            st.error("❌ Você já tem agendamento para esta data!")
+                                                            conn.close()
+                                                        else:
+                                                            conn.close()                                                        
                                                         try:
                                                             status_inicial = adicionar_agendamento(
                                                                 dados['nome'], 
