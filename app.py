@@ -10,6 +10,8 @@ import time
 import random
 import hashlib
 import threading
+import json
+import traceback
 try:
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
@@ -1864,14 +1866,14 @@ def backup_agendamentos_futuros_github():
         print(f"❌ Erro no backup: {e}")
         return False
 
-# Variáveis globais
+# Variáveis globais para monitoramento
 _monitor_agendamentos_ativo = False
 _ultimo_hash_agendamentos = None
 
 def calcular_hash_agendamentos():
-    """Calcula hash dos agendamentos"""
+    """Calcula hash dos agendamentos para detectar mudanças"""
     try:
-        agendamentos = buscar_agendamentos()  # ⚠️ Precisa existir
+        agendamentos = buscar_agendamentos()
         dados_str = str(agendamentos)
         hash_atual = hashlib.md5(dados_str.encode()).hexdigest()
         return hash_atual, len(agendamentos)
@@ -1880,30 +1882,38 @@ def calcular_hash_agendamentos():
         return None, 0
 
 def monitor_agendamentos():
-    """Monitora e faz backup"""
+    """Thread que monitora mudanças e faz backup automático"""
     global _ultimo_hash_agendamentos
     
-    print("🔍 Monitor iniciado")
+    print("🔍 Monitor de agendamentos iniciado")
+    
+    # Hash inicial
     _ultimo_hash_agendamentos, total = calcular_hash_agendamentos()
+    print(f"📊 Hash inicial: {_ultimo_hash_agendamentos[:8]}... ({total} agendamentos)")
     
     while _monitor_agendamentos_ativo:
         try:
-            time.sleep(30)
+            time.sleep(30)  # Verificar a cada 30 segundos
+            
             hash_atual, total_atual = calcular_hash_agendamentos()
             
             if hash_atual and hash_atual != _ultimo_hash_agendamentos:
-                print(f"🔔 Mudança detectada!")
+                print(f"🔔 Mudança detectada! Fazendo backup...")
                 
-                if backup_agendamentos_futuros_github():  # ⚠️ Precisa existir
-                    print("✅ Backup realizado!")
+                sucesso = backup_agendamentos_futuros_github()
+                
+                if sucesso:
+                    print("✅ Backup automático realizado!")
                     _ultimo_hash_agendamentos = hash_atual
-                    
+                else:
+                    print("⚠️ Falha no backup automático")
+            
         except Exception as e:
-            print(f"Erro: {e}")
+            print(f"⚠️ Erro no monitor: {e}")
             time.sleep(60)
 
 def iniciar_monitor_agendamentos():
-    """Inicia o monitor"""
+    """Inicia o monitoramento automático"""
     global _monitor_agendamentos_ativo
     
     if _monitor_agendamentos_ativo:
@@ -1912,15 +1922,8 @@ def iniciar_monitor_agendamentos():
     _monitor_agendamentos_ativo = True
     thread = threading.Thread(target=monitor_agendamentos, daemon=True)
     thread.start()
-    print("🚀 Monitor iniciado!")
+    print("🚀 Monitor de agendamentos iniciado!")
 
-def auto_iniciar_monitor():
-    """Auto-inicia após 5 segundos"""
-    time.sleep(5)
-    iniciar_monitor_agendamentos()
-
-# Usar apenas:
-iniciar_monitoramento_backup_unificado()
 def baixar_agendamentos_github():
     """Baixa arquivo de agendamentos do GitHub"""
     try:
@@ -1982,6 +1985,8 @@ def recuperar_agendamentos_automatico():
     except Exception as e:
         print(f"❌ Erro na recuperação automática: {e}")
         return False
+
+
 
 def get_google_calendar_service():
     """Configura Google Calendar usando Streamlit Secrets"""
@@ -2588,59 +2593,30 @@ def verificar_hora_backup():
         print(f"❌ Erro ao verificar hora do backup: {e}")
         return False
 
-def iniciar_monitoramento_backup_unificado():
-    """Sistema unificado de backup automático"""
-    global _monitor_agendamentos_ativo, _ultimo_hash_agendamentos
-    
+def iniciar_monitoramento_backup():
+    """Inicia thread para monitoramento automático de backup"""
     def monitorar():
-        print("🔄 Monitoramento unificado de backup iniciado")
-        
-        # Hash inicial para detecção de mudanças
-        _ultimo_hash_agendamentos, _ = calcular_hash_agendamentos()
-        ultimo_backup_email = None
-        verificacoes = 0
-        
+        print("🔄 Monitoramento de backup automático iniciado")
         while True:
             try:
-                verificacoes += 1
+                if verificar_hora_backup():
+                    print("⏰ Hora do backup automático!")
+                    sucesso = enviar_backup_email_agendamentos()
+                    if sucesso:
+                        print("✅ Backup automático enviado com sucesso!")
+                    else:
+                        print("❌ Falha no backup automático")
                 
-                # 1. Verificar mudanças (a cada 30 segundos)
-                if verificacoes % 1 == 0:  # A cada iteração (30s)
-                    hash_atual, total = calcular_hash_agendamentos()
-                    
-                    if hash_atual and hash_atual != _ultimo_hash_agendamentos:
-                        print(f"🔔 Mudança detectada! Fazendo backup no GitHub...")
-                        
-                        if backup_agendamentos_futuros_github():
-                            print("✅ Backup no GitHub realizado!")
-                            _ultimo_hash_agendamentos = hash_atual
-                
-                # 2. Verificar horário do email (a cada 2 minutos)
-                if verificacoes % 4 == 0:  # 4 * 30s = 2 minutos
-                    if verificar_hora_backup():
-                        print("⏰ Hora do backup por email!")
-                        
-                        if enviar_backup_email_agendamentos():
-                            print("✅ Backup por email enviado!")
-                            ultimo_backup_email = time.time()
-                
-                # Log periódico
-                if verificacoes % 20 == 0:  # A cada 10 minutos
-                    print(f"📊 Monitor ativo - {verificacoes} verificações")
-                
-                time.sleep(30)  # Intervalo base de 30 segundos
+                # Verificar a cada minuto
+                time.sleep(60)
                 
             except Exception as e:
-                print(f"❌ Erro no monitoramento: {e}")
-                time.sleep(60)
+                print(f"❌ Erro no monitoramento de backup: {e}")
+                time.sleep(300)  # Esperar 5 minutos se der erro
     
-    # Desativar o sistema antigo se estiver rodando
-    _monitor_agendamentos_ativo = False
-    
-    # Iniciar thread unificada
+    # Iniciar thread em background
     thread = threading.Thread(target=monitorar, daemon=True)
     thread.start()
-    print("🚀 Sistema unificado de backup iniciado!")
 
 # ========================================
 # FUNÇÕES NOVAS PARA BLOQUEIOS DE PERÍODO
@@ -2903,6 +2879,8 @@ def testar_backup_csv():
 # Inicializar banco
 init_config()
 
+# Inicializar monitoramento de backup automático
+iniciar_monitoramento_backup()
 
 # NOVO: Monitor de agendamentos com backup automático
 def auto_iniciar_sistema():
