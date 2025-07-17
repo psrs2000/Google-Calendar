@@ -1870,9 +1870,17 @@ def backup_agendamentos_futuros_github():
     """Faz backup dos agendamentos futuros para GitHub"""
     try:
         github_config = get_github_config()
+
+        print("🔍 DEBUG: Iniciando backup...")
+        github_config = get_github_config()
+        print(f"🔍 DEBUG: GitHub config obtido: {bool(github_config)}")
+
         if not github_config or not github_config.get("token"):
             print("❌ GitHub não configurado - backup ignorado")
             return False
+
+        print("🔍 DEBUG: Buscando agendamentos...")
+        hoje = datetime.now().date()
         
         hoje = datetime.now().date()
         
