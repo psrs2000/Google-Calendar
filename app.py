@@ -1919,10 +1919,8 @@ def auto_iniciar_monitor():
     time.sleep(5)
     iniciar_monitor_agendamentos()
 
-# ⚠️ AQUI - No final do arquivo, após TODAS as funções
-thread_init = threading.Thread(target=auto_iniciar_monitor, daemon=True)
-thread_init.start()
-
+# Usar apenas:
+iniciar_monitoramento_backup_unificado()
 def baixar_agendamentos_github():
     """Baixa arquivo de agendamentos do GitHub"""
     try:
@@ -2590,30 +2588,59 @@ def verificar_hora_backup():
         print(f"❌ Erro ao verificar hora do backup: {e}")
         return False
 
-def iniciar_monitoramento_backup():
-    """Inicia thread para monitoramento automático de backup"""
+def iniciar_monitoramento_backup_unificado():
+    """Sistema unificado de backup automático"""
+    global _monitor_agendamentos_ativo, _ultimo_hash_agendamentos
+    
     def monitorar():
-        print("🔄 Monitoramento de backup automático iniciado")
+        print("🔄 Monitoramento unificado de backup iniciado")
+        
+        # Hash inicial para detecção de mudanças
+        _ultimo_hash_agendamentos, _ = calcular_hash_agendamentos()
+        ultimo_backup_email = None
+        verificacoes = 0
+        
         while True:
             try:
-                if verificar_hora_backup():
-                    print("⏰ Hora do backup automático!")
-                    sucesso = enviar_backup_email_agendamentos()
-                    if sucesso:
-                        print("✅ Backup automático enviado com sucesso!")
-                    else:
-                        print("❌ Falha no backup automático")
+                verificacoes += 1
                 
-                # Verificar a cada minuto
-                time.sleep(60)
+                # 1. Verificar mudanças (a cada 30 segundos)
+                if verificacoes % 1 == 0:  # A cada iteração (30s)
+                    hash_atual, total = calcular_hash_agendamentos()
+                    
+                    if hash_atual and hash_atual != _ultimo_hash_agendamentos:
+                        print(f"🔔 Mudança detectada! Fazendo backup no GitHub...")
+                        
+                        if backup_agendamentos_futuros_github():
+                            print("✅ Backup no GitHub realizado!")
+                            _ultimo_hash_agendamentos = hash_atual
+                
+                # 2. Verificar horário do email (a cada 2 minutos)
+                if verificacoes % 4 == 0:  # 4 * 30s = 2 minutos
+                    if verificar_hora_backup():
+                        print("⏰ Hora do backup por email!")
+                        
+                        if enviar_backup_email_agendamentos():
+                            print("✅ Backup por email enviado!")
+                            ultimo_backup_email = time.time()
+                
+                # Log periódico
+                if verificacoes % 20 == 0:  # A cada 10 minutos
+                    print(f"📊 Monitor ativo - {verificacoes} verificações")
+                
+                time.sleep(30)  # Intervalo base de 30 segundos
                 
             except Exception as e:
-                print(f"❌ Erro no monitoramento de backup: {e}")
-                time.sleep(300)  # Esperar 5 minutos se der erro
+                print(f"❌ Erro no monitoramento: {e}")
+                time.sleep(60)
     
-    # Iniciar thread em background
+    # Desativar o sistema antigo se estiver rodando
+    _monitor_agendamentos_ativo = False
+    
+    # Iniciar thread unificada
     thread = threading.Thread(target=monitorar, daemon=True)
     thread.start()
+    print("🚀 Sistema unificado de backup iniciado!")
 
 # ========================================
 # FUNÇÕES NOVAS PARA BLOQUEIOS DE PERÍODO
@@ -2876,8 +2903,6 @@ def testar_backup_csv():
 # Inicializar banco
 init_config()
 
-# Inicializar monitoramento de backup automático
-iniciar_monitoramento_backup()
 
 # NOVO: Monitor de agendamentos com backup automático
 def auto_iniciar_sistema():
