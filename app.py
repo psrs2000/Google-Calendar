@@ -1972,6 +1972,22 @@ def iniciar_monitor_agendamentos():
     print("🚀 Monitor de agendamentos iniciado com sucesso!")
     return True
 
+# Inicialização automática ao carregar o módulo
+def auto_iniciar_monitor():
+    """Inicia o monitor automaticamente após carregar o sistema"""
+    print("⏳ Aguardando sistema carregar...")
+    time.sleep(5)  # Aguardar sistema carregar
+    
+    try:
+        if iniciar_monitor_agendamentos():
+            print("✅ Monitor iniciado automaticamente!")
+            # Fazer um teste inicial
+            time.sleep(2)
+            status_monitor_agendamentos()
+    except Exception as e:
+        print(f"❌ Erro ao iniciar monitor automaticamente: {e}")
+        traceback.print_exc()
+
 def baixar_agendamentos_github():
     """Baixa arquivo de agendamentos do GitHub"""
     try:
@@ -2033,8 +2049,6 @@ def recuperar_agendamentos_automatico():
     except Exception as e:
         print(f"❌ Erro na recuperação automática: {e}")
         return False
-
-
 
 def get_google_calendar_service():
     """Configura Google Calendar usando Streamlit Secrets"""
