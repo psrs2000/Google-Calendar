@@ -1238,7 +1238,19 @@ def exportar_agendamentos_csv():
     
     try:
         # Buscar todos os agendamentos
-        agendamentos = buscar_agendamentos()
+        # Buscar apenas agendamentos futuros
+        agendamentos_todos = buscar_agendamentos()
+
+        # Filtrar só os futuros
+        hoje = datetime.now().date()
+        agendamentos = []
+        for agendamento in agendamentos_todos:
+            try:
+                data_agendamento = datetime.strptime(agendamento[1], "%Y-%m-%d").date()
+                if data_agendamento >= hoje:
+                    agendamentos.append(agendamento)
+            except:
+                continue
         
         if not agendamentos:
             return None
@@ -2796,31 +2808,7 @@ Atenciosamente,
         print(f"Erro ao enviar código: {e}")
         return False
 
-def testar_backup_csv():
-    st.write("🧪 **Teste Backup CSV**")
-    
-    if st.button("🔴 Testar Backup Manual"):
-        try:
-            st.write("1. Testando geração CSV...")
-            csv_data = exportar_agendamentos_csv()
-            
-            if csv_data:
-                st.write("✅ CSV gerado!")
-                st.write(f"📊 Tamanho: {len(csv_data)} caracteres")
-                
-                st.write("2. Testando envio GitHub...")
-                sucesso = backup_agendamentos_futuros_github()
-                
-                if sucesso:
-                    st.write("✅ Backup enviado para GitHub!")
-                else:
-                    st.write("❌ Erro no envio")
-            else:
-                st.write("❌ Erro na geração do CSV")
-                
-        except Exception as e:
-            st.write(f"❌ Erro: {e}")
-    
+   
 # Inicializar banco
 init_config()
 
@@ -2849,9 +2837,7 @@ else:
 # INTERFACE PRINCIPAL
 if is_admin:
     
-    # Dentro de alguma seção do admin, adicione:
-    testar_backup_csv()    
-    
+   
     # PAINEL ADMINISTRATIVO
     st.markdown("""
     <div class="admin-header">
