@@ -3443,26 +3443,28 @@ Sistema de Agendamento Online
                     else:
                         st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
 
-                # TESTE DAS VARIÁVEIS
+                # INTERFACE CALDAV - VERSÃO SIMPLES
                 st.markdown("---")
-                st.markdown("**🔍 TESTE VARIÁVEIS CALDAV**")
+                st.markdown("**📅 Integração com Calendário (CalDAV)**")
                 
-                if st.button("🧪 Testar variáveis"):
-                    try:
-                        # Testar se as variáveis da interface existem
-                        st.write("Testando variável caldav_ativo...")
-                        caldav_ativo_teste = st.checkbox("Teste caldav_ativo", value=False)
-                        st.write(f"✅ caldav_ativo_teste = {caldav_ativo_teste}")
-                        
-                        st.write("Testando email_calendario...")
-                        email_calendario_teste = st.text_input("Teste email_calendario", value="")
-                        st.write(f"✅ email_calendario_teste = {email_calendario_teste}")
-                        
-                        st.write("✅ Variáveis funcionam normalmente!")
-                        
-                    except Exception as e:
-                        st.error(f"❌ Erro nas variáveis: {e}")
-                        st.write(f"Detalhes do erro: {str(e)}")
+                caldav_ativo = st.checkbox(
+                    "Ativar sincronização automática com calendário",
+                    value=obter_configuracao("caldav_ativo", False)
+                )
+                
+                if caldav_ativo:
+                    st.success("✅ Integração ativada!")
+                    
+                    email_calendario = st.text_input(
+                        "Email do calendário:",
+                        value=obter_configuracao("email_calendario", "")
+                    )
+                    
+                    if email_calendario:
+                        st.info(f"📧 Email configurado: {email_calendario}")
+                
+                else:
+                    st.info("💡 Ative a integração acima para configurar")
 
             # Botão para salvar todas as configurações
             st.markdown("---")
