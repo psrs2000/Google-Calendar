@@ -12,14 +12,6 @@ import hashlib
 import threading
 import json
 import traceback
-try:
-    from google.oauth2.credentials import Credentials
-    from google.auth.transport.requests import Request
-    from googleapiclient.discovery import build
-    print("✅ Imports Google OK")
-except ImportError as e:
-    print(f"❌ Erro nos imports Google: {e}")
-
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
@@ -516,15 +508,6 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
         conn.commit()
     finally:
         conn.close()
-    
-    # NOVO: Integração com Google Calendar
-    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
-    
-    if google_calendar_ativo and status_inicial == "confirmado" and agendamento_id:
-        try:
-            criar_evento_google_calendar(agendamento_id, nome, telefone, email, data, horario)
-        except Exception as e:
-            print(f"❌ Erro na integração Google Calendar: {e}")
     
     # Envio de emails (código original)
     envio_automatico = obter_configuracao("envio_automatico", False)
@@ -1944,305 +1927,6 @@ def recuperar_agendamentos_automatico():
         return False
 
 
-
-def get_google_calendar_service():
-    """Configura Google Calendar usando Streamlit Secrets"""
-    try:
-        print("🔍 Iniciando get_google_calendar_service...")
-        
-        # Obter credenciais dos secrets
-        creds_info = {
-            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
-            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
-            "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
-            "token_uri": "https://oauth2.googleapis.com/token"
-        }
-        
-        print("🔍 Secrets lidos com sucesso")
-        
-        from google.oauth2.credentials import Credentials
-        from google.auth.transport.requests import Request
-        from googleapiclient.discovery import build
-        
-        print("🔍 Imports OK")
-        
-        credentials = Credentials.from_authorized_user_info(creds_info)
-        print("🔍 Credentials criadas")
-        
-        # Renovar token se necessário
-        if credentials.expired:
-            print("🔍 Token expirado, renovando...")
-            credentials.refresh(Request())
-            print("🔍 Token renovado")
-        
-        print("🔍 Criando service...")
-        service = build('calendar', 'v3', credentials=credentials)
-        print("✅ Service criado com sucesso")
-        return service
-        
-    except Exception as e:
-        print(f"❌ ERRO NA FUNÇÃO: {type(e).__name__}: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return None
-
-def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario, max_tentativas=3):
-    print(f"🔍 DEBUG: Tentando criar evento - ID: {agendamento_id}, Cliente: {nome_cliente}")  # ← ADICIONAR ESTA LINHA
-    """Cria evento no Google Calendar com múltiplas tentativas"""
-    
-    for tentativa in range(1, max_tentativas + 1):
-        try:
-            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Criando evento Google Calendar")
-            
-            service = get_google_calendar_service()
-            if not service:
-                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
-                if tentativa < max_tentativas:
-                    time.sleep(tentativa * 2)
-                    continue
-                return False
-            
-            # Configurações do calendário
-            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
-            
-            # Montar data/hora do evento
-            data_inicio = datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
-            
-            # Duração baseada na configuração
-            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
-            data_fim = data_inicio + timedelta(minutes=intervalo_consultas)
-            
-            # Dados do profissional
-            nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
-            especialidade = obter_configuracao("especialidade", "Clínico Geral")
-            nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
-            
-            evento = {
-                'summary': f'📅 {nome_cliente} - {especialidade}',
-                'description': f'''
-🏥 {nome_clinica}
-👨‍⚕️ {nome_profissional} - {especialidade}
-
-👤 Cliente: {nome_cliente}
-📱 Telefone: {telefone}
-📧 Email: {email}
-
-🆔 ID: {agendamento_id}
-📝 Sistema de Agendamento Online
-                '''.strip(),
-                'start': {
-                    'dateTime': data_inicio.isoformat(),
-                    'timeZone': 'America/Sao_Paulo',
-                },
-                'end': {
-                    'dateTime': data_fim.isoformat(),
-                    'timeZone': 'America/Sao_Paulo',
-                },
-                'attendees': [
-                    {'email': email}
-                ] if email else [],
-                'reminders': {
-                    'useDefault': False,
-                    'overrides': [
-                        {'method': 'email', 'minutes': 24 * 60},  # 1 dia antes
-                        {'method': 'popup', 'minutes': 60},       # 1 hora antes
-                    ],
-                },
-                'colorId': '2',  # Verde para consultas
-            }
-            
-            evento_criado = service.events().insert(
-                calendarId=calendar_id, 
-                body=evento
-            ).execute()
-            
-            # Se chegou aqui, deu certo!
-            print(f"✅ Evento criado com sucesso na tentativa {tentativa}")
-            
-            # Salvar ID do evento no banco
-            salvar_event_id_google(agendamento_id, evento_criado['id'])
-            
-            return evento_criado['id']
-            
-        except Exception as e:
-            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
-            
-            # Se não é a última tentativa, aguardar antes de tentar novamente
-            if tentativa < max_tentativas:
-                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
-                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
-                time.sleep(delay)
-            else:
-                print(f"💥 Todas as {max_tentativas} tentativas falharam para criar evento!")
-                return False
-    
-    return False
-
-def deletar_evento_google_calendar(agendamento_id, max_tentativas=3):
-    """Deleta evento do Google Calendar com múltiplas tentativas"""
-    
-    for tentativa in range(1, max_tentativas + 1):
-        try:
-            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Deletando evento Google Calendar")
-            
-            service = get_google_calendar_service()
-            if not service:
-                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
-                if tentativa < max_tentativas:
-                    time.sleep(tentativa * 2)  # 2s, 4s, 6s...
-                    continue
-                return False
-            
-            # Buscar ID do evento
-            event_id = obter_event_id_google(agendamento_id)
-            if not event_id:
-                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
-                return False
-            
-            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
-            
-            # Tentar deletar
-            service.events().delete(
-                calendarId=calendar_id, 
-                eventId=event_id
-            ).execute()
-            
-            # Se chegou aqui, deu certo!
-            print(f"✅ Evento deletado com sucesso na tentativa {tentativa}")
-            
-            # Remover ID do banco apenas se deletou com sucesso
-            remover_event_id_google(agendamento_id)
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
-            
-            # Se não é a última tentativa, aguardar antes de tentar novamente
-            if tentativa < max_tentativas:
-                # Backoff exponencial com jitter
-                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)  # 1-2.5s, 4-5.5s, 9-10.5s
-                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
-                time.sleep(delay)
-            else:
-                print(f"💥 Todas as {max_tentativas} tentativas falharam!")
-                
-                # IMPORTANTE: Mesmo que falhe, marcar como "tentou deletar" 
-                # para não ficar tentando infinitamente
-                remover_event_id_google(agendamento_id)
-                
-                return False
-    
-    return False
-
-def atualizar_evento_google_calendar(agendamento_id, nome_cliente, status, max_tentativas=3):
-    """Atualiza evento no Google Calendar com múltiplas tentativas"""
-    
-    for tentativa in range(1, max_tentativas + 1):
-        try:
-            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Atualizando evento Google Calendar")
-            
-            service = get_google_calendar_service()
-            if not service:
-                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
-                if tentativa < max_tentativas:
-                    time.sleep(tentativa * 2)
-                    continue
-                return False
-            
-            event_id = obter_event_id_google(agendamento_id)
-            if not event_id:
-                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
-                return False
-            
-            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
-            
-            # Buscar evento atual
-            evento = service.events().get(
-                calendarId=calendar_id, 
-                eventId=event_id
-            ).execute()
-            
-            # Atualizar título baseado no status
-            if status == 'atendido':
-                evento['summary'] = f'✅ ATENDIDO - {nome_cliente}'
-                evento['colorId'] = '10'  # Verde escuro para atendidos
-            elif status == 'cancelado':
-                evento['summary'] = f'❌ CANCELADO - {nome_cliente}'
-                evento['colorId'] = '4'  # Vermelho para cancelados
-            
-            service.events().update(
-                calendarId=calendar_id, 
-                eventId=event_id, 
-                body=evento
-            ).execute()
-            
-            print(f"✅ Evento atualizado com sucesso na tentativa {tentativa}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
-            
-            if tentativa < max_tentativas:
-                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
-                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
-                time.sleep(delay)
-            else:
-                print(f"💥 Todas as {max_tentativas} tentativas falharam para atualizar evento!")
-                return False
-    
-    return False
-
-def salvar_event_id_google(agendamento_id, event_id):
-    """Salva ID do evento Google Calendar no banco"""
-    conn = conectar()
-    c = conn.cursor()
-    try:
-        # Criar coluna se não existir
-        try:
-            c.execute("ALTER TABLE agendamentos ADD COLUMN google_event_id TEXT")
-        except sqlite3.OperationalError:
-            pass  # Coluna já existe
-        
-        c.execute("UPDATE agendamentos SET google_event_id = ? WHERE id = ?", 
-                  (event_id, agendamento_id))
-        conn.commit()
-        print(f"💾 Event ID salvo: {event_id}")
-    except Exception as e:
-        print(f"❌ Erro ao salvar event ID: {e}")
-    finally:
-        conn.close()
-
-def obter_event_id_google(agendamento_id):
-    """Obtém ID do evento Google Calendar"""
-    conn = conectar()
-    c = conn.cursor()
-    try:
-        c.execute("SELECT google_event_id FROM agendamentos WHERE id = ?", (agendamento_id,))
-        resultado = c.fetchone()
-        return resultado[0] if resultado and resultado[0] else None
-    except sqlite3.OperationalError:
-        return None  # Coluna não existe ainda
-    except Exception as e:
-        print(f"❌ Erro ao obter event ID: {e}")
-        return None
-    finally:
-        conn.close()
-
-def remover_event_id_google(agendamento_id):
-    """Remove ID do evento Google Calendar"""
-    conn = conectar()
-    c = conn.cursor()
-    try:
-        c.execute("UPDATE agendamentos SET google_event_id = NULL WHERE id = ?", 
-                  (agendamento_id,))
-        conn.commit()
-        print(f"🗑️ Event ID removido para agendamento {agendamento_id}")
-    except Exception as e:
-        print(f"❌ Erro ao remover event ID: {e}")
-    finally:
-        conn.close()
-
 # ========================================
 # FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
 # ========================================
@@ -2808,7 +2492,7 @@ Atenciosamente,
         print(f"Erro ao enviar código: {e}")
         return False
 
-   
+    
 # Inicializar banco
 init_config()
 
@@ -2837,7 +2521,8 @@ else:
 # INTERFACE PRINCIPAL
 if is_admin:
     
-   
+    # Dentro de alguma seção do admin, adicione:
+       
     # PAINEL ADMINISTRATIVO
     st.markdown("""
     <div class="admin-header">
@@ -3266,96 +2951,7 @@ Sistema de Agendamento Online
                                     st.error(f"❌ Erro ao enviar email: {str(e)}")
                             else:
                                 st.warning("⚠️ Preencha o email de teste e configure o sistema primeiro")
-   
-                    
-                    # Seção Google Calendar
-                    st.markdown("---")
-                    st.markdown("**📅 Integração Google Calendar**")
-                    
-                    google_calendar_ativo = st.checkbox(
-                        "Ativar sincronização com Google Calendar",
-                        value=obter_configuracao("google_calendar_ativo", False),
-                        help="Sincroniza automaticamente agendamentos confirmados com seu Google Calendar"
-                    )
-                    
-                    if google_calendar_ativo:
-                        st.success("✅ Google Calendar ativado - agendamentos serão sincronizados automaticamente!")
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.info("""
-                            **📋 Como funciona:**
-                            • Agendamento confirmado → Cria evento
-                            • Agendamento cancelado → Remove evento  
-                            • Agendamento atendido → Marca como concluído
-                            """)
-                        
-                        with col2:
 
-                            if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
-                                try:
-                                    st.write("🔍 Testando imports...")
-                                    
-                                    # Teste de import direto
-                                    import importlib
-                                    
-                                    # Testar cada biblioteca individualmente
-                                    try:
-                                        google_auth = importlib.import_module('google.auth')
-                                        st.write("✅ google.auth OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ google.auth: {e}")
-                                        
-                                    try:
-                                        google_oauth2 = importlib.import_module('google.oauth2.credentials')
-                                        st.write("✅ google.oauth2.credentials OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ google.oauth2.credentials: {e}")
-                                        
-                                    try:
-                                        googleapiclient = importlib.import_module('googleapiclient.discovery')
-                                        st.write("✅ googleapiclient.discovery OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ googleapiclient.discovery: {e}")
-                                        
-                                    st.info("📝 Se algum import falhou, o problema é falta de bibliotecas no requirements.txt")
-                                    
-                                except Exception as e:
-                                    st.error(f"❌ Erro geral: {e}")
-
-                                with st.spinner("Testando conexão..."):
-                                    try:
-                                        service = get_google_calendar_service()
-                                        if service:
-                                            # Testar listando calendários
-                                            calendars = service.calendarList().list().execute()
-                                            st.success("✅ Conexão com Google Calendar funcionando!")
-                                            
-                                            # Mostrar calendários disponíveis
-                                            with st.expander("📅 Calendários disponíveis"):
-                                                for calendar in calendars.get('items', []):
-                                                    if calendar['id'] == 'primary':
-                                                        st.write(f"📋 **{calendar['summary']}** (Principal) ⭐")
-                                                    else:
-                                                        st.write(f"📋 **{calendar['summary']}**")
-                                                        
-                                        else:
-                                            st.error("❌ Não foi possível conectar. Verifique as credenciais nos Secrets.")
-                                    except Exception as e:
-                                        st.error(f"❌ Erro na conexão: {str(e)}")
-                    else:
-                        st.info("💡 Ative a sincronização para ter seus agendamentos automaticamente no Google Calendar!")
-                        
-                        st.markdown("""
-                        **🔧 Configuração necessária:**
-                        
-                        Configure nos **Streamlit Secrets**:
-                        - `GOOGLE_CLIENT_ID`
-                        - `GOOGLE_CLIENT_SECRET` 
-                        - `GOOGLE_REFRESH_TOKEN`
-                        - `GOOGLE_CALENDAR_ID` (opcional, padrão: "primary")
-                        """)
                     
                     # Seção de backup GitHub (manter como está)
                     st.markdown("---")
@@ -3444,7 +3040,6 @@ Sistema de Agendamento Online
                 
                 # Salvar configurações da tab 3
                 salvar_configuracao("envio_automatico", envio_automatico)
-                salvar_configuracao("google_calendar_ativo", google_calendar_ativo)
                 salvar_configuracao("email_teste", email_teste if envio_automatico else "")
                 if envio_automatico:
                     salvar_configuracao("email_sistema", email_sistema)
@@ -4053,138 +3648,303 @@ Sistema de Agendamento Online
         
         elif opcao == "👥 Lista de Agendamentos":
             
-            # Botão de exportação
-            st.markdown("---")
-            col_export, col_info = st.columns([2, 3])
-            
+            # Obter todos os agendamentos
+            agendamentos = buscar_agendamentos()
             
             if agendamentos:
-                # Filtros avançados
-                st.subheader("🔍 Filtros e Busca")
+                # ========================================
+                # NOVA SEÇÃO: CALENDÁRIO VISUAL INTERATIVO
+                # ========================================
                 
-                col1, col2, col3, col4 = st.columns(4)
+                st.subheader("📅 Calendário de Agendamentos")
                 
-                with col1:
-                    filtro_data = st.selectbox(
-                        "📅 Período:",
-                        ["Todos", "Hoje", "Amanhã", "Esta Semana", "Próximos 7 dias", "Este Mês", "Próximo Mês", "Período Personalizado"],
-                        help="Filtrar agendamentos por período"
-                    )
+                # Inicializar estado do calendário
+                if 'mes_visualizacao' not in st.session_state:
+                    hoje = datetime.now()
+                    st.session_state.mes_visualizacao = hoje.month
+                    st.session_state.ano_visualizacao = hoje.year
+                if 'dia_selecionado' not in st.session_state:
+                    st.session_state.dia_selecionado = None
                 
-                with col2:
-                    filtro_status = st.selectbox(
-                        "📊 Status:", 
-                        ["Todos", "Pendentes", "Confirmados", "Atendidos", "Cancelados"],
-                        help="Filtrar por status do agendamento"
-                    )
+                # Navegação do calendário
+                col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 3, 1, 1])
                 
-                with col3:
-                    busca_nome = st.text_input(
-                        "👤 Buscar por nome:", 
-                        placeholder="Digite o nome...",
-                        help="Buscar agendamento por nome do cliente"
-                    )
+                with col_nav2:
+                    if st.button("◀️ Anterior", key="cal_prev", use_container_width=True):
+                        if st.session_state.mes_visualizacao == 1:
+                            st.session_state.mes_visualizacao = 12
+                            st.session_state.ano_visualizacao -= 1
+                        else:
+                            st.session_state.mes_visualizacao -= 1
+                        st.rerun()
                 
-                with col4:
-                    ordenacao = st.selectbox(
-                        "📋 Ordenar por:",
-                        ["Data (mais recente)", "Data (mais antiga)", "Nome (A-Z)", "Nome (Z-A)", "Status"],
-                        help="Ordenar a lista de agendamentos"
-                    )
+                with col_nav3:
+                    import calendar as cal_module
+                    nome_mes = cal_module.month_name[st.session_state.mes_visualizacao]
+                    st.markdown(f"""
+                    <div style="text-align: center; font-size: 1.5rem; font-weight: 700; color: #1f2937; padding: 0.5rem;">
+                        📅 {nome_mes} {st.session_state.ano_visualizacao}
+                    </div>
+                    """, unsafe_allow_html=True)
                 
-                # Período personalizado
-                if filtro_data == "Período Personalizado":
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        data_inicio_filtro = st.date_input("Data inicial:", value=datetime.today().date())
-                    with col2:
-                        data_fim_filtro = st.date_input("Data final:", value=datetime.today().date() + timedelta(days=30))
+                with col_nav4:
+                    if st.button("Próximo ▶️", key="cal_next", use_container_width=True):
+                        if st.session_state.mes_visualizacao == 12:
+                            st.session_state.mes_visualizacao = 1
+                            st.session_state.ano_visualizacao += 1
+                        else:
+                            st.session_state.mes_visualizacao += 1
+                        st.rerun()
                 
-                # Aplicar filtros
-                agendamentos_filtrados = agendamentos.copy()
+                with col_nav5:
+                    if st.button("📍 Hoje", key="cal_hoje", use_container_width=True):
+                        hoje = datetime.now()
+                        st.session_state.mes_visualizacao = hoje.month
+                        st.session_state.ano_visualizacao = hoje.year
+                        st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
+                        st.rerun()
+                
+                # Preparar dados do calendário
+                import calendar as cal_module
+                cal = cal_module.monthcalendar(st.session_state.ano_visualizacao, st.session_state.mes_visualizacao)
+                
+                # Agrupar agendamentos por data
+                agendamentos_por_data = {}
+                for agendamento in agendamentos:
+                    data = agendamento[1]  # Data no formato YYYY-MM-DD
+                    if data not in agendamentos_por_data:
+                        agendamentos_por_data[data] = []
+                    agendamentos_por_data[data].append(agendamento)
+                
+                # CSS para o calendário
+                st.markdown("""
+                <style>
+                .calendario-container {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 1rem;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    margin: 1rem 0;
+                }
+                
+                .dia-calendario {
+                    min-height: 80px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 8px;
+                    margin: 2px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    background: white;
+                }
+                
+                .dia-calendario:hover {
+                    border-color: #3b82f6;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 4px rgba(59,130,246,0.2);
+                }
+                
+                .dia-hoje {
+                    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+                    color: white;
+                    font-weight: bold;
+                }
+                
+                .dia-selecionado {
+                    background: linear-gradient(135deg, #10b981, #059669);
+                    color: white;
+                    font-weight: bold;
+                }
+                
+                .dia-com-agendamentos {
+                    background: linear-gradient(135deg, #f59e0b, #d97706);
+                    color: white;
+                }
+                
+                .contador-agendamentos {
+                    background: rgba(255,255,255,0.9);
+                    color: #1f2937;
+                    border-radius: 12px;
+                    padding: 2px 6px;
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    margin-top: 4px;
+                    display: inline-block;
+                }
+                
+                .header-calendario {
+                    background: #f8fafc;
+                    padding: 8px;
+                    font-weight: 600;
+                    text-align: center;
+                    color: #374151;
+                    border-radius: 6px;
+                    margin: 2px;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # Container do calendário
+                st.markdown('<div class="calendario-container">', unsafe_allow_html=True)
+                
+                # Cabeçalho dos dias da semana
+                cols_header = st.columns(7)
+                dias_semana = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM']
+                for i, dia in enumerate(dias_semana):
+                    with cols_header[i]:
+                        st.markdown(f'<div class="header-calendario">{dia}</div>', unsafe_allow_html=True)
+                
+                # Gerar calendário
+                for semana_idx, semana in enumerate(cal):
+                    cols = st.columns(7)
+                    for dia_idx, dia in enumerate(semana):
+                        with cols[dia_idx]:
+                            if dia == 0:
+                                # Dia vazio
+                                st.markdown('<div style="min-height: 80px;"></div>', unsafe_allow_html=True)
+                            else:
+                                # Construir data
+                                data_str = f"{st.session_state.ano_visualizacao}-{st.session_state.mes_visualizacao:02d}-{dia:02d}"
+                                
+                                # Verificar se é hoje
+                                hoje_str = datetime.now().strftime("%Y-%m-%d")
+                                eh_hoje = data_str == hoje_str
+                                
+                                # Verificar se está selecionado
+                                eh_selecionado = st.session_state.dia_selecionado == data_str
+                                
+                                # Contar agendamentos do dia
+                                agendamentos_dia = agendamentos_por_data.get(data_str, [])
+                                tem_agendamentos = len(agendamentos_dia) > 0
+                                
+                                # Definir classe CSS
+                                if eh_selecionado:
+                                    classe = "dia-selecionado"
+                                elif eh_hoje:
+                                    classe = "dia-hoje"
+                                elif tem_agendamentos:
+                                    classe = "dia-com-agendamentos"
+                                else:
+                                    classe = "dia-calendario"
+                                
+                                # Botão do dia
+                                if st.button(
+                                    str(dia),
+                                    key=f"dia_{semana_idx}_{dia_idx}_{dia}",
+                                    use_container_width=True,
+                                    help=f"Ver agendamentos do dia {dia}"
+                                ):
+                                    st.session_state.dia_selecionado = data_str
+                                    st.rerun()
+                                
+                                # Mostrar contador de agendamentos
+                                if tem_agendamentos:
+                                    pendentes = len([a for a in agendamentos_dia if len(a) > 6 and a[6] == "pendente"])
+                                    confirmados = len([a for a in agendamentos_dia if len(a) > 6 and a[6] == "confirmado"])
+                                    
+                                    st.markdown(f"""
+                                    <div style="text-align: center; margin-top: -20px; position: relative; z-index: 10;">
+                                        <span class="contador-agendamentos">
+                                            {len(agendamentos_dia)} ag.
+                                        </span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # ========================================
+                # SEÇÃO: FILTROS RÁPIDOS E ESTATÍSTICAS
+                # ========================================
+                
+                st.markdown("---")
+                
+                # Estatísticas gerais
+                col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
+                
                 hoje = datetime.now().date()
+                agendamentos_hoje = [a for a in agendamentos if a[1] == hoje.strftime("%Y-%m-%d")]
+                agendamentos_mes = [a for a in agendamentos if a[1].startswith(f"{hoje.year}-{hoje.month:02d}")]
                 
-                # Filtro por data
-                if filtro_data == "Hoje":
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados if a[1] == hoje.strftime("%Y-%m-%d")]
-                elif filtro_data == "Amanhã":
-                    amanha = hoje + timedelta(days=1)
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados if a[1] == amanha.strftime("%Y-%m-%d")]
-                elif filtro_data == "Esta Semana":
-                    inicio_semana = hoje - timedelta(days=hoje.weekday())
-                    fim_semana = inicio_semana + timedelta(days=6)
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados 
-                                            if inicio_semana <= datetime.strptime(a[1], "%Y-%m-%d").date() <= fim_semana]
-                elif filtro_data == "Próximos 7 dias":
-                    proximos_7 = hoje + timedelta(days=7)
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados 
-                                            if hoje <= datetime.strptime(a[1], "%Y-%m-%d").date() <= proximos_7]
-                elif filtro_data == "Este Mês":
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados 
-                                            if a[1].startswith(hoje.strftime("%Y-%m"))]
-                elif filtro_data == "Próximo Mês":
-                    proximo_mes = (hoje.replace(day=1) + timedelta(days=32)).replace(day=1)
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados 
-                                            if a[1].startswith(proximo_mes.strftime("%Y-%m"))]
-                elif filtro_data == "Período Personalizado":
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados 
-                                            if data_inicio_filtro <= datetime.strptime(a[1], "%Y-%m-%d").date() <= data_fim_filtro]
+                pendentes_total = len([a for a in agendamentos if len(a) > 6 and a[6] == "pendente"])
+                confirmados_total = len([a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"])
                 
-                # Filtro por busca de nome
-                if busca_nome:
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados 
-                                            if busca_nome.lower() in a[3].lower()]
+                with col_stat1:
+                    st.metric("📅 Hoje", len(agendamentos_hoje))
+                with col_stat2:
+                    st.metric("📊 Este Mês", len(agendamentos_mes))
+                with col_stat3:
+                    st.metric("⏳ Pendentes", pendentes_total)
+                with col_stat4:
+                    st.metric("✅ Confirmados", confirmados_total)
+                with col_stat5:
+                    st.metric("📋 Total", len(agendamentos))
                 
-                # Filtro por status
-                if filtro_status != "Todos":
-                    status_map = {
-                        "Pendentes": "pendente",
-                        "Confirmados": "confirmado", 
-                        "Atendidos": "atendido",
-                        "Cancelados": "cancelado"
-                    }
-                    status_procurado = status_map[filtro_status]
-                    agendamentos_filtrados = [a for a in agendamentos_filtrados 
-                                            if len(a) > 6 and a[6] == status_procurado]
+                # Filtros rápidos
+                st.subheader("🔍 Filtros Rápidos")
                 
-                # Aplicar ordenação
-                if ordenacao == "Data (mais recente)":
-                    agendamentos_filtrados.sort(key=lambda x: (x[1], x[2]), reverse=True)
-                elif ordenacao == "Data (mais antiga)":
-                    agendamentos_filtrados.sort(key=lambda x: (x[1], x[2]))
-                elif ordenacao == "Nome (A-Z)":
-                    agendamentos_filtrados.sort(key=lambda x: x[3].lower())
-                elif ordenacao == "Nome (Z-A)":
-                    agendamentos_filtrados.sort(key=lambda x: x[3].lower(), reverse=True)
-                elif ordenacao == "Status":
-                    status_ordem = {"pendente": 1, "confirmado": 2, "atendido": 3, "cancelado": 4}
-                    agendamentos_filtrados.sort(key=lambda x: status_ordem.get(x[6] if len(x) > 6 else "pendente", 5))
+                col_filtro1, col_filtro2, col_filtro3, col_filtro4, col_filtro5 = st.columns(5)
                 
-                # Estatísticas dos filtros
+                with col_filtro1:
+                    if st.button("📅 Hoje", key="filtro_hoje", use_container_width=True):
+                        st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
+                        st.rerun()
+                
+                with col_filtro2:
+                    if st.button("➡️ Amanhã", key="filtro_amanha", use_container_width=True):
+                        amanha = hoje + timedelta(days=1)
+                        st.session_state.dia_selecionado = amanha.strftime("%Y-%m-%d")
+                        st.rerun()
+                
+                with col_filtro3:
+                    if st.button("⏳ Pendentes", key="filtro_pendentes", use_container_width=True):
+                        st.session_state.dia_selecionado = "FILTRO_PENDENTES"
+                        st.rerun()
+                
+                with col_filtro4:
+                    if st.button("✅ Confirmados", key="filtro_confirmados", use_container_width=True):
+                        st.session_state.dia_selecionado = "FILTRO_CONFIRMADOS"
+                        st.rerun()
+                
+                with col_filtro5:
+                    if st.button("🔄 Todos", key="filtro_todos", use_container_width=True):
+                        st.session_state.dia_selecionado = None
+                        st.rerun()
+                
+                # ========================================
+                # SEÇÃO: LISTA DE AGENDAMENTOS FILTRADA
+                # ========================================
+                
                 st.markdown("---")
-                col1, col2, col3, col4 = st.columns(4)
                 
-                pendentes = len([a for a in agendamentos_filtrados if len(a) > 6 and a[6] == "pendente"])
-                confirmados = len([a for a in agendamentos_filtrados if len(a) > 6 and a[6] == "confirmado"])
-                atendidos = len([a for a in agendamentos_filtrados if len(a) > 6 and a[6] == "atendido"])
-                cancelados = len([a for a in agendamentos_filtrados if len(a) > 6 and a[6] == "cancelado"])
+                # Determinar agendamentos a mostrar
+                if st.session_state.dia_selecionado == "FILTRO_PENDENTES":
+                    agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "pendente"]
+                    titulo_lista = "⏳ Agendamentos Pendentes"
+                elif st.session_state.dia_selecionado == "FILTRO_CONFIRMADOS":
+                    agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"]
+                    titulo_lista = "✅ Agendamentos Confirmados"
+                elif st.session_state.dia_selecionado:
+                    agendamentos_filtrados = agendamentos_por_data.get(st.session_state.dia_selecionado, [])
+                    data_obj = datetime.strptime(st.session_state.dia_selecionado, "%Y-%m-%d")
+                    data_formatada = data_obj.strftime("%d/%m/%Y - %A").replace('Monday', 'Segunda-feira')\
+                        .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
+                        .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
+                        .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
+                    titulo_lista = f"📅 Agendamentos - {data_formatada}"
+                else:
+                    agendamentos_filtrados = agendamentos
+                    titulo_lista = "📋 Todos os Agendamentos"
                 
-                with col1:
-                    st.metric("⏳ Pendentes", pendentes)
-                with col2:
-                    st.metric("✅ Confirmados", confirmados)
-                with col3:
-                    st.metric("🎉 Atendidos", atendidos)
-                with col4:
-                    st.metric("❌ Cancelados", cancelados)
-                
-                st.markdown(f"**📊 Exibindo {len(agendamentos_filtrados)} de {len(agendamentos)} agendamento(s)**")
-                
-                # Lista de agendamentos com interface aprimorada
-                st.markdown("---")
-                st.subheader("📋 Agendamentos")
+                # Mostrar título
+                st.subheader(titulo_lista)
                 
                 if agendamentos_filtrados:
+                    st.markdown(f"**📊 Exibindo {len(agendamentos_filtrados)} agendamento(s)**")
+                    
+                    # Ordenar por data e horário
+                    agendamentos_filtrados.sort(key=lambda x: (x[1], x[2]))
+                    
+                    # Mostrar lista (manter o código original da lista de agendamentos)
                     for agendamento in agendamentos_filtrados:
                         if len(agendamento) == 7:
                             agendamento_id, data, horario, nome, telefone, email, status = agendamento
@@ -4238,25 +3998,24 @@ Sistema de Agendamento Online
                         
                         config = status_config.get(status, status_config['pendente'])
                         
-                        # Card do agendamento
+                        # Card do agendamento (mais compacto para mobile)
                         col_info, col_actions = st.columns([4, 1])
                         
                         with col_info:
                             st.markdown(f"""
-                            <div style="background: {config['bg_color']}; border-left: 4px solid {config['color']}; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; transition: all 0.3s ease;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                    <div style="font-size: 1.3rem; font-weight: 700; color: #1f2937;">
+                            <div style="background: {config['bg_color']}; border-left: 4px solid {config['color']}; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; transition: all 0.3s ease;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <div style="font-size: 1.1rem; font-weight: 700; color: #1f2937;">
                                         {config['icon']} {nome}
                                     </div>
-                                    <div style="color: {config['color']}; font-weight: 600; font-size: 1.1rem;">
+                                    <div style="color: {config['color']}; font-weight: 600; font-size: 1rem;">
                                         🕐 {horario}
                                     </div>
                                 </div>
-                                <div style="color: #374151; font-size: 1rem; line-height: 1.6;">
+                                <div style="color: #374151; font-size: 0.9rem; line-height: 1.4;">
                                     📅 <strong>{data_formatada}</strong><br>
-                                    📱 {telefone}<br>
-                                    📧 {email}<br>
-                                    <span style="background: {config['color']}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-top: 8px; display: inline-block;">
+                                    📱 {telefone} | 📧 {email}<br>
+                                    <span style="background: {config['color']}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; margin-top: 4px; display: inline-block;">
                                         {config['text']}
                                     </span>
                                 </div>
@@ -4264,88 +4023,49 @@ Sistema de Agendamento Online
                             """, unsafe_allow_html=True)
                         
                         with col_actions:
-                            st.markdown("<br>", unsafe_allow_html=True)  # Espaçamento
-                            
-                            # Ações baseadas no status
+                            # Ações baseadas no status (código original mantido)
                             if 'confirm' in config['actions']:
-                                if st.button("✅ Confirmar", key=f"confirm_{agendamento_id}", help="Confirmar agendamento", use_container_width=True):
+                                if st.button("✅", key=f"confirm_{agendamento_id}", help="Confirmar", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'confirmado')
-                                    st.success(f"✅ Agendamento de {nome} confirmado!")
+                                    st.success(f"✅ {nome} confirmado!")
                                     st.rerun()
                             
                             if 'reject' in config['actions']:
-                                if st.button("❌ Recusar", key=f"reject_{agendamento_id}", help="Recusar agendamento", use_container_width=True):
+                                if st.button("❌", key=f"reject_{agendamento_id}", help="Recusar", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                    st.success(f"❌ Agendamento de {nome} recusado!")
+                                    st.success(f"❌ {nome} recusado!")
                                     st.rerun()
                             
                             if 'attend' in config['actions']:
-                                if st.button("🎉 Atender", key=f"attend_{agendamento_id}", help="Marcar como atendido", use_container_width=True):
+                                if st.button("🎉", key=f"attend_{agendamento_id}", help="Atender", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'atendido')
-                                    st.success(f"🎉 {nome} marcado como atendido!")
+                                    st.success(f"🎉 {nome} atendido!")
                                     st.rerun()
                             
                             if 'cancel' in config['actions']:
-                                if st.button("❌ Cancelar", key=f"cancel_{agendamento_id}", help="Cancelar agendamento", use_container_width=True):
+                                if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                    st.success(f"❌ Agendamento de {nome} cancelado!")
+                                    st.success(f"❌ {nome} cancelado!")
                                     st.rerun()
                             
                             if 'delete' in config['actions']:
-                                if st.button("🗑️ Excluir", key=f"delete_{agendamento_id}", help="Excluir registro", use_container_width=True):
+                                if st.button("🗑️", key=f"delete_{agendamento_id}", help="Excluir", use_container_width=True):
                                     if st.session_state.get(f"confirm_delete_{agendamento_id}", False):
                                         deletar_agendamento(agendamento_id)
-                                        st.success(f"🗑️ Registro de {nome} excluído!")
+                                        st.success(f"🗑️ {nome} excluído!")
                                         st.rerun()
                                     else:
                                         st.session_state[f"confirm_delete_{agendamento_id}"] = True
                                         st.warning("⚠️ Clique novamente para confirmar")
+                
                 else:
-                    st.info("📅 Nenhum agendamento encontrado com os filtros aplicados.")
-                
-                # Ações em lote
-                if agendamentos_filtrados:
-                    st.markdown("---")
-                    st.subheader("⚡ Ações em Lote")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        if st.button("✅ Confirmar Todos os Pendentes", help="Confirma todos os agendamentos pendentes da lista filtrada"):
-                            pendentes_ids = [a[0] for a in agendamentos_filtrados if len(a) > 6 and a[6] == "pendente"]
-                            for agendamento_id in pendentes_ids:
-                                atualizar_status_agendamento(agendamento_id, 'confirmado')
-                            if pendentes_ids:
-                                st.success(f"✅ {len(pendentes_ids)} agendamento(s) confirmado(s)!")
-                                st.rerun()
-                            else:
-                                st.info("ℹ️ Nenhum agendamento pendente na lista atual.")
-                    
-                    with col2:
-                        if st.button("🎉 Marcar Confirmados como Atendidos", help="Marca todos os confirmados como atendidos"):
-                            confirmados_ids = [a[0] for a in agendamentos_filtrados if len(a) > 6 and a[6] == "confirmado"]
-                            for agendamento_id in confirmados_ids:
-                                atualizar_status_agendamento(agendamento_id, 'atendido')
-                            if confirmados_ids:
-                                st.success(f"🎉 {len(confirmados_ids)} agendamento(s) marcado(s) como atendido!")
-                                st.rerun()
-                            else:
-                                st.info("ℹ️ Nenhum agendamento confirmado na lista atual.")
-                    
-                    with col3:
-                        if st.button("🗑️ Limpar Cancelados Antigos", help="Remove registros cancelados com mais de 30 dias"):
-                            data_limite = (hoje - timedelta(days=30)).strftime("%Y-%m-%d")
-                            cancelados_antigos = [a[0] for a in agendamentos_filtrados 
-                                                if len(a) > 6 and a[6] == "cancelado" and a[1] < data_limite]
-                            for agendamento_id in cancelados_antigos:
-                                deletar_agendamento(agendamento_id)
-                            if cancelados_antigos:
-                                st.success(f"🗑️ {len(cancelados_antigos)} registro(s) antigo(s) removido(s)!")
-                                st.rerun()
-                            else:
-                                st.info("ℹ️ Nenhum cancelamento antigo para remover.")
-                
+                    if st.session_state.dia_selecionado:
+                        st.info("📅 Nenhum agendamento encontrado para o filtro selecionado.")
+                    else:
+                        st.info("📅 Nenhum agendamento encontrado.")
+            
             else:
+                # Mensagem quando não há agendamentos (manter original)
                 st.markdown("""
                 <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 12px; padding: 2rem; text-align: center; margin: 2rem 0;">
                     <h3 style="color: #1d4ed8; margin-bottom: 1rem;">📅 Nenhum agendamento encontrado</h3>
