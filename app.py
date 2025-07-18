@@ -2583,9 +2583,22 @@ def testar_conexao_caldav():
         if not client:
             return False, "Cliente CalDAV não configurado"
         
-        # Tentar obter principal
-        principal = client.principal()
-        calendarios = principal.calendars()
+        print(f"🔍 DEBUG: Cliente criado com sucesso")
+        
+        # Tentar obter principal com debug
+        try:
+            principal = client.principal()
+            print(f"🔍 DEBUG: Principal obtido: {principal}")
+        except Exception as e:
+            print(f"❌ DEBUG: Erro ao obter principal: {e}")
+            return False, f"Erro de conexão: {str(e)}"
+        
+        try:
+            calendarios = principal.calendars()
+            print(f"🔍 DEBUG: Calendários encontrados: {len(calendarios) if calendarios else 0}")
+        except Exception as e:
+            print(f"❌ DEBUG: Erro ao obter calendários: {e}")
+            return False, f"Erro ao acessar calendários: {str(e)}"
         
         if calendarios:
             return True, f"✅ Conectado! {len(calendarios)} calendário(s) encontrado(s)"
@@ -2593,13 +2606,14 @@ def testar_conexao_caldav():
             return False, "Conexão OK, mas nenhum calendário encontrado"
             
     except Exception as e:
+        print(f"❌ DEBUG: Erro geral: {e}")
         error_msg = str(e).lower()
         if "401" in error_msg or "unauthorized" in error_msg:
-            return False, "❌ Email ou senha incorretos"
+            return False, f"❌ Email ou senha incorretos - Detalhes: {str(e)}"
         elif "404" in error_msg or "not found" in error_msg:
-            return False, "❌ Servidor CalDAV não encontrado - verifique o email"
+            return False, f"❌ Servidor CalDAV não encontrado - Detalhes: {str(e)}"
         elif "timeout" in error_msg:
-            return False, "❌ Timeout - verifique sua conexão"
+            return False, f"❌ Timeout - Detalhes: {str(e)}"
         else:
             return False, f"❌ Erro: {str(e)}"
 
