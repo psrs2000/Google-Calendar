@@ -16,19 +16,6 @@ from caldav import DAVClient
 import pytz
 from icalendar import Calendar, Event
 import uuid
-# TESTE - adicionar temporariamente para debug
-print("🔍 TESTE: Importando bibliotecas CalDAV...")
-try:
-    import caldav
-    print("✅ caldav importado com sucesso")
-except ImportError as e:
-    print(f"❌ Erro ao importar caldav: {e}")
-
-try:
-    from icalendar import Calendar, Event, Alarm  
-    print("✅ icalendar importado com sucesso")
-except ImportError as e:
-    print(f"❌ Erro ao importar icalendar: {e}")
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
@@ -3455,6 +3442,27 @@ Sistema de Agendamento Online
                     
                     else:
                         st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
+
+                    # TESTE TEMPORÁRIO - ADICIONAR AQUI
+                    st.markdown("---")
+                    st.markdown("**🔍 TESTE DEBUG CalDAV**")
+                    
+                    if st.button("🧪 Testar Funções CalDAV"):
+                        try:
+                            # Testar se função existe
+                            resultado = detectar_servidor_caldav("teste@gmail.com")
+                            st.success(f"✅ Função detectar_servidor_caldav funciona: {resultado}")
+                        except Exception as e:
+                            st.error(f"❌ Erro na função: {e}")
+                        
+                        try:
+                            # Testar configuração
+                            config = obter_configuracao("caldav_ativo", False)
+                            st.info(f"📋 Configuração caldav_ativo: {config}")
+                        except Exception as e:
+                            st.error(f"❌ Erro na configuração: {e}")
+                    
+                    # FIM DO TESTE
 
             # Botão para salvar todas as configurações
             st.markdown("---")
