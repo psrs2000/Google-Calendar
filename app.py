@@ -10,12 +10,16 @@ import time
 import random
 import hashlib
 import threading
+import json
 import traceback
-import caldav
-from caldav import DAVClient
-import pytz
-from icalendar import Calendar, Event
-import uuid
+try:
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+    print("✅ Imports Google OK")
+except ImportError as e:
+    print(f"❌ Erro nos imports Google: {e}")
+
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
@@ -513,6 +517,15 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
     finally:
         conn.close()
     
+    # NOVO: Integração com Google Calendar
+    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+    
+    if google_calendar_ativo and status_inicial == "confirmado" and agendamento_id:
+        try:
+            criar_evento_google_calendar(agendamento_id, nome, telefone, email, data, horario)
+        except Exception as e:
+            print(f"❌ Erro na integração Google Calendar: {e}")
+    
     # Envio de emails (código original)
     envio_automatico = obter_configuracao("envio_automatico", False)
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
@@ -522,17 +535,6 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
             enviar_email_confirmacao(agendamento_id, nome, email, data, horario)
         except Exception as e:
             print(f"❌ Erro ao enviar email de confirmação automática: {e}")
-    backup_agendamentos_futuros_github()
-
-    # NOVO: Integração com CalDAV
-    caldav_ativo = obter_configuracao("caldav_ativo", False)
-    
-    if caldav_ativo and status_inicial == "confirmado" and agendamento_id:
-        try:
-            criar_evento_caldav(agendamento_id, nome, telefone, email, data, horario)
-        except Exception as e:
-            print(f"❌ Erro na integração CalDAV: {e}")
-    
     backup_agendamentos_futuros_github()
     return status_inicial
 
@@ -580,26 +582,26 @@ def cancelar_agendamento(nome, telefone, data):
 
             print(f"✅ {len(agendamentos_do_dia)} agendamento(s) cancelado(s): {nome} - {data}")
 
-            # NOVO: Integração com CalDAV para MÚLTIPLOS eventos
-            caldav_ativo = obter_configuracao("caldav_ativo", False)
+            # NOVO: Integração com Google Calendar para MÚLTIPLOS eventos
+            google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
             
-            if caldav_ativo:
+            if google_calendar_ativo:
                 eventos_deletados = 0
                 for agendamento in agendamentos_do_dia:
                     agendamento_id = agendamento[0]
                     horario = agendamento[2]
                     
                     try:
-                        sucesso = deletar_evento_caldav(agendamento_id)
+                        sucesso = deletar_evento_google_calendar(agendamento_id)
                         if sucesso:
                             eventos_deletados += 1
-                            print(f"✅ Evento CalDAV deletado: {horario}")
+                            print(f"✅ Evento Google Calendar deletado: {horario}")
                         else:
-                            print(f"⚠️ Falha ao deletar evento CalDAV: {horario}")
+                            print(f"⚠️ Falha ao deletar evento Google Calendar: {horario}")
                     except Exception as e:
-                        print(f"❌ Erro ao deletar evento CalDAV {horario}: {e}")
+                        print(f"❌ Erro ao deletar evento Google Calendar {horario}: {e}")
                 
-                print(f"📅 CalDAV: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
+                print(f"📅 Google Calendar: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
             
             # Enviar email de cancelamento (usando dados do primeiro agendamento)
             envio_automatico = obter_configuracao("envio_automatico", False)
@@ -790,10 +792,10 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
     conn.commit()
     conn.close()
     
-    # NOVO: Integração com CalDAV
-    caldav_ativo = obter_configuracao("caldav_ativo", False)
+    # NOVO: Integração com Google Calendar
+    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
     
-    if caldav_ativo and agendamento_dados:
+    if google_calendar_ativo and agendamento_dados:
         nome_cliente = agendamento_dados[0]
         email = agendamento_dados[1] if len(agendamento_dados) > 1 else ""
         data = agendamento_dados[2] if len(agendamento_dados) > 2 else ""
@@ -802,19 +804,21 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
         
         try:
             if novo_status == 'confirmado':
-                # Criar evento no calendário
-                criar_evento_caldav(agendamento_id, nome_cliente, telefone, email, data, horario)
+                # Criar evento se não existir
+                event_id = obter_event_id_google(agendamento_id)
+                if not event_id:
+                    criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario)
                 
             elif novo_status == 'cancelado':
-                # Remover evento do calendário
-                deletar_evento_caldav(agendamento_id)
+                # Deletar evento
+                deletar_evento_google_calendar(agendamento_id)
                 
             elif novo_status == 'atendido':
                 # Atualizar evento
-                atualizar_evento_caldav(agendamento_id, nome_cliente, novo_status)
+                atualizar_evento_google_calendar(agendamento_id, nome_cliente, novo_status)
                 
         except Exception as e:
-            print(f"❌ Erro na integração CalDAV: {e}")
+            print(f"❌ Erro na integração Google Calendar: {e}")
     
     # Envio de emails (código original)
     envio_automatico = obter_configuracao("envio_automatico", False)
@@ -1940,6 +1944,305 @@ def recuperar_agendamentos_automatico():
         return False
 
 
+
+def get_google_calendar_service():
+    """Configura Google Calendar usando Streamlit Secrets"""
+    try:
+        print("🔍 Iniciando get_google_calendar_service...")
+        
+        # Obter credenciais dos secrets
+        creds_info = {
+            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
+            "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
+            "token_uri": "https://oauth2.googleapis.com/token"
+        }
+        
+        print("🔍 Secrets lidos com sucesso")
+        
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+        
+        print("🔍 Imports OK")
+        
+        credentials = Credentials.from_authorized_user_info(creds_info)
+        print("🔍 Credentials criadas")
+        
+        # Renovar token se necessário
+        if credentials.expired:
+            print("🔍 Token expirado, renovando...")
+            credentials.refresh(Request())
+            print("🔍 Token renovado")
+        
+        print("🔍 Criando service...")
+        service = build('calendar', 'v3', credentials=credentials)
+        print("✅ Service criado com sucesso")
+        return service
+        
+    except Exception as e:
+        print(f"❌ ERRO NA FUNÇÃO: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario, max_tentativas=3):
+    print(f"🔍 DEBUG: Tentando criar evento - ID: {agendamento_id}, Cliente: {nome_cliente}")  # ← ADICIONAR ESTA LINHA
+    """Cria evento no Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Criando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)
+                    continue
+                return False
+            
+            # Configurações do calendário
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Montar data/hora do evento
+            data_inicio = datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
+            
+            # Duração baseada na configuração
+            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+            data_fim = data_inicio + timedelta(minutes=intervalo_consultas)
+            
+            # Dados do profissional
+            nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+            especialidade = obter_configuracao("especialidade", "Clínico Geral")
+            nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+            
+            evento = {
+                'summary': f'📅 {nome_cliente} - {especialidade}',
+                'description': f'''
+🏥 {nome_clinica}
+👨‍⚕️ {nome_profissional} - {especialidade}
+
+👤 Cliente: {nome_cliente}
+📱 Telefone: {telefone}
+📧 Email: {email}
+
+🆔 ID: {agendamento_id}
+📝 Sistema de Agendamento Online
+                '''.strip(),
+                'start': {
+                    'dateTime': data_inicio.isoformat(),
+                    'timeZone': 'America/Sao_Paulo',
+                },
+                'end': {
+                    'dateTime': data_fim.isoformat(),
+                    'timeZone': 'America/Sao_Paulo',
+                },
+                'attendees': [
+                    {'email': email}
+                ] if email else [],
+                'reminders': {
+                    'useDefault': False,
+                    'overrides': [
+                        {'method': 'email', 'minutes': 24 * 60},  # 1 dia antes
+                        {'method': 'popup', 'minutes': 60},       # 1 hora antes
+                    ],
+                },
+                'colorId': '2',  # Verde para consultas
+            }
+            
+            evento_criado = service.events().insert(
+                calendarId=calendar_id, 
+                body=evento
+            ).execute()
+            
+            # Se chegou aqui, deu certo!
+            print(f"✅ Evento criado com sucesso na tentativa {tentativa}")
+            
+            # Salvar ID do evento no banco
+            salvar_event_id_google(agendamento_id, evento_criado['id'])
+            
+            return evento_criado['id']
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            # Se não é a última tentativa, aguardar antes de tentar novamente
+            if tentativa < max_tentativas:
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam para criar evento!")
+                return False
+    
+    return False
+
+def deletar_evento_google_calendar(agendamento_id, max_tentativas=3):
+    """Deleta evento do Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Deletando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)  # 2s, 4s, 6s...
+                    continue
+                return False
+            
+            # Buscar ID do evento
+            event_id = obter_event_id_google(agendamento_id)
+            if not event_id:
+                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+                return False
+            
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Tentar deletar
+            service.events().delete(
+                calendarId=calendar_id, 
+                eventId=event_id
+            ).execute()
+            
+            # Se chegou aqui, deu certo!
+            print(f"✅ Evento deletado com sucesso na tentativa {tentativa}")
+            
+            # Remover ID do banco apenas se deletou com sucesso
+            remover_event_id_google(agendamento_id)
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            # Se não é a última tentativa, aguardar antes de tentar novamente
+            if tentativa < max_tentativas:
+                # Backoff exponencial com jitter
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)  # 1-2.5s, 4-5.5s, 9-10.5s
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam!")
+                
+                # IMPORTANTE: Mesmo que falhe, marcar como "tentou deletar" 
+                # para não ficar tentando infinitamente
+                remover_event_id_google(agendamento_id)
+                
+                return False
+    
+    return False
+
+def atualizar_evento_google_calendar(agendamento_id, nome_cliente, status, max_tentativas=3):
+    """Atualiza evento no Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Atualizando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)
+                    continue
+                return False
+            
+            event_id = obter_event_id_google(agendamento_id)
+            if not event_id:
+                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+                return False
+            
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Buscar evento atual
+            evento = service.events().get(
+                calendarId=calendar_id, 
+                eventId=event_id
+            ).execute()
+            
+            # Atualizar título baseado no status
+            if status == 'atendido':
+                evento['summary'] = f'✅ ATENDIDO - {nome_cliente}'
+                evento['colorId'] = '10'  # Verde escuro para atendidos
+            elif status == 'cancelado':
+                evento['summary'] = f'❌ CANCELADO - {nome_cliente}'
+                evento['colorId'] = '4'  # Vermelho para cancelados
+            
+            service.events().update(
+                calendarId=calendar_id, 
+                eventId=event_id, 
+                body=evento
+            ).execute()
+            
+            print(f"✅ Evento atualizado com sucesso na tentativa {tentativa}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            if tentativa < max_tentativas:
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam para atualizar evento!")
+                return False
+    
+    return False
+
+def salvar_event_id_google(agendamento_id, event_id):
+    """Salva ID do evento Google Calendar no banco"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        # Criar coluna se não existir
+        try:
+            c.execute("ALTER TABLE agendamentos ADD COLUMN google_event_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # Coluna já existe
+        
+        c.execute("UPDATE agendamentos SET google_event_id = ? WHERE id = ?", 
+                  (event_id, agendamento_id))
+        conn.commit()
+        print(f"💾 Event ID salvo: {event_id}")
+    except Exception as e:
+        print(f"❌ Erro ao salvar event ID: {e}")
+    finally:
+        conn.close()
+
+def obter_event_id_google(agendamento_id):
+    """Obtém ID do evento Google Calendar"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT google_event_id FROM agendamentos WHERE id = ?", (agendamento_id,))
+        resultado = c.fetchone()
+        return resultado[0] if resultado and resultado[0] else None
+    except sqlite3.OperationalError:
+        return None  # Coluna não existe ainda
+    except Exception as e:
+        print(f"❌ Erro ao obter event ID: {e}")
+        return None
+    finally:
+        conn.close()
+
+def remover_event_id_google(agendamento_id):
+    """Remove ID do evento Google Calendar"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE agendamentos SET google_event_id = NULL WHERE id = ?", 
+                  (agendamento_id,))
+        conn.commit()
+        print(f"🗑️ Event ID removido para agendamento {agendamento_id}")
+    except Exception as e:
+        print(f"❌ Erro ao remover event ID: {e}")
+    finally:
+        conn.close()
+
 # ========================================
 # FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
 # ========================================
@@ -2529,326 +2832,6 @@ def testar_backup_csv():
                 
         except Exception as e:
             st.write(f"❌ Erro: {e}")
-
-def obter_client_caldav():
-    """Obtém cliente CalDAV configurado"""
-    try:
-        # Obter configurações
-        caldav_ativo = obter_configuracao("caldav_ativo", False)
-        if not caldav_ativo:
-            return None
-            
-        email_calendario = obter_configuracao("email_calendario", "")
-        senha_calendario = obter_configuracao("senha_calendario", "")
-        servidor_caldav = obter_configuracao("servidor_caldav", "")
-        
-        if not all([email_calendario, senha_calendario, servidor_caldav]):
-            print("❌ Configurações CalDAV incompletas")
-            return None
-        
-        # Conectar ao servidor CalDAV
-        client = DAVClient(
-            url=servidor_caldav,
-            username=email_calendario,
-            password=senha_calendario
-        )
-        
-        return client
-        
-    except Exception as e:
-        print(f"❌ Erro ao conectar CalDAV: {e}")
-        return None
-
-def detectar_servidor_caldav(email):
-    """Detecta automaticamente o servidor CalDAV baseado no email"""
-    domain = email.split('@')[1].lower()
-    
-    servidores = {
-        'gmail.com': 'https://apidata.googleusercontent.com/caldav/v2/',
-        'googlemail.com': 'https://apidata.googleusercontent.com/caldav/v2/',
-        'outlook.com': 'https://outlook.office365.com/calendar/',
-        'hotmail.com': 'https://outlook.office365.com/calendar/',
-        'live.com': 'https://outlook.office365.com/calendar/',
-        'icloud.com': 'https://caldav.icloud.com/',
-        'me.com': 'https://caldav.icloud.com/',
-        'yahoo.com': 'https://caldav.calendar.yahoo.com/',
-    }
-    
-    return servidores.get(domain, "")
-
-def testar_conexao_caldav():
-    """Testa a conexão CalDAV"""
-    try:
-        client = obter_client_caldav()
-        if not client:
-            return False, "Cliente CalDAV não configurado"
-        
-        print(f"🔍 DEBUG: Cliente criado com sucesso")
-        
-        # Tentar obter principal com debug
-        try:
-            principal = client.principal()
-            print(f"🔍 DEBUG: Principal obtido: {principal}")
-        except Exception as e:
-            print(f"❌ DEBUG: Erro ao obter principal: {e}")
-            return False, f"Erro de conexão: {str(e)}"
-        
-        try:
-            calendarios = principal.calendars()
-            print(f"🔍 DEBUG: Calendários encontrados: {len(calendarios) if calendarios else 0}")
-        except Exception as e:
-            print(f"❌ DEBUG: Erro ao obter calendários: {e}")
-            return False, f"Erro ao acessar calendários: {str(e)}"
-        
-        if calendarios:
-            return True, f"✅ Conectado! {len(calendarios)} calendário(s) encontrado(s)"
-        else:
-            return False, "Conexão OK, mas nenhum calendário encontrado"
-            
-    except Exception as e:
-        print(f"❌ DEBUG: Erro geral: {e}")
-        error_msg = str(e).lower()
-        if "401" in error_msg or "unauthorized" in error_msg:
-            return False, f"❌ Email ou senha incorretos - Detalhes: {str(e)}"
-        elif "404" in error_msg or "not found" in error_msg:
-            return False, f"❌ Servidor CalDAV não encontrado - Detalhes: {str(e)}"
-        elif "timeout" in error_msg:
-            return False, f"❌ Timeout - Detalhes: {str(e)}"
-        else:
-            return False, f"❌ Erro: {str(e)}"
-
-def criar_evento_caldav(agendamento_id, nome_cliente, telefone, email_cliente, data, horario):
-    """Cria evento no calendário via CalDAV"""
-    try:
-        client = obter_client_caldav()
-        if not client:
-            print("⚠️ CalDAV não configurado")
-            return False
-        
-        # Obter calendário principal
-        principal = client.principal()
-        calendarios = principal.calendars()
-        
-        if not calendarios:
-            print("❌ Nenhum calendário encontrado")
-            return False
-        
-        calendario = calendarios[0]  # Usar primeiro calendário
-        
-        # Obter configurações do profissional
-        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
-        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
-        
-        # Converter data e horário para datetime
-        data_obj = datetime.strptime(data, "%Y-%m-%d")
-        horario_obj = datetime.strptime(horario, "%H:%M").time()
-        
-        # Duração da consulta (baseado na configuração)
-        duracao_minutos = obter_configuracao("intervalo_consultas", 60)
-        
-        inicio = datetime.combine(data_obj.date(), horario_obj)
-        fim = inicio + timedelta(minutes=duracao_minutos)
-        
-        # Criar evento ICS
-        cal = Calendar()
-        evento = Event()
-        
-        # Configurar evento
-        evento.add('uid', f'agendamento_{agendamento_id}_{uuid.uuid4()}')
-        evento.add('dtstart', inicio)
-        evento.add('dtend', fim)
-        evento.add('summary', f'📅 {nome_cliente}')
-        evento.add('description', f'''
-Agendamento - {nome_clinica}
-
-👤 Cliente: {nome_cliente}
-📞 Telefone: {telefone}
-📧 Email: {email_cliente}
-👨‍⚕️ Profissional: {nome_profissional}
-
-🆔 ID: {agendamento_id}
-        '''.strip())
-        
-        evento.add('location', obter_configuracao("endereco_rua", "Clínica"))
-        
-        # Adicionar lembrete (15 minutos antes)
-        from icalendar import Alarm
-        alarm = Alarm()
-        alarm.add('action', 'DISPLAY')
-        alarm.add('description', f'Lembrete: {nome_cliente} em 15 minutos')
-        alarm.add('trigger', timedelta(minutes=-15))
-        evento.add_component(alarm)
-        
-        cal.add_component(evento)
-        
-        # Salvar no calendário
-        event_url = f"agendamento_{agendamento_id}.ics"
-        calendario.save_event(cal.to_ical().decode('utf-8'), event_url)
-        
-        # Salvar referência no banco para poder deletar depois
-        salvar_configuracao(f"caldav_event_{agendamento_id}", event_url)
-        
-        print(f"✅ Evento CalDAV criado: {nome_cliente} - {data} {horario}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Erro ao criar evento CalDAV: {e}")
-        return False
-
-def atualizar_evento_caldav(agendamento_id, nome_cliente, novo_status):
-    """Atualiza evento no calendário (mudança de status)"""
-    try:
-        client = obter_client_caldav()
-        if not client:
-            return False
-        
-        # Buscar URL do evento
-        event_url = obter_configuracao(f"caldav_event_{agendamento_id}", "")
-        if not event_url:
-            print(f"⚠️ Evento CalDAV não encontrado para ID {agendamento_id}")
-            return False
-        
-        principal = client.principal()
-        calendarios = principal.calendars()
-        
-        if not calendarios:
-            return False
-        
-        calendario = calendarios[0]
-        
-        # Buscar evento existente
-        try:
-            evento_existente = calendario.event_by_url(event_url)
-            
-            # Atualizar título baseado no status
-            status_icons = {
-                'confirmado': '✅',
-                'atendido': '🎉', 
-                'cancelado': '❌'
-            }
-            
-            icon = status_icons.get(novo_status, '📅')
-            novo_titulo = f'{icon} {nome_cliente}'
-            
-            # Modificar evento (isso é complexo no CalDAV, então vamos recriar)
-            # Para simplificar, apenas log da mudança
-            print(f"📝 Status atualizado no CalDAV: {nome_cliente} -> {novo_status}")
-            
-            return True
-            
-        except Exception as e:
-            print(f"⚠️ Evento não encontrado para atualizar: {e}")
-            return False
-        
-    except Exception as e:
-        print(f"❌ Erro ao atualizar evento CalDAV: {e}")
-        return False
-
-def deletar_evento_caldav(agendamento_id):
-    """Deleta evento do calendário"""
-    try:
-        client = obter_client_caldav()
-        if not client:
-            return False
-        
-        # Buscar URL do evento
-        event_url = obter_configuracao(f"caldav_event_{agendamento_id}", "")
-        if not event_url:
-            print(f"⚠️ Evento CalDAV não encontrado para deletar ID {agendamento_id}")
-            return True  # Considera sucesso se não existe
-        
-        principal = client.principal()
-        calendarios = principal.calendars()
-        
-        if not calendarios:
-            return False
-        
-        calendario = calendarios[0]
-        
-        # Deletar evento
-        try:
-            evento = calendario.event_by_url(event_url)
-            evento.delete()
-            
-            # Remover referência do banco
-            conn = conectar()
-            c = conn.cursor()
-            c.execute("DELETE FROM configuracoes WHERE chave = ?", (f"caldav_event_{agendamento_id}",))
-            conn.commit()
-            conn.close()
-            
-            print(f"✅ Evento CalDAV deletado: ID {agendamento_id}")
-            return True
-            
-        except Exception as e:
-            print(f"⚠️ Evento não encontrado para deletar: {e}")
-            return True  # Considera sucesso se já não existe
-        
-    except Exception as e:
-        print(f"❌ Erro ao deletar evento CalDAV: {e}")
-        return False
-
-def gerar_instrucoes_caldav(email):
-    """Gera instruções específicas para configurar CalDAV baseado no email"""
-    domain = email.split('@')[1].lower()
-    
-    if domain in ['gmail.com', 'googlemail.com']:
-        return """
-📧 **Google Calendar - Instruções:**
-
-1. **Ativar verificação em 2 etapas:**
-   - Acesse: myaccount.google.com
-   - Segurança → Verificação em duas etapas → Ativar
-
-2. **Criar senha de app:**
-   - Na mesma página de Segurança
-   - Senhas de app → Selecionar app: "Email"
-   - Copie a senha gerada (16 caracteres)
-
-3. **Usar no sistema:**
-   - Email: seu@gmail.com
-   - Senha: [senha de app copiada]
-   
-⚠️ **NUNCA use sua senha normal do Gmail!**
-        """
-    
-    elif domain in ['outlook.com', 'hotmail.com', 'live.com']:
-        return """
-📧 **Outlook/Hotmail - Instruções:**
-
-1. **Acesse:** account.microsoft.com
-2. **Segurança → Opções avançadas**
-3. **Ativar verificação em duas etapas**
-4. **Criar senha de app para "Email"**
-5. **Use a senha gerada no sistema**
-
-⚠️ **Use a senha de app, não sua senha normal!**
-        """
-    
-    elif domain in ['icloud.com', 'me.com']:
-        return """
-📧 **iCloud - Instruções:**
-
-1. **Acesse:** appleid.apple.com
-2. **Fazer login → Segurança**
-3. **Senhas específicas do app → Gerar senha**
-4. **Nome: "Sistema Agendamento"**
-5. **Use a senha gerada**
-
-📱 **Importante:** Sua conta iCloud deve ter calendário ativado!
-        """
-    
-    else:
-        return f"""
-📧 **Configuração para {domain}:**
-
-1. **Verifique se seu provedor suporta CalDAV**
-2. **Ative verificação em 2 etapas (se disponível)**
-3. **Crie uma senha de app**
-4. **Consulte a documentação do seu provedor**
-
-⚠️ **Se não funcionar, seu provedor pode não suportar CalDAV**
-        """
     
 # Inicializar banco
 init_config()
@@ -3309,7 +3292,96 @@ Sistema de Agendamento Online
                                     st.error(f"❌ Erro ao enviar email: {str(e)}")
                             else:
                                 st.warning("⚠️ Preencha o email de teste e configure o sistema primeiro")
+   
+                    
+                    # Seção Google Calendar
+                    st.markdown("---")
+                    st.markdown("**📅 Integração Google Calendar**")
+                    
+                    google_calendar_ativo = st.checkbox(
+                        "Ativar sincronização com Google Calendar",
+                        value=obter_configuracao("google_calendar_ativo", False),
+                        help="Sincroniza automaticamente agendamentos confirmados com seu Google Calendar"
+                    )
+                    
+                    if google_calendar_ativo:
+                        st.success("✅ Google Calendar ativado - agendamentos serão sincronizados automaticamente!")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.info("""
+                            **📋 Como funciona:**
+                            • Agendamento confirmado → Cria evento
+                            • Agendamento cancelado → Remove evento  
+                            • Agendamento atendido → Marca como concluído
+                            """)
+                        
+                        with col2:
 
+                            if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
+                                try:
+                                    st.write("🔍 Testando imports...")
+                                    
+                                    # Teste de import direto
+                                    import importlib
+                                    
+                                    # Testar cada biblioteca individualmente
+                                    try:
+                                        google_auth = importlib.import_module('google.auth')
+                                        st.write("✅ google.auth OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.auth: {e}")
+                                        
+                                    try:
+                                        google_oauth2 = importlib.import_module('google.oauth2.credentials')
+                                        st.write("✅ google.oauth2.credentials OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.oauth2.credentials: {e}")
+                                        
+                                    try:
+                                        googleapiclient = importlib.import_module('googleapiclient.discovery')
+                                        st.write("✅ googleapiclient.discovery OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ googleapiclient.discovery: {e}")
+                                        
+                                    st.info("📝 Se algum import falhou, o problema é falta de bibliotecas no requirements.txt")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Erro geral: {e}")
+
+                                with st.spinner("Testando conexão..."):
+                                    try:
+                                        service = get_google_calendar_service()
+                                        if service:
+                                            # Testar listando calendários
+                                            calendars = service.calendarList().list().execute()
+                                            st.success("✅ Conexão com Google Calendar funcionando!")
+                                            
+                                            # Mostrar calendários disponíveis
+                                            with st.expander("📅 Calendários disponíveis"):
+                                                for calendar in calendars.get('items', []):
+                                                    if calendar['id'] == 'primary':
+                                                        st.write(f"📋 **{calendar['summary']}** (Principal) ⭐")
+                                                    else:
+                                                        st.write(f"📋 **{calendar['summary']}**")
+                                                        
+                                        else:
+                                            st.error("❌ Não foi possível conectar. Verifique as credenciais nos Secrets.")
+                                    except Exception as e:
+                                        st.error(f"❌ Erro na conexão: {str(e)}")
+                    else:
+                        st.info("💡 Ative a sincronização para ter seus agendamentos automaticamente no Google Calendar!")
+                        
+                        st.markdown("""
+                        **🔧 Configuração necessária:**
+                        
+                        Configure nos **Streamlit Secrets**:
+                        - `GOOGLE_CLIENT_ID`
+                        - `GOOGLE_CLIENT_SECRET` 
+                        - `GOOGLE_REFRESH_TOKEN`
+                        - `GOOGLE_CALENDAR_ID` (opcional, padrão: "primary")
+                        """)
                     
                     # Seção de backup GitHub (manter como está)
                     st.markdown("---")
@@ -3373,90 +3445,6 @@ Sistema de Agendamento Online
                 
                 else:
                     st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")            
-
-                    st.markdown("---")
-                    st.markdown("**☁️ Backup de Configurações**")
-                    # ... código do backup GitHub existente ...
-                    
-                # NOVO: ADICIONAR ESTA SEÇÃO CALDAV AQUI
-                st.markdown("---")
-                st.markdown("**📅 Integração com Calendário (CalDAV)**")
-                
-                caldav_ativo = st.checkbox(
-                    "Ativar sincronização automática com calendário",
-                    value=obter_configuracao("caldav_ativo", False),
-                    help="Cria eventos automaticamente no seu calendário pessoal quando agendamentos forem confirmados"
-                )
-                
-                if caldav_ativo:
-                    st.success("✅ Integração com calendário ativada")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("**⚙️ Configuração do Calendário**")
-                        
-                        email_calendario = st.text_input(
-                            "Email do seu calendário:",
-                            value=obter_configuracao("email_calendario", ""),
-                            placeholder="seu@gmail.com",
-                            help="Email da conta que contém o calendário para sincronizar"
-                        )
-                        
-                        # Auto-detectar servidor
-                        if email_calendario:
-                            servidor_auto = detectar_servidor_caldav(email_calendario)
-                            if servidor_auto:
-                                st.info(f"🎯 Servidor detectado automaticamente: {servidor_auto.split('/')[2]}")
-                            else:
-                                st.warning("⚠️ Provedor não reconhecido - você precisará configurar manualmente")
-                        
-                        servidor_caldav = st.text_input(
-                            "Servidor CalDAV:",
-                            value=obter_configuracao("servidor_caldav", servidor_auto if email_calendario else ""),
-                            help="Servidor CalDAV (detectado automaticamente para Gmail, Outlook, iCloud)"
-                        )
-                        
-                        senha_calendario = st.text_input(
-                            "Senha do calendário:",
-                            value=obter_configuracao("senha_calendario", ""),
-                            type="password",
-                            help="⚠️ IMPORTANTE: Use senha de APP, não sua senha normal!"
-                        )
-                    
-                    with col2:
-                        st.markdown("**🧪 Teste e Instruções**")
-                        
-                        # Botão de teste
-                        if st.button("🔍 Testar Conexão", type="secondary", help="Verificar se as configurações estão corretas"):
-                            if email_calendario and senha_calendario and servidor_caldav:
-                                # Salvar temporariamente para teste
-                                salvar_configuracao("email_calendario", email_calendario)
-                                salvar_configuracao("senha_calendario", senha_calendario)
-                                salvar_configuracao("servidor_caldav", servidor_caldav)
-                                salvar_configuracao("caldav_ativo", True)
-                                
-                                with st.spinner("Testando conexão..."):
-                                    sucesso, mensagem = testar_conexao_caldav()
-                                    
-                                if sucesso:
-                                    st.success(mensagem)
-                                else:
-                                    st.error(mensagem)
-                                    # Desativar se falhou
-                                    salvar_configuracao("caldav_ativo", False)
-                            else:
-                                st.warning("⚠️ Preencha todos os campos antes de testar")
-                        
-                        # Instruções específicas por provedor
-                        if email_calendario:
-                            with st.expander("📖 Como configurar senha de app"):
-                                instrucoes = gerar_instrucoes_caldav(email_calendario)
-                                st.markdown(instrucoes)
-                
-                else:
-                    st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
-
             # Botão para salvar todas as configurações
             st.markdown("---")
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
@@ -3482,6 +3470,7 @@ Sistema de Agendamento Online
                 
                 # Salvar configurações da tab 3
                 salvar_configuracao("envio_automatico", envio_automatico)
+                salvar_configuracao("google_calendar_ativo", google_calendar_ativo)
                 salvar_configuracao("email_teste", email_teste if envio_automatico else "")
                 if envio_automatico:
                     salvar_configuracao("email_sistema", email_sistema)
@@ -3509,13 +3498,6 @@ Sistema de Agendamento Online
                     except Exception as e:
                         st.warning(f"⚠️ Erro no backup automático: {e}")
                 
-                # NOVO: Salvar configurações CalDAV
-                salvar_configuracao("caldav_ativo", caldav_ativo)
-                if caldav_ativo:
-                    salvar_configuracao("email_calendario", email_calendario)
-                    salvar_configuracao("senha_calendario", senha_calendario) 
-                    salvar_configuracao("servidor_caldav", servidor_caldav)                
-                
                 # Mostrar resumo
                 st.markdown("**📋 Resumo das configurações salvas:**")
                 st.info(f"""
@@ -3526,9 +3508,6 @@ Sistema de Agendamento Online
                 ☁️ **Backup:** {'Ativado' if backup_github_ativo else 'Desativado'}
                 👨‍⚕️ **Profissional:** {nome_profissional} - {especialidade}
                 🏥 **Local:** {nome_clinica}
-                ☁️ **Backup:** {'Ativado' if backup_github_ativo else 'Desativado'}
-                📅 **Calendário:** {'Ativado' if caldav_ativo else 'Desativado'}
-                👨‍⚕️ **Profissional:** {nome_profissional} - {especialidade}
                 """)
             
             st.markdown('</div>', unsafe_allow_html=True)
