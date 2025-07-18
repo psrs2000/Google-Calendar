@@ -3652,416 +3652,206 @@ Sistema de Agendamento Online
             agendamentos = buscar_agendamentos()
             
             if agendamentos:
-                # ========================================
-                # CSS RESPONSIVO - DETECTA ORIENTAÇÃO
-                # ========================================
                 
+                # CSS para cards super compactos
                 st.markdown("""
                 <style>
-                /* LAYOUT PARA MODO PAISAGEM (Desktop, Tablet, Celular virado) */
-                .calendario-landscape {
-                    display: block;
-                }
-                
-                .lista-compacta-portrait {
-                    display: none;
-                }
-                
-                /* LAYOUT PARA MODO RETRATO (Celular em pé) */
-                @media (max-width: 768px) and (orientation: portrait) {
-                    .calendario-landscape {
-                        display: none !important;
-                    }
-                    
-                    .lista-compacta-portrait {
-                        display: block !important;
-                    }
-                    
-                    /* Cards mais compactos para mobile retrato */
-                    .card-mobile {
-                        padding: 0.75rem !important;
-                        margin: 0.5rem 0 !important;
-                        font-size: 0.9rem !important;
-                    }
-                    
-                    .nome-mobile {
-                        font-size: 1rem !important;
-                        margin-bottom: 0.25rem !important;
-                    }
-                    
-                    .info-mobile {
-                        font-size: 0.8rem !important;
-                        line-height: 1.3 !important;
-                    }
-                }
-                
-                /* Estilos do calendário (mantidos) */
-                .calendario-container {
-                    background: white;
-                    border-radius: 12px;
-                    padding: 1rem;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    margin: 1rem 0;
-                }
-                
-                .dia-calendario {
-                    min-height: 80px;
-                    border: 1px solid #e5e7eb;
+                .header-data {
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    color: white;
+                    padding: 0.75rem 1rem;
                     border-radius: 8px;
-                    padding: 8px;
-                    margin: 2px;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
+                    margin: 1.5rem 0 0.5rem 0;
+                    font-weight: 700;
+                    font-size: 1.1rem;
+                    text-align: center;
+                    box-shadow: 0 2px 4px rgba(102,126,234,0.3);
+                }
+                
+                .card-compacto {
                     background: white;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    padding: 0.5rem 0.75rem !important;
+                    margin: 0.25rem 0 !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    transition: all 0.2s ease;
                 }
                 
-                .dia-calendario:hover {
-                    border-color: #3b82f6;
+                .card-compacto:hover {
                     transform: translateY(-1px);
-                    box-shadow: 0 2px 4px rgba(59,130,246,0.2);
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
                 }
                 
-                .dia-hoje {
-                    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-                    color: white;
-                    font-weight: bold;
+                .card-pendente {
+                    border-left: 4px solid #f59e0b;
+                    background: #fffbeb;
                 }
                 
-                .dia-selecionado {
-                    background: linear-gradient(135deg, #10b981, #059669);
-                    color: white;
-                    font-weight: bold;
+                .card-confirmado {
+                    border-left: 4px solid #3b82f6;
+                    background: #eff6ff;
                 }
                 
-                .dia-com-agendamentos {
-                    background: linear-gradient(135deg, #f59e0b, #d97706);
-                    color: white;
+                .card-atendido {
+                    border-left: 4px solid #10b981;
+                    background: #ecfdf5;
                 }
                 
-                .contador-agendamentos {
-                    background: rgba(255,255,255,0.9);
-                    color: #1f2937;
-                    border-radius: 12px;
+                .card-cancelado {
+                    border-left: 4px solid #ef4444;
+                    background: #fef2f2;
+                }
+                
+                .nome-compacto {
+                    font-size: 1rem !important;
+                    font-weight: 600 !important;
+                    color: #1f2937 !important;
+                    margin: 0 !important;
+                    line-height: 1.2 !important;
+                }
+                
+                .info-compacta {
+                    font-size: 0.8rem !important;
+                    color: #6b7280 !important;
+                    margin: 0.25rem 0 0 0 !important;
+                    line-height: 1.3 !important;
+                }
+                
+                .horario-destaque {
+                    color: #3b82f6 !important;
+                    font-weight: 600 !important;
+                    font-size: 0.9rem !important;
+                }
+                
+                .status-badge {
+                    display: inline-block;
                     padding: 2px 6px;
+                    border-radius: 8px;
                     font-size: 0.7rem;
                     font-weight: 600;
-                    margin-top: 4px;
-                    display: inline-block;
+                    text-transform: uppercase;
+                    margin-top: 0.25rem;
                 }
                 
-                .header-calendario {
-                    background: #f8fafc;
-                    padding: 8px;
-                    font-weight: 600;
-                    text-align: center;
-                    color: #374151;
-                    border-radius: 6px;
-                    margin: 2px;
+                .badge-pendente {
+                    background: #fbbf24;
+                    color: #92400e;
                 }
                 
-                /* Filtros compactos para mobile */
-                .filtros-mobile {
-                    display: flex;
-                    gap: 0.5rem;
-                    overflow-x: auto;
-                    padding: 0.5rem 0;
-                    margin: 1rem 0;
+                .badge-confirmado {
+                    background: #60a5fa;
+                    color: #1e40af;
                 }
                 
-                .filtro-btn-mobile {
-                    background: #f1f5f9;
-                    border: 1px solid #cbd5e1;
-                    border-radius: 20px;
-                    padding: 0.5rem 1rem;
-                    font-size: 0.8rem;
-                    font-weight: 600;
-                    color: #475569;
-                    white-space: nowrap;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
+                .badge-atendido {
+                    background: #34d399;
+                    color: #065f46;
                 }
                 
-                .filtro-btn-mobile:hover {
-                    background: #e2e8f0;
-                    border-color: #94a3b8;
+                .badge-cancelado {
+                    background: #f87171;
+                    color: #991b1b;
                 }
                 
-                .filtro-btn-mobile.active {
-                    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-                    color: white;
-                    border-color: #3b82f6;
+                /* Botões menores */
+                .stButton > button {
+                    padding: 0.25rem 0.5rem !important;
+                    font-size: 0.8rem !important;
+                    min-height: 2rem !important;
+                    margin: 0.1rem 0 !important;
                 }
                 </style>
                 """, unsafe_allow_html=True)
                 
                 # ========================================
-                # MODO PAISAGEM: CALENDÁRIO COMPLETO
+                # FILTROS RÁPIDOS (MANTIDOS)
                 # ========================================
                 
-                st.markdown('<div class="calendario-landscape">', unsafe_allow_html=True)
-                
-                st.subheader("📅 Calendário de Agendamentos")
-                
-                # Inicializar estado do calendário
-                if 'mes_visualizacao' not in st.session_state:
-                    hoje = datetime.now()
-                    st.session_state.mes_visualizacao = hoje.month
-                    st.session_state.ano_visualizacao = hoje.year
-                if 'dia_selecionado' not in st.session_state:
-                    st.session_state.dia_selecionado = None
-                
-                # Navegação do calendário
-                col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 3, 1, 1])
-                
-                with col_nav2:
-                    if st.button("◀️ Anterior", key="cal_prev", use_container_width=True):
-                        if st.session_state.mes_visualizacao == 1:
-                            st.session_state.mes_visualizacao = 12
-                            st.session_state.ano_visualizacao -= 1
-                        else:
-                            st.session_state.mes_visualizacao -= 1
-                        st.rerun()
-                
-                with col_nav3:
-                    import calendar as cal_module
-                    nome_mes = cal_module.month_name[st.session_state.mes_visualizacao]
-                    st.markdown(f"""
-                    <div style="text-align: center; font-size: 1.5rem; font-weight: 700; color: #1f2937; padding: 0.5rem;">
-                        📅 {nome_mes} {st.session_state.ano_visualizacao}
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_nav4:
-                    if st.button("Próximo ▶️", key="cal_next", use_container_width=True):
-                        if st.session_state.mes_visualizacao == 12:
-                            st.session_state.mes_visualizacao = 1
-                            st.session_state.ano_visualizacao += 1
-                        else:
-                            st.session_state.mes_visualizacao += 1
-                        st.rerun()
-                
-                with col_nav5:
-                    if st.button("📍 Hoje", key="cal_hoje", use_container_width=True):
-                        hoje = datetime.now()
-                        st.session_state.mes_visualizacao = hoje.month
-                        st.session_state.ano_visualizacao = hoje.year
-                        st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
-                        st.rerun()
-                
-                # Preparar dados do calendário
-                import calendar as cal_module
-                cal = cal_module.monthcalendar(st.session_state.ano_visualizacao, st.session_state.mes_visualizacao)
-                
-                # Agrupar agendamentos por data
-                agendamentos_por_data = {}
-                for agendamento in agendamentos:
-                    data = agendamento[1]  # Data no formato YYYY-MM-DD
-                    if data not in agendamentos_por_data:
-                        agendamentos_por_data[data] = []
-                    agendamentos_por_data[data].append(agendamento)
-                
-                # Container do calendário
-                st.markdown('<div class="calendario-container">', unsafe_allow_html=True)
-                
-                # Cabeçalho dos dias da semana
-                cols_header = st.columns(7)
-                dias_semana = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM']
-                for i, dia in enumerate(dias_semana):
-                    with cols_header[i]:
-                        st.markdown(f'<div class="header-calendario">{dia}</div>', unsafe_allow_html=True)
-                
-                # Gerar calendário
-                for semana_idx, semana in enumerate(cal):
-                    cols = st.columns(7)
-                    for dia_idx, dia in enumerate(semana):
-                        with cols[dia_idx]:
-                            if dia == 0:
-                                # Dia vazio
-                                st.markdown('<div style="min-height: 80px;"></div>', unsafe_allow_html=True)
-                            else:
-                                # Construir data
-                                data_str = f"{st.session_state.ano_visualizacao}-{st.session_state.mes_visualizacao:02d}-{dia:02d}"
-                                
-                                # Verificar se é hoje
-                                hoje_str = datetime.now().strftime("%Y-%m-%d")
-                                eh_hoje = data_str == hoje_str
-                                
-                                # Verificar se está selecionado
-                                eh_selecionado = st.session_state.dia_selecionado == data_str
-                                
-                                # Contar agendamentos do dia
-                                agendamentos_dia = agendamentos_por_data.get(data_str, [])
-                                tem_agendamentos = len(agendamentos_dia) > 0
-                                
-                                # Botão do dia
-                                if st.button(
-                                    str(dia),
-                                    key=f"dia_landscape_{semana_idx}_{dia_idx}_{dia}",
-                                    use_container_width=True,
-                                    help=f"Ver agendamentos do dia {dia}"
-                                ):
-                                    st.session_state.dia_selecionado = data_str
-                                    st.rerun()
-                                
-                                # Mostrar contador de agendamentos
-                                if tem_agendamentos:
-                                    st.markdown(f"""
-                                    <div style="text-align: center; margin-top: -20px; position: relative; z-index: 10;">
-                                        <span class="contador-agendamentos">
-                                            {len(agendamentos_dia)} ag.
-                                        </span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Estatísticas e filtros (modo paisagem)
-                st.markdown("---")
-                
-                # Estatísticas gerais
-                col_stat1, col_stat2, col_stat3, col_stat4, col_stat5 = st.columns(5)
+                # Estatísticas rápidas
+                col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
                 
                 hoje = datetime.now().date()
                 agendamentos_hoje = [a for a in agendamentos if a[1] == hoje.strftime("%Y-%m-%d")]
-                agendamentos_mes = [a for a in agendamentos if a[1].startswith(f"{hoje.year}-{hoje.month:02d}")]
-                
                 pendentes_total = len([a for a in agendamentos if len(a) > 6 and a[6] == "pendente"])
                 confirmados_total = len([a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"])
                 
                 with col_stat1:
                     st.metric("📅 Hoje", len(agendamentos_hoje))
                 with col_stat2:
-                    st.metric("📊 Este Mês", len(agendamentos_mes))
-                with col_stat3:
                     st.metric("⏳ Pendentes", pendentes_total)
-                with col_stat4:
+                with col_stat3:
                     st.metric("✅ Confirmados", confirmados_total)
-                with col_stat5:
+                with col_stat4:
                     st.metric("📋 Total", len(agendamentos))
                 
-                # Filtros rápidos (modo paisagem)
+                # Inicializar estado
+                if 'dia_selecionado' not in st.session_state:
+                    st.session_state.dia_selecionado = None
+                
+                # Filtros rápidos
                 st.subheader("🔍 Filtros Rápidos")
                 
                 col_filtro1, col_filtro2, col_filtro3, col_filtro4, col_filtro5 = st.columns(5)
                 
                 with col_filtro1:
-                    if st.button("📅 Hoje", key="filtro_hoje_landscape", use_container_width=True):
+                    if st.button("📅 Hoje", key="filtro_hoje", use_container_width=True):
                         st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
                         st.rerun()
                 
                 with col_filtro2:
-                    if st.button("➡️ Amanhã", key="filtro_amanha_landscape", use_container_width=True):
+                    if st.button("➡️ Amanhã", key="filtro_amanha", use_container_width=True):
                         amanha = hoje + timedelta(days=1)
                         st.session_state.dia_selecionado = amanha.strftime("%Y-%m-%d")
                         st.rerun()
                 
                 with col_filtro3:
-                    if st.button("⏳ Pendentes", key="filtro_pendentes_landscape", use_container_width=True):
+                    if st.button("⏳ Pendentes", key="filtro_pendentes", use_container_width=True):
                         st.session_state.dia_selecionado = "FILTRO_PENDENTES"
                         st.rerun()
                 
                 with col_filtro4:
-                    if st.button("✅ Confirmados", key="filtro_confirmados_landscape", use_container_width=True):
+                    if st.button("✅ Confirmados", key="filtro_confirmados", use_container_width=True):
                         st.session_state.dia_selecionado = "FILTRO_CONFIRMADOS"
                         st.rerun()
                 
                 with col_filtro5:
-                    if st.button("🔄 Todos", key="filtro_todos_landscape", use_container_width=True):
+                    if st.button("🔄 Todos", key="filtro_todos", use_container_width=True):
                         st.session_state.dia_selecionado = None
                         st.rerun()
                 
-                st.markdown('</div>', unsafe_allow_html=True)
-                
                 # ========================================
-                # MODO RETRATO: LISTA COMPACTA OTIMIZADA
+                # FILTRAR AGENDAMENTOS
                 # ========================================
                 
-                st.markdown('<div class="lista-compacta-portrait">', unsafe_allow_html=True)
-                
-                st.subheader("📱 Agenda Móvel")
-                
-                # Estatísticas compactas para mobile
-                col_mobile1, col_mobile2 = st.columns(2)
-                
-                with col_mobile1:
-                    st.metric("📅 Hoje", len(agendamentos_hoje))
-                    st.metric("⏳ Pendentes", pendentes_total)
-                
-                with col_mobile2:
-                    st.metric("📊 Este Mês", len(agendamentos_mes))
-                    st.metric("✅ Confirmados", confirmados_total)
-                
-                # Filtros horizontais para mobile
-                st.markdown("**🔍 Filtros:**")
-                
-                # Criar botões de filtro em linha única
-                col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-                
-                with col_f1:
-                    if st.button("📅 Hoje", key="filtro_hoje_mobile", use_container_width=True):
-                        st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
-                        st.rerun()
-                
-                with col_f2:
-                    if st.button("➡️ Amanhã", key="filtro_amanha_mobile", use_container_width=True):
-                        amanha = hoje + timedelta(days=1)
-                        st.session_state.dia_selecionado = amanha.strftime("%Y-%m-%d")
-                        st.rerun()
-                
-                with col_f3:
-                    if st.button("⏳ Pendentes", key="filtro_pendentes_mobile", use_container_width=True):
-                        st.session_state.dia_selecionado = "FILTRO_PENDENTES"
-                        st.rerun()
-                
-                with col_f4:
-                    if st.button("🔄 Todos", key="filtro_todos_mobile", use_container_width=True):
-                        st.session_state.dia_selecionado = None
-                        st.rerun()
-                
-                # Seletor de data simples para mobile
-                st.markdown("**📅 Ir para data específica:**")
-                data_mobile = st.date_input("Escolher data:", value=hoje, key="data_mobile")
-                
-                if st.button("🔍 Ver agendamentos desta data", key="ver_data_mobile", use_container_width=True):
-                    st.session_state.dia_selecionado = data_mobile.strftime("%Y-%m-%d")
-                    st.rerun()
-                
-                st.markdown('</div>', unsafe_allow_html=True)
+                # Determinar agendamentos a mostrar
+                if st.session_state.dia_selecionado == "FILTRO_PENDENTES":
+                    agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "pendente"]
+                    titulo_secao = "⏳ Agendamentos Pendentes"
+                elif st.session_state.dia_selecionado == "FILTRO_CONFIRMADOS":
+                    agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"]
+                    titulo_secao = "✅ Agendamentos Confirmados"
+                elif st.session_state.dia_selecionado:
+                    agendamentos_filtrados = [a for a in agendamentos if a[1] == st.session_state.dia_selecionado]
+                    if agendamentos_filtrados:
+                        data_obj = datetime.strptime(st.session_state.dia_selecionado, "%Y-%m-%d")
+                        data_formatada = data_obj.strftime("%d/%m/%Y - %A").replace('Monday', 'Segunda-feira')\
+                            .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
+                            .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
+                            .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
+                        titulo_secao = f"📅 {data_formatada}"
+                    else:
+                        titulo_secao = "📅 Dia selecionado"
+                else:
+                    agendamentos_filtrados = agendamentos
+                    titulo_secao = "📋 Todos os Agendamentos"
                 
                 # ========================================
-                # SEÇÃO COMUM: LISTA DE AGENDAMENTOS
+                # AGRUPAR POR DATA E MOSTRAR
                 # ========================================
                 
                 st.markdown("---")
-                
-                # Determinar agendamentos a mostrar (lógica comum)
-                if st.session_state.dia_selecionado == "FILTRO_PENDENTES":
-                    agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "pendente"]
-                    titulo_lista = "⏳ Agendamentos Pendentes"
-                elif st.session_state.dia_selecionado == "FILTRO_CONFIRMADOS":
-                    agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"]
-                    titulo_lista = "✅ Agendamentos Confirmados"
-                elif st.session_state.dia_selecionado:
-                    agendamentos_por_data = {}
-                    for agendamento in agendamentos:
-                        data = agendamento[1]
-                        if data not in agendamentos_por_data:
-                            agendamentos_por_data[data] = []
-                        agendamentos_por_data[data].append(agendamento)
-                    
-                    agendamentos_filtrados = agendamentos_por_data.get(st.session_state.dia_selecionado, [])
-                    data_obj = datetime.strptime(st.session_state.dia_selecionado, "%Y-%m-%d")
-                    data_formatada = data_obj.strftime("%d/%m/%Y - %A").replace('Monday', 'Segunda-feira')\
-                        .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
-                        .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
-                        .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
-                    titulo_lista = f"📅 {data_formatada}"
-                else:
-                    agendamentos_filtrados = agendamentos
-                    titulo_lista = "📋 Todos os Agendamentos"
-                
-                # Mostrar título
-                st.subheader(titulo_lista)
+                st.subheader(titulo_secao)
                 
                 if agendamentos_filtrados:
                     st.markdown(f"**📊 {len(agendamentos_filtrados)} agendamento(s)**")
@@ -4069,120 +3859,142 @@ Sistema de Agendamento Online
                     # Ordenar por data e horário
                     agendamentos_filtrados.sort(key=lambda x: (x[1], x[2]))
                     
-                    # Mostrar lista com cards otimizados
+                    # Agrupar por data
+                    agendamentos_por_data = {}
                     for agendamento in agendamentos_filtrados:
-                        if len(agendamento) == 7:
-                            agendamento_id, data, horario, nome, telefone, email, status = agendamento
-                        elif len(agendamento) == 6:
-                            agendamento_id, data, horario, nome, telefone, email = agendamento
-                            status = "pendente"
-                        else:
-                            agendamento_id, data, horario, nome, telefone = agendamento
-                            email = "Não informado"
-                            status = "pendente"
+                        data = agendamento[1]
+                        if data not in agendamentos_por_data:
+                            agendamentos_por_data[data] = []
+                        agendamentos_por_data[data].append(agendamento)
+                    
+                    # Mostrar cada data com seus agendamentos
+                    for data_str, agendamentos_do_dia in agendamentos_por_data.items():
                         
-                        # Formatar data
-                        data_obj = datetime.strptime(data, "%Y-%m-%d")
-                        data_formatada = data_obj.strftime("%d/%m/%Y - %A")
-                        data_formatada = data_formatada.replace('Monday', 'Segunda-feira')\
-                            .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
-                            .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
-                            .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
+                        # CABEÇALHO DA DATA
+                        data_obj = datetime.strptime(data_str, "%Y-%m-%d")
                         
-                        # Definir configurações por status
-                        status_config = {
-                            'pendente': {
-                                'icon': '⏳', 
-                                'color': '#f59e0b', 
-                                'bg_color': '#fef3c7',
-                                'text': 'Aguardando',
-                                'actions': ['confirm', 'reject']
-                            },
-                            'confirmado': {
-                                'icon': '✅', 
-                                'color': '#3b82f6', 
-                                'bg_color': '#dbeafe',
-                                'text': 'Confirmado',
-                                'actions': ['attend', 'cancel']
-                            },
-                            'atendido': {
-                                'icon': '🎉', 
-                                'color': '#10b981', 
-                                'bg_color': '#d1fae5',
-                                'text': 'Atendido',
-                                'actions': ['delete']
-                            },
-                            'cancelado': {
-                                'icon': '❌', 
-                                'color': '#ef4444', 
-                                'bg_color': '#fee2e2',
-                                'text': 'Cancelado',
-                                'actions': ['delete']
-                            }
+                        # Formatação: 18/07 - SEX
+                        dia_mes = data_obj.strftime("%d/%m")
+                        dia_semana = data_obj.strftime("%a").upper()
+                        
+                        # Traduzir dia da semana
+                        traducao_dias = {
+                            'MON': 'SEG', 'TUE': 'TER', 'WED': 'QUA', 
+                            'THU': 'QUI', 'FRI': 'SEX', 'SAT': 'SAB', 'SUN': 'DOM'
                         }
+                        dia_semana_pt = traducao_dias.get(dia_semana, dia_semana)
                         
-                        config = status_config.get(status, status_config['pendente'])
+                        # Mostrar header da data
+                        st.markdown(f"""
+                        <div class="header-data">
+                            📅 {dia_mes} - {dia_semana_pt} ({len(agendamentos_do_dia)} agendamento{'s' if len(agendamentos_do_dia) != 1 else ''})
+                        </div>
+                        """, unsafe_allow_html=True)
                         
-                        # Card responsivo do agendamento
-                        col_info, col_actions = st.columns([4, 1])
-                        
-                        with col_info:
-                            st.markdown(f"""
-                            <div class="card-mobile" style="background: {config['bg_color']}; border-left: 4px solid {config['color']}; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; transition: all 0.3s ease;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                    <div class="nome-mobile" style="font-size: 1.1rem; font-weight: 700; color: #1f2937;">
-                                        {config['icon']} {nome}
+                        # CARDS DOS AGENDAMENTOS DO DIA
+                        for agendamento in agendamentos_do_dia:
+                            if len(agendamento) == 7:
+                                agendamento_id, data, horario, nome, telefone, email, status = agendamento
+                            elif len(agendamento) == 6:
+                                agendamento_id, data, horario, nome, telefone, email = agendamento
+                                status = "pendente"
+                            else:
+                                agendamento_id, data, horario, nome, telefone = agendamento
+                                email = "Não informado"
+                                status = "pendente"
+                            
+                            # Definir configurações por status
+                            status_config = {
+                                'pendente': {
+                                    'icon': '⏳', 
+                                    'card_class': 'card-pendente',
+                                    'badge_class': 'badge-pendente',
+                                    'text': 'Pendente',
+                                    'actions': ['confirm', 'reject']
+                                },
+                                'confirmado': {
+                                    'icon': '✅', 
+                                    'card_class': 'card-confirmado',
+                                    'badge_class': 'badge-confirmado',
+                                    'text': 'Confirmado',
+                                    'actions': ['attend', 'cancel']
+                                },
+                                'atendido': {
+                                    'icon': '🎉', 
+                                    'card_class': 'card-atendido',
+                                    'badge_class': 'badge-atendido',
+                                    'text': 'Atendido',
+                                    'actions': ['delete']
+                                },
+                                'cancelado': {
+                                    'icon': '❌', 
+                                    'card_class': 'card-cancelado',
+                                    'badge_class': 'badge-cancelado',
+                                    'text': 'Cancelado',
+                                    'actions': ['delete']
+                                }
+                            }
+                            
+                            config = status_config.get(status, status_config['pendente'])
+                            
+                            # Card super compacto
+                            col_info, col_actions = st.columns([5, 1])
+                            
+                            with col_info:
+                                st.markdown(f"""
+                                <div class="card-compacto {config['card_class']}">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div class="nome-compacto">
+                                            {config['icon']} {nome}
+                                        </div>
+                                        <div class="horario-destaque">
+                                            🕐 {horario}
+                                        </div>
                                     </div>
-                                    <div style="color: {config['color']}; font-weight: 600; font-size: 1rem;">
-                                        🕐 {horario}
+                                    <div class="info-compacta">
+                                        📱 {telefone} | 📧 {email if email else 'Não informado'}
+                                    </div>
+                                    <div>
+                                        <span class="status-badge {config['badge_class']}">{config['text']}</span>
                                     </div>
                                 </div>
-                                <div class="info-mobile" style="color: #374151; font-size: 0.9rem; line-height: 1.4;">
-                                    📅 {data_formatada}<br>
-                                    📱 {telefone}<br>
-                                    📧 {email}<br>
-                                    <span style="background: {config['color']}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; margin-top: 4px; display: inline-block;">
-                                        {config['text']}
-                                    </span>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with col_actions:
-                            # Ações baseadas no status
-                            if 'confirm' in config['actions']:
-                                if st.button("✅", key=f"confirm_resp_{agendamento_id}", help="Confirmar", use_container_width=True):
-                                    atualizar_status_agendamento(agendamento_id, 'confirmado')
-                                    st.success(f"✅ {nome} confirmado!")
-                                    st.rerun()
+                                """, unsafe_allow_html=True)
                             
-                            if 'reject' in config['actions']:
-                                if st.button("❌", key=f"reject_resp_{agendamento_id}", help="Recusar", use_container_width=True):
-                                    atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                    st.success(f"❌ {nome} recusado!")
-                                    st.rerun()
-                            
-                            if 'attend' in config['actions']:
-                                if st.button("🎉", key=f"attend_resp_{agendamento_id}", help="Atender", use_container_width=True):
-                                    atualizar_status_agendamento(agendamento_id, 'atendido')
-                                    st.success(f"🎉 {nome} atendido!")
-                                    st.rerun()
-                            
-                            if 'cancel' in config['actions']:
-                                if st.button("❌", key=f"cancel_resp_{agendamento_id}", help="Cancelar", use_container_width=True):
-                                    atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                    st.success(f"❌ {nome} cancelado!")
-                                    st.rerun()
-                            
-                            if 'delete' in config['actions']:
-                                if st.button("🗑️", key=f"delete_resp_{agendamento_id}", help="Excluir", use_container_width=True):
-                                    if st.session_state.get(f"confirm_delete_resp_{agendamento_id}", False):
-                                        deletar_agendamento(agendamento_id)
-                                        st.success(f"🗑️ {nome} excluído!")
+                            with col_actions:
+                                # Ações baseadas no status
+                                if 'confirm' in config['actions']:
+                                    if st.button("✅", key=f"confirm_{agendamento_id}", help="Confirmar", use_container_width=True):
+                                        atualizar_status_agendamento(agendamento_id, 'confirmado')
+                                        st.success(f"✅ {nome} confirmado!")
                                         st.rerun()
-                                    else:
-                                        st.session_state[f"confirm_delete_resp_{agendamento_id}"] = True
-                                        st.warning("⚠️ Clique novamente")
+                                
+                                if 'reject' in config['actions']:
+                                    if st.button("❌", key=f"reject_{agendamento_id}", help="Recusar", use_container_width=True):
+                                        atualizar_status_agendamento(agendamento_id, 'cancelado')
+                                        st.success(f"❌ {nome} recusado!")
+                                        st.rerun()
+                                
+                                if 'attend' in config['actions']:
+                                    if st.button("🎉", key=f"attend_{agendamento_id}", help="Atender", use_container_width=True):
+                                        atualizar_status_agendamento(agendamento_id, 'atendido')
+                                        st.success(f"🎉 {nome} atendido!")
+                                        st.rerun()
+                                
+                                if 'cancel' in config['actions']:
+                                    if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
+                                        atualizar_status_agendamento(agendamento_id, 'cancelado')
+                                        st.success(f"❌ {nome} cancelado!")
+                                        st.rerun()
+                                
+                                if 'delete' in config['actions']:
+                                    if st.button("🗑️", key=f"delete_{agendamento_id}", help="Excluir", use_container_width=True):
+                                        if st.session_state.get(f"confirm_delete_{agendamento_id}", False):
+                                            deletar_agendamento(agendamento_id)
+                                            st.success(f"🗑️ {nome} excluído!")
+                                            st.rerun()
+                                        else:
+                                            st.session_state[f"confirm_delete_{agendamento_id}"] = True
+                                            st.warning("⚠️ Clique novamente")
                 
                 else:
                     if st.session_state.dia_selecionado:
