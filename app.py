@@ -3443,26 +3443,13 @@ Sistema de Agendamento Online
                     else:
                         st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
 
-                    # TESTE TEMPORÁRIO - ADICIONAR AQUI
-                    st.markdown("---")
-                    st.markdown("**🔍 TESTE DEBUG CalDAV**")
-                    
-                    if st.button("🧪 Testar Funções CalDAV"):
-                        try:
-                            # Testar se função existe
-                            resultado = detectar_servidor_caldav("teste@gmail.com")
-                            st.success(f"✅ Função detectar_servidor_caldav funciona: {resultado}")
-                        except Exception as e:
-                            st.error(f"❌ Erro na função: {e}")
-                        
-                        try:
-                            # Testar configuração
-                            config = obter_configuracao("caldav_ativo", False)
-                            st.info(f"📋 Configuração caldav_ativo: {config}")
-                        except Exception as e:
-                            st.error(f"❌ Erro na configuração: {e}")
-                    
-                    # FIM DO TESTE
+                # TESTE SUPER SIMPLES
+                st.markdown("---")
+                st.markdown("**🔍 TESTE BÁSICO**")
+                st.write("Se você está vendo esta mensagem, o código chegou até aqui!")
+                
+                if st.button("🧪 Teste Simples"):
+                    st.success("✅ Botão funcionou!")
 
             # Botão para salvar todas as configurações
             st.markdown("---")
