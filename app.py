@@ -3736,22 +3736,22 @@ Sistema de Agendamento Online
                 
                 .badge-pendente {
                     background: #fbbf24;
-                    color: #92400e;
+                    color: #fef3c7;
                 }
                 
                 .badge-confirmado {
                     background: #60a5fa;
-                    color: #1e40af;
+                    color: #eff6ff;
                 }
                 
                 .badge-atendido {
                     background: #34d399;
-                    color: #065f46;
+                    color: #ecfdf5;
                 }
                 
                 .badge-cancelado {
                     background: #f87171;
-                    color: #991b1b;
+                    color: #fef2f2;
                 }
                 
                 /* Botões menores */
