@@ -3443,28 +3443,64 @@ Sistema de Agendamento Online
                     else:
                         st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
 
-                # INTERFACE CALDAV - VERSÃO SIMPLES
+                # INTERFACE CALDAV - VERSÃO EXPANDIDA
                 st.markdown("---")
                 st.markdown("**📅 Integração com Calendário (CalDAV)**")
                 
                 caldav_ativo = st.checkbox(
                     "Ativar sincronização automática com calendário",
-                    value=obter_configuracao("caldav_ativo", False)
+                    value=obter_configuracao("caldav_ativo", False),
+                    help="Cria eventos automaticamente no seu calendário pessoal quando agendamentos forem confirmados"
                 )
                 
                 if caldav_ativo:
-                    st.success("✅ Integração ativada!")
+                    st.success("✅ Integração com calendário ativada")
                     
-                    email_calendario = st.text_input(
-                        "Email do calendário:",
-                        value=obter_configuracao("email_calendario", "")
-                    )
+                    col1, col2 = st.columns(2)
                     
-                    if email_calendario:
-                        st.info(f"📧 Email configurado: {email_calendario}")
+                    with col1:
+                        st.markdown("**⚙️ Configuração do Calendário**")
+                        
+                        email_calendario = st.text_input(
+                            "Email do seu calendário:",
+                            value=obter_configuracao("email_calendario", ""),
+                            placeholder="seu@gmail.com",
+                            help="Email da conta que contém o calendário para sincronizar"
+                        )
+                        
+                        # Auto-detectar servidor
+                        servidor_auto = ""
+                        if email_calendario:
+                            servidor_auto = detectar_servidor_caldav(email_calendario)
+                            if servidor_auto:
+                                st.info(f"🎯 Servidor detectado: {servidor_auto.split('/')[2]}")
+                            else:
+                                st.warning("⚠️ Provedor não reconhecido")
+                        
+                        servidor_caldav = st.text_input(
+                            "Servidor CalDAV:",
+                            value=obter_configuracao("servidor_caldav", servidor_auto),
+                            help="Servidor CalDAV (detectado automaticamente)"
+                        )
+                        
+                        senha_calendario = st.text_input(
+                            "Senha do calendário:",
+                            value=obter_configuracao("senha_calendario", ""),
+                            type="password",
+                            help="⚠️ IMPORTANTE: Use senha de APP, não sua senha normal!"
+                        )
+                    
+                    with col2:
+                        st.markdown("**🧪 Teste**")
+                        
+                        if st.button("🔍 Testar Conexão", type="secondary"):
+                            if email_calendario and senha_calendario and servidor_caldav:
+                                st.info("🔄 Em desenvolvimento...")
+                            else:
+                                st.warning("⚠️ Preencha todos os campos")
                 
                 else:
-                    st.info("💡 Ative a integração acima para configurar")
+                    st.info("💡 A integração permite que agendamentos apareçam automaticamente no seu calendário")
 
             # Botão para salvar todas as configurações
             st.markdown("---")
