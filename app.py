@@ -3443,39 +3443,26 @@ Sistema de Agendamento Online
                     else:
                         st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
 
-                # TESTE DAS FUNÇÕES CALDAV
+                # TESTE DAS VARIÁVEIS
                 st.markdown("---")
-                st.markdown("**🔍 TESTE FUNÇÕES CALDAV**")
+                st.markdown("**🔍 TESTE VARIÁVEIS CALDAV**")
                 
-                if st.button("🧪 Testar se funções existem"):
-                    # Testar função por função
-                    funcoes_testadas = []
-                    
+                if st.button("🧪 Testar variáveis"):
                     try:
-                        detectar_servidor_caldav("teste@gmail.com")
-                        funcoes_testadas.append("✅ detectar_servidor_caldav")
-                    except NameError:
-                        funcoes_testadas.append("❌ detectar_servidor_caldav NÃO ENCONTRADA")
+                        # Testar se as variáveis da interface existem
+                        st.write("Testando variável caldav_ativo...")
+                        caldav_ativo_teste = st.checkbox("Teste caldav_ativo", value=False)
+                        st.write(f"✅ caldav_ativo_teste = {caldav_ativo_teste}")
+                        
+                        st.write("Testando email_calendario...")
+                        email_calendario_teste = st.text_input("Teste email_calendario", value="")
+                        st.write(f"✅ email_calendario_teste = {email_calendario_teste}")
+                        
+                        st.write("✅ Variáveis funcionam normalmente!")
+                        
                     except Exception as e:
-                        funcoes_testadas.append(f"⚠️ detectar_servidor_caldav existe mas deu erro: {e}")
-                    
-                    try:
-                        testar_conexao_caldav()
-                        funcoes_testadas.append("✅ testar_conexao_caldav")
-                    except NameError:
-                        funcoes_testadas.append("❌ testar_conexao_caldav NÃO ENCONTRADA")
-                    except Exception as e:
-                        funcoes_testadas.append(f"⚠️ testar_conexao_caldav existe mas deu erro: {e}")
-                    
-                    try:
-                        criar_evento_caldav
-                        funcoes_testadas.append("✅ criar_evento_caldav")
-                    except NameError:
-                        funcoes_testadas.append("❌ criar_evento_caldav NÃO ENCONTRADA")
-                    
-                    # Mostrar resultados
-                    for resultado in funcoes_testadas:
-                        st.write(resultado)
+                        st.error(f"❌ Erro nas variáveis: {e}")
+                        st.write(f"Detalhes do erro: {str(e)}")
 
             # Botão para salvar todas as configurações
             st.markdown("---")
