@@ -3653,72 +3653,49 @@ Sistema de Agendamento Online
             
             if agendamentos:
                 # ========================================
-                # NOVA SEÇÃO: CALENDÁRIO VISUAL INTERATIVO
+                # CSS RESPONSIVO - DETECTA ORIENTAÇÃO
                 # ========================================
                 
-                st.subheader("📅 Calendário de Agendamentos")
-                
-                # Inicializar estado do calendário
-                if 'mes_visualizacao' not in st.session_state:
-                    hoje = datetime.now()
-                    st.session_state.mes_visualizacao = hoje.month
-                    st.session_state.ano_visualizacao = hoje.year
-                if 'dia_selecionado' not in st.session_state:
-                    st.session_state.dia_selecionado = None
-                
-                # Navegação do calendário
-                col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 3, 1, 1])
-                
-                with col_nav2:
-                    if st.button("◀️ Anterior", key="cal_prev", use_container_width=True):
-                        if st.session_state.mes_visualizacao == 1:
-                            st.session_state.mes_visualizacao = 12
-                            st.session_state.ano_visualizacao -= 1
-                        else:
-                            st.session_state.mes_visualizacao -= 1
-                        st.rerun()
-                
-                with col_nav3:
-                    import calendar as cal_module
-                    nome_mes = cal_module.month_name[st.session_state.mes_visualizacao]
-                    st.markdown(f"""
-                    <div style="text-align: center; font-size: 1.5rem; font-weight: 700; color: #1f2937; padding: 0.5rem;">
-                        📅 {nome_mes} {st.session_state.ano_visualizacao}
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_nav4:
-                    if st.button("Próximo ▶️", key="cal_next", use_container_width=True):
-                        if st.session_state.mes_visualizacao == 12:
-                            st.session_state.mes_visualizacao = 1
-                            st.session_state.ano_visualizacao += 1
-                        else:
-                            st.session_state.mes_visualizacao += 1
-                        st.rerun()
-                
-                with col_nav5:
-                    if st.button("📍 Hoje", key="cal_hoje", use_container_width=True):
-                        hoje = datetime.now()
-                        st.session_state.mes_visualizacao = hoje.month
-                        st.session_state.ano_visualizacao = hoje.year
-                        st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
-                        st.rerun()
-                
-                # Preparar dados do calendário
-                import calendar as cal_module
-                cal = cal_module.monthcalendar(st.session_state.ano_visualizacao, st.session_state.mes_visualizacao)
-                
-                # Agrupar agendamentos por data
-                agendamentos_por_data = {}
-                for agendamento in agendamentos:
-                    data = agendamento[1]  # Data no formato YYYY-MM-DD
-                    if data not in agendamentos_por_data:
-                        agendamentos_por_data[data] = []
-                    agendamentos_por_data[data].append(agendamento)
-                
-                # CSS para o calendário
                 st.markdown("""
                 <style>
+                /* LAYOUT PARA MODO PAISAGEM (Desktop, Tablet, Celular virado) */
+                .calendario-landscape {
+                    display: block;
+                }
+                
+                .lista-compacta-portrait {
+                    display: none;
+                }
+                
+                /* LAYOUT PARA MODO RETRATO (Celular em pé) */
+                @media (max-width: 768px) and (orientation: portrait) {
+                    .calendario-landscape {
+                        display: none !important;
+                    }
+                    
+                    .lista-compacta-portrait {
+                        display: block !important;
+                    }
+                    
+                    /* Cards mais compactos para mobile retrato */
+                    .card-mobile {
+                        padding: 0.75rem !important;
+                        margin: 0.5rem 0 !important;
+                        font-size: 0.9rem !important;
+                    }
+                    
+                    .nome-mobile {
+                        font-size: 1rem !important;
+                        margin-bottom: 0.25rem !important;
+                    }
+                    
+                    .info-mobile {
+                        font-size: 0.8rem !important;
+                        line-height: 1.3 !important;
+                    }
+                }
+                
+                /* Estilos do calendário (mantidos) */
                 .calendario-container {
                     background: white;
                     border-radius: 12px;
@@ -3781,8 +3758,107 @@ Sistema de Agendamento Online
                     border-radius: 6px;
                     margin: 2px;
                 }
+                
+                /* Filtros compactos para mobile */
+                .filtros-mobile {
+                    display: flex;
+                    gap: 0.5rem;
+                    overflow-x: auto;
+                    padding: 0.5rem 0;
+                    margin: 1rem 0;
+                }
+                
+                .filtro-btn-mobile {
+                    background: #f1f5f9;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 20px;
+                    padding: 0.5rem 1rem;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    color: #475569;
+                    white-space: nowrap;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                
+                .filtro-btn-mobile:hover {
+                    background: #e2e8f0;
+                    border-color: #94a3b8;
+                }
+                
+                .filtro-btn-mobile.active {
+                    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+                    color: white;
+                    border-color: #3b82f6;
+                }
                 </style>
                 """, unsafe_allow_html=True)
+                
+                # ========================================
+                # MODO PAISAGEM: CALENDÁRIO COMPLETO
+                # ========================================
+                
+                st.markdown('<div class="calendario-landscape">', unsafe_allow_html=True)
+                
+                st.subheader("📅 Calendário de Agendamentos")
+                
+                # Inicializar estado do calendário
+                if 'mes_visualizacao' not in st.session_state:
+                    hoje = datetime.now()
+                    st.session_state.mes_visualizacao = hoje.month
+                    st.session_state.ano_visualizacao = hoje.year
+                if 'dia_selecionado' not in st.session_state:
+                    st.session_state.dia_selecionado = None
+                
+                # Navegação do calendário
+                col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 3, 1, 1])
+                
+                with col_nav2:
+                    if st.button("◀️ Anterior", key="cal_prev", use_container_width=True):
+                        if st.session_state.mes_visualizacao == 1:
+                            st.session_state.mes_visualizacao = 12
+                            st.session_state.ano_visualizacao -= 1
+                        else:
+                            st.session_state.mes_visualizacao -= 1
+                        st.rerun()
+                
+                with col_nav3:
+                    import calendar as cal_module
+                    nome_mes = cal_module.month_name[st.session_state.mes_visualizacao]
+                    st.markdown(f"""
+                    <div style="text-align: center; font-size: 1.5rem; font-weight: 700; color: #1f2937; padding: 0.5rem;">
+                        📅 {nome_mes} {st.session_state.ano_visualizacao}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_nav4:
+                    if st.button("Próximo ▶️", key="cal_next", use_container_width=True):
+                        if st.session_state.mes_visualizacao == 12:
+                            st.session_state.mes_visualizacao = 1
+                            st.session_state.ano_visualizacao += 1
+                        else:
+                            st.session_state.mes_visualizacao += 1
+                        st.rerun()
+                
+                with col_nav5:
+                    if st.button("📍 Hoje", key="cal_hoje", use_container_width=True):
+                        hoje = datetime.now()
+                        st.session_state.mes_visualizacao = hoje.month
+                        st.session_state.ano_visualizacao = hoje.year
+                        st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
+                        st.rerun()
+                
+                # Preparar dados do calendário
+                import calendar as cal_module
+                cal = cal_module.monthcalendar(st.session_state.ano_visualizacao, st.session_state.mes_visualizacao)
+                
+                # Agrupar agendamentos por data
+                agendamentos_por_data = {}
+                for agendamento in agendamentos:
+                    data = agendamento[1]  # Data no formato YYYY-MM-DD
+                    if data not in agendamentos_por_data:
+                        agendamentos_por_data[data] = []
+                    agendamentos_por_data[data].append(agendamento)
                 
                 # Container do calendário
                 st.markdown('<div class="calendario-container">', unsafe_allow_html=True)
@@ -3817,20 +3893,10 @@ Sistema de Agendamento Online
                                 agendamentos_dia = agendamentos_por_data.get(data_str, [])
                                 tem_agendamentos = len(agendamentos_dia) > 0
                                 
-                                # Definir classe CSS
-                                if eh_selecionado:
-                                    classe = "dia-selecionado"
-                                elif eh_hoje:
-                                    classe = "dia-hoje"
-                                elif tem_agendamentos:
-                                    classe = "dia-com-agendamentos"
-                                else:
-                                    classe = "dia-calendario"
-                                
                                 # Botão do dia
                                 if st.button(
                                     str(dia),
-                                    key=f"dia_{semana_idx}_{dia_idx}_{dia}",
+                                    key=f"dia_landscape_{semana_idx}_{dia_idx}_{dia}",
                                     use_container_width=True,
                                     help=f"Ver agendamentos do dia {dia}"
                                 ):
@@ -3839,9 +3905,6 @@ Sistema de Agendamento Online
                                 
                                 # Mostrar contador de agendamentos
                                 if tem_agendamentos:
-                                    pendentes = len([a for a in agendamentos_dia if len(a) > 6 and a[6] == "pendente"])
-                                    confirmados = len([a for a in agendamentos_dia if len(a) > 6 and a[6] == "confirmado"])
-                                    
                                     st.markdown(f"""
                                     <div style="text-align: center; margin-top: -20px; position: relative; z-index: 10;">
                                         <span class="contador-agendamentos">
@@ -3852,10 +3915,7 @@ Sistema de Agendamento Online
                 
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                # ========================================
-                # SEÇÃO: FILTROS RÁPIDOS E ESTATÍSTICAS
-                # ========================================
-                
+                # Estatísticas e filtros (modo paisagem)
                 st.markdown("---")
                 
                 # Estatísticas gerais
@@ -3879,44 +3939,102 @@ Sistema de Agendamento Online
                 with col_stat5:
                     st.metric("📋 Total", len(agendamentos))
                 
-                # Filtros rápidos
+                # Filtros rápidos (modo paisagem)
                 st.subheader("🔍 Filtros Rápidos")
                 
                 col_filtro1, col_filtro2, col_filtro3, col_filtro4, col_filtro5 = st.columns(5)
                 
                 with col_filtro1:
-                    if st.button("📅 Hoje", key="filtro_hoje", use_container_width=True):
+                    if st.button("📅 Hoje", key="filtro_hoje_landscape", use_container_width=True):
                         st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
                         st.rerun()
                 
                 with col_filtro2:
-                    if st.button("➡️ Amanhã", key="filtro_amanha", use_container_width=True):
+                    if st.button("➡️ Amanhã", key="filtro_amanha_landscape", use_container_width=True):
                         amanha = hoje + timedelta(days=1)
                         st.session_state.dia_selecionado = amanha.strftime("%Y-%m-%d")
                         st.rerun()
                 
                 with col_filtro3:
-                    if st.button("⏳ Pendentes", key="filtro_pendentes", use_container_width=True):
+                    if st.button("⏳ Pendentes", key="filtro_pendentes_landscape", use_container_width=True):
                         st.session_state.dia_selecionado = "FILTRO_PENDENTES"
                         st.rerun()
                 
                 with col_filtro4:
-                    if st.button("✅ Confirmados", key="filtro_confirmados", use_container_width=True):
+                    if st.button("✅ Confirmados", key="filtro_confirmados_landscape", use_container_width=True):
                         st.session_state.dia_selecionado = "FILTRO_CONFIRMADOS"
                         st.rerun()
                 
                 with col_filtro5:
-                    if st.button("🔄 Todos", key="filtro_todos", use_container_width=True):
+                    if st.button("🔄 Todos", key="filtro_todos_landscape", use_container_width=True):
                         st.session_state.dia_selecionado = None
                         st.rerun()
                 
+                st.markdown('</div>', unsafe_allow_html=True)
+                
                 # ========================================
-                # SEÇÃO: LISTA DE AGENDAMENTOS FILTRADA
+                # MODO RETRATO: LISTA COMPACTA OTIMIZADA
+                # ========================================
+                
+                st.markdown('<div class="lista-compacta-portrait">', unsafe_allow_html=True)
+                
+                st.subheader("📱 Agenda Móvel")
+                
+                # Estatísticas compactas para mobile
+                col_mobile1, col_mobile2 = st.columns(2)
+                
+                with col_mobile1:
+                    st.metric("📅 Hoje", len(agendamentos_hoje))
+                    st.metric("⏳ Pendentes", pendentes_total)
+                
+                with col_mobile2:
+                    st.metric("📊 Este Mês", len(agendamentos_mes))
+                    st.metric("✅ Confirmados", confirmados_total)
+                
+                # Filtros horizontais para mobile
+                st.markdown("**🔍 Filtros:**")
+                
+                # Criar botões de filtro em linha única
+                col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+                
+                with col_f1:
+                    if st.button("📅 Hoje", key="filtro_hoje_mobile", use_container_width=True):
+                        st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
+                        st.rerun()
+                
+                with col_f2:
+                    if st.button("➡️ Amanhã", key="filtro_amanha_mobile", use_container_width=True):
+                        amanha = hoje + timedelta(days=1)
+                        st.session_state.dia_selecionado = amanha.strftime("%Y-%m-%d")
+                        st.rerun()
+                
+                with col_f3:
+                    if st.button("⏳ Pendentes", key="filtro_pendentes_mobile", use_container_width=True):
+                        st.session_state.dia_selecionado = "FILTRO_PENDENTES"
+                        st.rerun()
+                
+                with col_f4:
+                    if st.button("🔄 Todos", key="filtro_todos_mobile", use_container_width=True):
+                        st.session_state.dia_selecionado = None
+                        st.rerun()
+                
+                # Seletor de data simples para mobile
+                st.markdown("**📅 Ir para data específica:**")
+                data_mobile = st.date_input("Escolher data:", value=hoje, key="data_mobile")
+                
+                if st.button("🔍 Ver agendamentos desta data", key="ver_data_mobile", use_container_width=True):
+                    st.session_state.dia_selecionado = data_mobile.strftime("%Y-%m-%d")
+                    st.rerun()
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # ========================================
+                # SEÇÃO COMUM: LISTA DE AGENDAMENTOS
                 # ========================================
                 
                 st.markdown("---")
                 
-                # Determinar agendamentos a mostrar
+                # Determinar agendamentos a mostrar (lógica comum)
                 if st.session_state.dia_selecionado == "FILTRO_PENDENTES":
                     agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "pendente"]
                     titulo_lista = "⏳ Agendamentos Pendentes"
@@ -3924,13 +4042,20 @@ Sistema de Agendamento Online
                     agendamentos_filtrados = [a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"]
                     titulo_lista = "✅ Agendamentos Confirmados"
                 elif st.session_state.dia_selecionado:
+                    agendamentos_por_data = {}
+                    for agendamento in agendamentos:
+                        data = agendamento[1]
+                        if data not in agendamentos_por_data:
+                            agendamentos_por_data[data] = []
+                        agendamentos_por_data[data].append(agendamento)
+                    
                     agendamentos_filtrados = agendamentos_por_data.get(st.session_state.dia_selecionado, [])
                     data_obj = datetime.strptime(st.session_state.dia_selecionado, "%Y-%m-%d")
                     data_formatada = data_obj.strftime("%d/%m/%Y - %A").replace('Monday', 'Segunda-feira')\
                         .replace('Tuesday', 'Terça-feira').replace('Wednesday', 'Quarta-feira')\
                         .replace('Thursday', 'Quinta-feira').replace('Friday', 'Sexta-feira')\
                         .replace('Saturday', 'Sábado').replace('Sunday', 'Domingo')
-                    titulo_lista = f"📅 Agendamentos - {data_formatada}"
+                    titulo_lista = f"📅 {data_formatada}"
                 else:
                     agendamentos_filtrados = agendamentos
                     titulo_lista = "📋 Todos os Agendamentos"
@@ -3939,12 +4064,12 @@ Sistema de Agendamento Online
                 st.subheader(titulo_lista)
                 
                 if agendamentos_filtrados:
-                    st.markdown(f"**📊 Exibindo {len(agendamentos_filtrados)} agendamento(s)**")
+                    st.markdown(f"**📊 {len(agendamentos_filtrados)} agendamento(s)**")
                     
                     # Ordenar por data e horário
                     agendamentos_filtrados.sort(key=lambda x: (x[1], x[2]))
                     
-                    # Mostrar lista (manter o código original da lista de agendamentos)
+                    # Mostrar lista com cards otimizados
                     for agendamento in agendamentos_filtrados:
                         if len(agendamento) == 7:
                             agendamento_id, data, horario, nome, telefone, email, status = agendamento
@@ -3970,7 +4095,7 @@ Sistema de Agendamento Online
                                 'icon': '⏳', 
                                 'color': '#f59e0b', 
                                 'bg_color': '#fef3c7',
-                                'text': 'Aguardando Confirmação',
+                                'text': 'Aguardando',
                                 'actions': ['confirm', 'reject']
                             },
                             'confirmado': {
@@ -3998,23 +4123,24 @@ Sistema de Agendamento Online
                         
                         config = status_config.get(status, status_config['pendente'])
                         
-                        # Card do agendamento (mais compacto para mobile)
+                        # Card responsivo do agendamento
                         col_info, col_actions = st.columns([4, 1])
                         
                         with col_info:
                             st.markdown(f"""
-                            <div style="background: {config['bg_color']}; border-left: 4px solid {config['color']}; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; transition: all 0.3s ease;">
+                            <div class="card-mobile" style="background: {config['bg_color']}; border-left: 4px solid {config['color']}; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; transition: all 0.3s ease;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                    <div style="font-size: 1.1rem; font-weight: 700; color: #1f2937;">
+                                    <div class="nome-mobile" style="font-size: 1.1rem; font-weight: 700; color: #1f2937;">
                                         {config['icon']} {nome}
                                     </div>
                                     <div style="color: {config['color']}; font-weight: 600; font-size: 1rem;">
                                         🕐 {horario}
                                     </div>
                                 </div>
-                                <div style="color: #374151; font-size: 0.9rem; line-height: 1.4;">
-                                    📅 <strong>{data_formatada}</strong><br>
-                                    📱 {telefone} | 📧 {email}<br>
+                                <div class="info-mobile" style="color: #374151; font-size: 0.9rem; line-height: 1.4;">
+                                    📅 {data_formatada}<br>
+                                    📱 {telefone}<br>
+                                    📧 {email}<br>
                                     <span style="background: {config['color']}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; margin-top: 4px; display: inline-block;">
                                         {config['text']}
                                     </span>
@@ -4023,40 +4149,40 @@ Sistema de Agendamento Online
                             """, unsafe_allow_html=True)
                         
                         with col_actions:
-                            # Ações baseadas no status (código original mantido)
+                            # Ações baseadas no status
                             if 'confirm' in config['actions']:
-                                if st.button("✅", key=f"confirm_{agendamento_id}", help="Confirmar", use_container_width=True):
+                                if st.button("✅", key=f"confirm_resp_{agendamento_id}", help="Confirmar", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'confirmado')
                                     st.success(f"✅ {nome} confirmado!")
                                     st.rerun()
                             
                             if 'reject' in config['actions']:
-                                if st.button("❌", key=f"reject_{agendamento_id}", help="Recusar", use_container_width=True):
+                                if st.button("❌", key=f"reject_resp_{agendamento_id}", help="Recusar", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'cancelado')
                                     st.success(f"❌ {nome} recusado!")
                                     st.rerun()
                             
                             if 'attend' in config['actions']:
-                                if st.button("🎉", key=f"attend_{agendamento_id}", help="Atender", use_container_width=True):
+                                if st.button("🎉", key=f"attend_resp_{agendamento_id}", help="Atender", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'atendido')
                                     st.success(f"🎉 {nome} atendido!")
                                     st.rerun()
                             
                             if 'cancel' in config['actions']:
-                                if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
+                                if st.button("❌", key=f"cancel_resp_{agendamento_id}", help="Cancelar", use_container_width=True):
                                     atualizar_status_agendamento(agendamento_id, 'cancelado')
                                     st.success(f"❌ {nome} cancelado!")
                                     st.rerun()
                             
                             if 'delete' in config['actions']:
-                                if st.button("🗑️", key=f"delete_{agendamento_id}", help="Excluir", use_container_width=True):
-                                    if st.session_state.get(f"confirm_delete_{agendamento_id}", False):
+                                if st.button("🗑️", key=f"delete_resp_{agendamento_id}", help="Excluir", use_container_width=True):
+                                    if st.session_state.get(f"confirm_delete_resp_{agendamento_id}", False):
                                         deletar_agendamento(agendamento_id)
                                         st.success(f"🗑️ {nome} excluído!")
                                         st.rerun()
                                     else:
-                                        st.session_state[f"confirm_delete_{agendamento_id}"] = True
-                                        st.warning("⚠️ Clique novamente para confirmar")
+                                        st.session_state[f"confirm_delete_resp_{agendamento_id}"] = True
+                                        st.warning("⚠️ Clique novamente")
                 
                 else:
                     if st.session_state.dia_selecionado:
@@ -4065,7 +4191,7 @@ Sistema de Agendamento Online
                         st.info("📅 Nenhum agendamento encontrado.")
             
             else:
-                # Mensagem quando não há agendamentos (manter original)
+                # Mensagem quando não há agendamentos
                 st.markdown("""
                 <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 12px; padding: 2rem; text-align: center; margin: 2rem 0;">
                     <h3 style="color: #1d4ed8; margin-bottom: 1rem;">📅 Nenhum agendamento encontrado</h3>
