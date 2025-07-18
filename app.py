@@ -16,6 +16,19 @@ from caldav import DAVClient
 import pytz
 from icalendar import Calendar, Event
 import uuid
+# TESTE - adicionar temporariamente para debug
+print("🔍 TESTE: Importando bibliotecas CalDAV...")
+try:
+    import caldav
+    print("✅ caldav importado com sucesso")
+except ImportError as e:
+    print(f"❌ Erro ao importar caldav: {e}")
+
+try:
+    from icalendar import Calendar, Event, Alarm  
+    print("✅ icalendar importado com sucesso")
+except ImportError as e:
+    print(f"❌ Erro ao importar icalendar: {e}")
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
