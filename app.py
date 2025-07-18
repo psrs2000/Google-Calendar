@@ -3364,86 +3364,7 @@ Sistema de Agendamento Online
                     st.markdown("**☁️ Backup de Configurações**")
                     # ... código do backup GitHub existente ...
                     
-                    # NOVO: ADICIONAR ESTA SEÇÃO CALDAV AQUI
-                    st.markdown("---")
-                    st.markdown("**📅 Integração com Calendário (CalDAV)**")
-                    
-                    caldav_ativo = st.checkbox(
-                        "Ativar sincronização automática com calendário",
-                        value=obter_configuracao("caldav_ativo", False),
-                        help="Cria eventos automaticamente no seu calendário pessoal quando agendamentos forem confirmados"
-                    )
-                    
-                    if caldav_ativo:
-                        st.success("✅ Integração com calendário ativada")
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.markdown("**⚙️ Configuração do Calendário**")
-                            
-                            email_calendario = st.text_input(
-                                "Email do seu calendário:",
-                                value=obter_configuracao("email_calendario", ""),
-                                placeholder="seu@gmail.com",
-                                help="Email da conta que contém o calendário para sincronizar"
-                            )
-                            
-                            # Auto-detectar servidor
-                            if email_calendario:
-                                servidor_auto = detectar_servidor_caldav(email_calendario)
-                                if servidor_auto:
-                                    st.info(f"🎯 Servidor detectado automaticamente: {servidor_auto.split('/')[2]}")
-                                else:
-                                    st.warning("⚠️ Provedor não reconhecido - você precisará configurar manualmente")
-                            
-                            servidor_caldav = st.text_input(
-                                "Servidor CalDAV:",
-                                value=obter_configuracao("servidor_caldav", servidor_auto if email_calendario else ""),
-                                help="Servidor CalDAV (detectado automaticamente para Gmail, Outlook, iCloud)"
-                            )
-                            
-                            senha_calendario = st.text_input(
-                                "Senha do calendário:",
-                                value=obter_configuracao("senha_calendario", ""),
-                                type="password",
-                                help="⚠️ IMPORTANTE: Use senha de APP, não sua senha normal!"
-                            )
-                        
-                        with col2:
-                            st.markdown("**🧪 Teste e Instruções**")
-                            
-                            # Botão de teste
-                            if st.button("🔍 Testar Conexão", type="secondary", help="Verificar se as configurações estão corretas"):
-                                if email_calendario and senha_calendario and servidor_caldav:
-                                    # Salvar temporariamente para teste
-                                    salvar_configuracao("email_calendario", email_calendario)
-                                    salvar_configuracao("senha_calendario", senha_calendario)
-                                    salvar_configuracao("servidor_caldav", servidor_caldav)
-                                    salvar_configuracao("caldav_ativo", True)
-                                    
-                                    with st.spinner("Testando conexão..."):
-                                        sucesso, mensagem = testar_conexao_caldav()
-                                        
-                                    if sucesso:
-                                        st.success(mensagem)
-                                    else:
-                                        st.error(mensagem)
-                                        # Desativar se falhou
-                                        salvar_configuracao("caldav_ativo", False)
-                                else:
-                                    st.warning("⚠️ Preencha todos os campos antes de testar")
-                            
-                            # Instruções específicas por provedor
-                            if email_calendario:
-                                with st.expander("📖 Como configurar senha de app"):
-                                    instrucoes = gerar_instrucoes_caldav(email_calendario)
-                                    st.markdown(instrucoes)
-                    
-                    else:
-                        st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
-
-                # INTERFACE CALDAV - VERSÃO EXPANDIDA
+                # NOVO: ADICIONAR ESTA SEÇÃO CALDAV AQUI
                 st.markdown("---")
                 st.markdown("**📅 Integração com Calendário (CalDAV)**")
                 
@@ -3469,18 +3390,17 @@ Sistema de Agendamento Online
                         )
                         
                         # Auto-detectar servidor
-                        servidor_auto = ""
                         if email_calendario:
                             servidor_auto = detectar_servidor_caldav(email_calendario)
                             if servidor_auto:
-                                st.info(f"🎯 Servidor detectado: {servidor_auto.split('/')[2]}")
+                                st.info(f"🎯 Servidor detectado automaticamente: {servidor_auto.split('/')[2]}")
                             else:
-                                st.warning("⚠️ Provedor não reconhecido")
+                                st.warning("⚠️ Provedor não reconhecido - você precisará configurar manualmente")
                         
                         servidor_caldav = st.text_input(
                             "Servidor CalDAV:",
-                            value=obter_configuracao("servidor_caldav", servidor_auto),
-                            help="Servidor CalDAV (detectado automaticamente)"
+                            value=obter_configuracao("servidor_caldav", servidor_auto if email_calendario else ""),
+                            help="Servidor CalDAV (detectado automaticamente para Gmail, Outlook, iCloud)"
                         )
                         
                         senha_calendario = st.text_input(
@@ -3491,16 +3411,37 @@ Sistema de Agendamento Online
                         )
                     
                     with col2:
-                        st.markdown("**🧪 Teste**")
+                        st.markdown("**🧪 Teste e Instruções**")
                         
-                        if st.button("🔍 Testar Conexão", type="secondary"):
+                        # Botão de teste
+                        if st.button("🔍 Testar Conexão", type="secondary", help="Verificar se as configurações estão corretas"):
                             if email_calendario and senha_calendario and servidor_caldav:
-                                st.info("🔄 Em desenvolvimento...")
+                                # Salvar temporariamente para teste
+                                salvar_configuracao("email_calendario", email_calendario)
+                                salvar_configuracao("senha_calendario", senha_calendario)
+                                salvar_configuracao("servidor_caldav", servidor_caldav)
+                                salvar_configuracao("caldav_ativo", True)
+                                
+                                with st.spinner("Testando conexão..."):
+                                    sucesso, mensagem = testar_conexao_caldav()
+                                    
+                                if sucesso:
+                                    st.success(mensagem)
+                                else:
+                                    st.error(mensagem)
+                                    # Desativar se falhou
+                                    salvar_configuracao("caldav_ativo", False)
                             else:
-                                st.warning("⚠️ Preencha todos os campos")
+                                st.warning("⚠️ Preencha todos os campos antes de testar")
+                        
+                        # Instruções específicas por provedor
+                        if email_calendario:
+                            with st.expander("📖 Como configurar senha de app"):
+                                instrucoes = gerar_instrucoes_caldav(email_calendario)
+                                st.markdown(instrucoes)
                 
                 else:
-                    st.info("💡 A integração permite que agendamentos apareçam automaticamente no seu calendário")
+                    st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
 
             # Botão para salvar todas as configurações
             st.markdown("---")
