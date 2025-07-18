@@ -3443,13 +3443,39 @@ Sistema de Agendamento Online
                     else:
                         st.info("💡 A integração com calendário permite que todos os agendamentos confirmados apareçam automaticamente no seu calendário pessoal (Google, Outlook, Apple, etc.)")
 
-                # TESTE SUPER SIMPLES
+                # TESTE DAS FUNÇÕES CALDAV
                 st.markdown("---")
-                st.markdown("**🔍 TESTE BÁSICO**")
-                st.write("Se você está vendo esta mensagem, o código chegou até aqui!")
+                st.markdown("**🔍 TESTE FUNÇÕES CALDAV**")
                 
-                if st.button("🧪 Teste Simples"):
-                    st.success("✅ Botão funcionou!")
+                if st.button("🧪 Testar se funções existem"):
+                    # Testar função por função
+                    funcoes_testadas = []
+                    
+                    try:
+                        detectar_servidor_caldav("teste@gmail.com")
+                        funcoes_testadas.append("✅ detectar_servidor_caldav")
+                    except NameError:
+                        funcoes_testadas.append("❌ detectar_servidor_caldav NÃO ENCONTRADA")
+                    except Exception as e:
+                        funcoes_testadas.append(f"⚠️ detectar_servidor_caldav existe mas deu erro: {e}")
+                    
+                    try:
+                        testar_conexao_caldav()
+                        funcoes_testadas.append("✅ testar_conexao_caldav")
+                    except NameError:
+                        funcoes_testadas.append("❌ testar_conexao_caldav NÃO ENCONTRADA")
+                    except Exception as e:
+                        funcoes_testadas.append(f"⚠️ testar_conexao_caldav existe mas deu erro: {e}")
+                    
+                    try:
+                        criar_evento_caldav
+                        funcoes_testadas.append("✅ criar_evento_caldav")
+                    except NameError:
+                        funcoes_testadas.append("❌ criar_evento_caldav NÃO ENCONTRADA")
+                    
+                    # Mostrar resultados
+                    for resultado in funcoes_testadas:
+                        st.write(resultado)
 
             # Botão para salvar todas as configurações
             st.markdown("---")
