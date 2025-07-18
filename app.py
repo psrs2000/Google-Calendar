@@ -3765,58 +3765,48 @@ Sistema de Agendamento Online
                 """, unsafe_allow_html=True)
                 
                 # ========================================
-                # FILTROS RÁPIDOS (MANTIDOS)
+                # FILTROS-ESTATÍSTICAS UNIFICADOS
                 # ========================================
                 
-                # Estatísticas rápidas
-                col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-                
+                # Calcular dados
                 hoje = datetime.now().date()
+                amanha = hoje + timedelta(days=1)
                 agendamentos_hoje = [a for a in agendamentos if a[1] == hoje.strftime("%Y-%m-%d")]
+                agendamentos_amanha = [a for a in agendamentos if a[1] == amanha.strftime("%Y-%m-%d")]
                 pendentes_total = len([a for a in agendamentos if len(a) > 6 and a[6] == "pendente"])
                 confirmados_total = len([a for a in agendamentos if len(a) > 6 and a[6] == "confirmado"])
-                
-                with col_stat1:
-                    st.metric("📅 Hoje", len(agendamentos_hoje))
-                with col_stat2:
-                    st.metric("⏳ Pendentes", pendentes_total)
-                with col_stat3:
-                    st.metric("✅ Confirmados", confirmados_total)
-                with col_stat4:
-                    st.metric("📋 Total", len(agendamentos))
                 
                 # Inicializar estado
                 if 'dia_selecionado' not in st.session_state:
                     st.session_state.dia_selecionado = None
                 
-                # Filtros rápidos
-                st.subheader("🔍 Filtros Rápidos")
+                # FILTROS QUE SÃO ESTATÍSTICAS
+                st.subheader("🔍 Filtros")
                 
-                col_filtro1, col_filtro2, col_filtro3, col_filtro4, col_filtro5 = st.columns(5)
+                col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
                 
-                with col_filtro1:
-                    if st.button("📅 Hoje", key="filtro_hoje", use_container_width=True):
+                with col_f1:
+                    if st.button(f"📅 Hoje\n({len(agendamentos_hoje)})", key="filtro_hoje", use_container_width=True):
                         st.session_state.dia_selecionado = hoje.strftime("%Y-%m-%d")
                         st.rerun()
                 
-                with col_filtro2:
-                    if st.button("➡️ Amanhã", key="filtro_amanha", use_container_width=True):
-                        amanha = hoje + timedelta(days=1)
+                with col_f2:
+                    if st.button(f"➡️ Amanhã\n({len(agendamentos_amanha)})", key="filtro_amanha", use_container_width=True):
                         st.session_state.dia_selecionado = amanha.strftime("%Y-%m-%d")
                         st.rerun()
                 
-                with col_filtro3:
-                    if st.button("⏳ Pendentes", key="filtro_pendentes", use_container_width=True):
+                with col_f3:
+                    if st.button(f"⏳ Pendentes\n({pendentes_total})", key="filtro_pendentes", use_container_width=True):
                         st.session_state.dia_selecionado = "FILTRO_PENDENTES"
                         st.rerun()
                 
-                with col_filtro4:
-                    if st.button("✅ Confirmados", key="filtro_confirmados", use_container_width=True):
+                with col_f4:
+                    if st.button(f"✅ Confirmados\n({confirmados_total})", key="filtro_confirmados", use_container_width=True):
                         st.session_state.dia_selecionado = "FILTRO_CONFIRMADOS"
                         st.rerun()
                 
-                with col_filtro5:
-                    if st.button("🔄 Todos", key="filtro_todos", use_container_width=True):
+                with col_f5:
+                    if st.button(f"🔄 Todos\n({len(agendamentos)})", key="filtro_todos", use_container_width=True):
                         st.session_state.dia_selecionado = None
                         st.rerun()
                 
