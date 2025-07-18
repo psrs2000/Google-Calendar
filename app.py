@@ -1238,7 +1238,19 @@ def exportar_agendamentos_csv():
     
     try:
         # Buscar todos os agendamentos
-        agendamentos = buscar_agendamentos()
+        # Buscar apenas agendamentos futuros
+        agendamentos_todos = buscar_agendamentos()
+
+        # Filtrar só os futuros
+        hoje = datetime.now().date()
+        agendamentos = []
+        for agendamento in agendamentos_todos:
+            try:
+                data_agendamento = datetime.strptime(agendamento[1], "%Y-%m-%d").date()
+                if data_agendamento >= hoje:
+                    agendamentos.append(agendamento)
+            except:
+                continue
         
         if not agendamentos:
             return None
