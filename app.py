@@ -2503,7 +2503,20 @@ init_config()
 init_config_periodos()
 
 #Recuperar agendamentos Atuais e futuros
-#recuperar_agendamentos_automatico()  provisorio
+# Recuperação inteligente - só se banco estiver vazio
+try:
+    agendamentos_atuais = buscar_agendamentos()
+    
+    if not agendamentos_atuais:  # Se não tem NENHUM agendamento
+        print("🔄 Banco vazio detectado - recuperando agendamentos do GitHub...")
+        recuperar_agendamentos_automatico()
+        print("✅ Recuperação automática concluída!")
+    else:
+        print(f"✅ Sistema já tem {len(agendamentos_atuais)} agendamento(s) - recuperação não necessária")
+        
+except Exception as e:
+    print(f"⚠️ Erro na verificação de recuperação: {e}")
+    # Se der erro, não tenta recuperar para evitar problemas
 
 # Inicializar controle de restauração
 if 'dados_restaurados' not in st.session_state:
