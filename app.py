@@ -4016,59 +4016,6 @@ Sistema de Agendamento Online
                 </div>
                 """, unsafe_allow_html=True)
 
-            # DEBUG AVANÇADO - ADICIONAR
-            st.markdown("---")
-            st.markdown("**🔍 DEBUG AVANÇADO**")
-            
-            if st.button("🔍 Investigar Banco Diretamente"):
-                import sqlite3
-                
-                # Conectar direto no banco
-                conn = sqlite3.connect("agenda.db")
-                c = conn.cursor()
-                
-                # Ver TODOS os registros (incluindo cancelados)
-                c.execute("SELECT id, nome_cliente, status FROM agendamentos ORDER BY id")
-                todos_registros = c.fetchall()
-                
-                st.write(f"**Total de registros no banco:** {len(todos_registros)}")
-                
-                for registro in todos_registros:
-                    st.write(f"ID: {registro[0]} | Nome: {registro[1]} | Status: {registro[2] if len(registro) > 2 else 'sem status'}")
-                
-                conn.close()
-            
-            # Teste de exclusão direta
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                id_para_deletar = st.number_input("ID para deletar:", min_value=1, step=1)
-            
-            with col2:
-                if st.button("🗑️ Deletar ID específico"):
-                    import sqlite3
-                    conn = sqlite3.connect("agenda.db")
-                    c = conn.cursor()
-                    
-                    # Verificar se existe ANTES
-                    c.execute("SELECT * FROM agendamentos WHERE id=?", (id_para_deletar,))
-                    antes = c.fetchone()
-                    st.write(f"ANTES: {antes}")
-                    
-                    # Deletar
-                    c.execute("DELETE FROM agendamentos WHERE id=?", (id_para_deletar,))
-                    linhas_afetadas = c.rowcount
-                    conn.commit()
-                    
-                    # Verificar se existe DEPOIS
-                    c.execute("SELECT * FROM agendamentos WHERE id=?", (id_para_deletar,))
-                    depois = c.fetchone()
-                    st.write(f"DEPOIS: {depois}")
-                    st.write(f"Linhas afetadas: {linhas_afetadas}")
-                    
-                    conn.close()
-                    st.rerun()
-            
             st.markdown('</div>', unsafe_allow_html=True)
 
         elif opcao == "💾 Backup & Restauração":
