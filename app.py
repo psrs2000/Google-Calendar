@@ -4524,6 +4524,229 @@ Sistema de Agendamento Online
 
             st.markdown('</div>', unsafe_allow_html=True)
 
+        elif opcao == "🔗 Integrações":
+            
+            st.markdown("""
+            <div class="main-card">
+                <div class="card-header">
+                    <h2 class="card-title">🔗 Integrações Externas</h2>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # ========================================
+            # SEÇÃO TODOIST
+            # ========================================
+            
+            st.subheader("📝 Integração com Todoist")
+            
+            todoist_ativo = st.checkbox(
+                "Ativar sincronização com Todoist",
+                value=obter_configuracao("todoist_ativo", False),
+                help="Cria tarefas automaticamente no Todoist para cada agendamento confirmado"
+            )
+            
+            if todoist_ativo:
+                st.success("✅ Integração com Todoist ativada")
+                
+                # Tabs para organizar melhor
+                tab_config, tab_teste, tab_opcoes = st.tabs(["🔑 Configuração", "🧪 Teste", "⚙️ Opções"])
+                
+                with tab_config:
+                    st.markdown("**🔑 Token da API Todoist**")
+                    
+                    todoist_token = st.text_input(
+                        "Digite seu token:",
+                        value=obter_configuracao("todoist_token", ""),
+                        type="password",
+                        placeholder="Token de 40 caracteres do Todoist",
+                        help="Obtenha em: https://todoist.com/app/settings/integrations"
+                    )
+                    
+                    # Instruções
+                    with st.expander("📖 Como obter o token do Todoist"):
+                        instrucoes = gerar_instrucoes_todoist()
+                        st.markdown(instrucoes)
+                    
+                    # Link direto
+                    st.markdown("**🔗 Links úteis:**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.link_button("🔑 Obter Token", "https://todoist.com/app/settings/integrations")
+                    with col2:
+                        st.link_button("📱 Baixar App", "https://todoist.com/downloads")
+                
+                with tab_teste:
+                    st.markdown("**🧪 Testar Integração**")
+                    
+                    # Teste de conexão
+                    if st.button("🔍 Testar Conexão", type="primary", use_container_width=True):
+                        if todoist_token:
+                            # Salvar temporariamente para teste
+                            salvar_configuracao("todoist_token", todoist_token)
+                            salvar_configuracao("todoist_ativo", True)
+                            
+                            with st.spinner("Testando conexão com Todoist..."):
+                                sucesso, mensagem = testar_conexao_todoist()
+                                
+                            if sucesso:
+                                st.success(mensagem)
+                                
+                                # Verificar projeto
+                                projeto_id = obter_projeto_agendamentos()
+                                if projeto_id:
+                                    st.info(f"📁 Projeto 'Agendamentos' ID: {projeto_id}")
+                                
+                            else:
+                                st.error(mensagem)
+                                salvar_configuracao("todoist_ativo", False)
+                        else:
+                            st.warning("⚠️ Digite o token primeiro")
+                    
+                    # Criar tarefa de teste
+                    st.markdown("---")
+                    if st.button("📝 Criar Tarefa de Teste", type="secondary", use_container_width=True):
+                        if todoist_ativo and todoist_token:
+                            salvar_configuracao("todoist_ativo", todoist_ativo)
+                            salvar_configuracao("todoist_token", todoist_token)
+                            
+                            with st.spinner("Criando tarefa de teste..."):
+                                from datetime import datetime
+                                agora = datetime.now()
+                                
+                                sucesso = criar_tarefa_todoist(
+                                    9999,  # ID de teste
+                                    "TESTE - Sistema Agendamento",
+                                    "(00) 0000-0000", 
+                                    "teste@exemplo.com",
+                                    agora.strftime("%Y-%m-%d"),
+                                    agora.strftime("%H:%M")
+                                )
+                                
+                                if sucesso:
+                                    st.success("✅ Tarefa criada! Verifique seu Todoist.")
+                                else:
+                                    st.error("❌ Erro ao criar tarefa.")
+                        else:
+                            st.warning("⚠️ Configure a integração primeiro")
+                
+                with tab_opcoes:
+                    st.markdown("**⚙️ Configurações Avançadas**")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        criar_para_pendentes = st.checkbox(
+                            "Criar tarefas para agendamentos pendentes",
+                            value=obter_configuracao("todoist_incluir_pendentes", True),
+                            help="Se desmarcado, só cria para confirmados"
+                        )
+                        
+                        marcar_concluido = st.checkbox(
+                            "Marcar como concluído quando atendido",
+                            value=obter_configuracao("todoist_marcar_concluido", True),
+                            help="Marca tarefa como concluída automaticamente"
+                        )
+                    
+                    with col2:
+                        remover_cancelados = st.checkbox(
+                            "Remover tarefas canceladas",
+                            value=obter_configuracao("todoist_remover_cancelados", True),
+                            help="Remove tarefa quando agendamento é cancelado"
+                        )
+                        
+                        # Estatísticas
+                        total_tarefas = 0
+                        try:
+                            conn = conectar()
+                            c = conn.cursor()
+                            c.execute("SELECT COUNT(*) FROM configuracoes WHERE chave LIKE 'todoist_task_%'")
+                            total_tarefas = c.fetchone()[0]
+                            conn.close()
+                        except:
+                            total_tarefas = 0
+                        
+                        st.metric("📊 Tarefas Criadas", total_tarefas)
+                
+                # Salvar configurações
+                st.markdown("---")
+                if st.button("💾 Salvar Configurações Todoist", type="primary", use_container_width=True):
+                    salvar_configuracao("todoist_ativo", todoist_ativo)
+                    if todoist_ativo:
+                        salvar_configuracao("todoist_token", todoist_token)
+                        salvar_configuracao("todoist_incluir_pendentes", criar_para_pendentes)
+                        salvar_configuracao("todoist_marcar_concluido", marcar_concluido)
+                        salvar_configuracao("todoist_remover_cancelados", remover_cancelados)
+                    
+                    st.success("✅ Configurações do Todoist salvas!")
+                    
+                    if todoist_ativo and todoist_token:
+                        st.info("🎯 **Todoist configurado!** Novos agendamentos criarão tarefas automaticamente.")
+                    
+                    st.rerun()
+            
+            else:
+                st.info("💡 A integração com Todoist transforma cada agendamento em uma tarefa na sua lista de afazeres")
+                
+                # Benefícios
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("""
+                    **🎯 Benefícios:**
+                    • 📱 **Notificações** no celular
+                    • 🔄 **Sincronização** automática  
+                    • ✅ **Marcação** de concluídas
+                    • 📊 **Organização** por projeto
+                    """)
+                
+                with col2:
+                    st.markdown("""
+                    **📱 Compatibilidade:**
+                    • iPhone e Android
+                    • Windows e Mac
+                    • Navegador web
+                    • Conta gratuita OK
+                    """)
+            
+            # ========================================
+            # FUTURAS INTEGRAÇÕES
+            # ========================================
+            
+            st.markdown("---")
+            st.subheader("🔮 Próximas Integrações")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("""
+                **📅 Google Calendar**
+                🔧 Em desenvolvimento
+                
+                • Eventos automáticos
+                • Sincronização bidirecional
+                """)
+            
+            with col2:
+                st.markdown("""
+                **💬 WhatsApp Business**
+                🔧 Planejado
+                
+                • Mensagens automáticas
+                • Confirmações por WhatsApp
+                """)
+            
+            with col3:
+                st.markdown("""
+                **📊 Notion**
+                🔧 Planejado
+                
+                • Base de dados de clientes
+                • Relatórios automatizados
+                """)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+
 else:
     # INTERFACE DO CLIENTE
     # Obter configurações dinâmicas atualizadas
