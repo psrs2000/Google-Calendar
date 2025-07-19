@@ -2503,7 +2503,7 @@ init_config()
 init_config_periodos()
 
 #Recuperar agendamentos Atuais e futuros
-recuperar_agendamentos_automatico()
+#recuperar_agendamentos_automatico()  provisorio
 
 # Inicializar controle de restauração
 if 'dados_restaurados' not in st.session_state:
@@ -4900,4 +4900,3 @@ else:
         <p style="font-size: 0.9rem; opacity: 0.7;">Sistema de Agendamento Online</p>
     </div>
     """, unsafe_allow_html=True)
-
