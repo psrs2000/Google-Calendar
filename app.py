@@ -2564,7 +2564,7 @@ def testar_conexao_todoist():
         return False, f"❌ Erro: {str(e)}"
 
 def obter_projeto_agendamentos():
-    """Obtém ou cria projeto 'Agendamentos' no Todoist"""
+    """Obtém ou cria UM ÚNICO projeto 'Agendamentos' no Todoist"""
     try:
         token = obter_client_todoist()
         if not token:
@@ -2575,6 +2575,9 @@ def obter_projeto_agendamentos():
             "Content-Type": "application/json"
         }
         
+        # Obter nome configurado do projeto (ou usar padrão)
+        nome_projeto = obter_configuracao("todoist_nome_projeto", "📅 Agendamentos")
+        
         # Buscar projetos existentes
         response = requests.get(
             "https://api.todoist.com/rest/v2/projects",
@@ -2584,15 +2587,29 @@ def obter_projeto_agendamentos():
         if response.status_code == 200:
             projetos = response.json()
             
-            # Procurar projeto "Agendamentos"
+            # 1. PRIMEIRO: Procurar pelo nome configurado exato
             for projeto in projetos:
-                if projeto['name'].lower() in ['agendamentos', 'agenda', 'clientes']:
+                if projeto['name'] == nome_projeto:
+                    print(f"✅ Projeto encontrado: {nome_projeto} (ID: {projeto['id']})")
+                    # Salvar ID para não precisar buscar sempre
+                    salvar_configuracao("todoist_projeto_id", projeto['id'])
                     return projeto['id']
             
-            # Se não encontrou, criar projeto
+            # 2. SEGUNDO: Procurar por nomes similares (compatibilidade)
+            nomes_similares = ['📅 Agendamentos', 'Agendamentos', 'Agenda', 'Clientes']
+            for projeto in projetos:
+                if projeto['name'] in nomes_similares:
+                    print(f"✅ Projeto similar encontrado: {projeto['name']} (ID: {projeto['id']})")
+                    # Atualizar nome nas configurações para usar o existente
+                    salvar_configuracao("todoist_nome_projeto", projeto['name'])
+                    salvar_configuracao("todoist_projeto_id", projeto['id'])
+                    return projeto['id']
+            
+            # 3. TERCEIRO: Se não encontrou, criar novo projeto
             novo_projeto = {
-                "name": "📅 Agendamentos",
-                "color": "blue"
+                "name": nome_projeto,
+                "color": "blue",
+                "comment_count": 0
             }
             
             response = requests.post(
@@ -2603,8 +2620,17 @@ def obter_projeto_agendamentos():
             
             if response.status_code == 200:
                 projeto_criado = response.json()
-                print(f"✅ Projeto 'Agendamentos' criado: {projeto_criado['id']}")
-                return projeto_criado['id']
+                projeto_id = projeto_criado['id']
+                
+                print(f"✅ Novo projeto criado: {nome_projeto} (ID: {projeto_id})")
+                
+                # Salvar configurações
+                salvar_configuracao("todoist_projeto_id", projeto_id)
+                salvar_configuracao("todoist_nome_projeto", nome_projeto)
+                
+                return projeto_id
+            else:
+                print(f"❌ Erro ao criar projeto: {response.status_code} - {response.text}")
         
         return None
         
@@ -4682,6 +4708,54 @@ Sistema de Agendamento Online
                             total_tarefas = 0
                         
                         st.metric("📊 Tarefas Criadas", total_tarefas)
+
+                    st.markdown("**📁 Configuração do Projeto**")
+                    
+                    nome_projeto_atual = obter_configuracao("todoist_nome_projeto", "📅 Agendamentos")
+                    
+                    col_proj1, col_proj2 = st.columns(2)
+                    
+                    with col_proj1:
+                        nome_projeto_config = st.text_input(
+                            "Nome do projeto no Todoist:",
+                            value=nome_projeto_atual,
+                            placeholder="📅 Agendamentos",
+                            help="Nome do projeto onde as tarefas serão criadas"
+                        )
+                    
+                    with col_proj2:
+                        # Mostrar projeto atual se configurado
+                        projeto_id_atual = obter_configuracao("todoist_projeto_id", "")
+                        if projeto_id_atual:
+                            st.info(f"📁 **Projeto atual:**\nID: {projeto_id_atual}")
+                        else:
+                            st.info("📁 **Projeto:** Será criado automaticamente")
+                    
+                    # Botão para recriar projeto
+                    if st.button("🔄 Atualizar/Recriar Projeto", help="Força a busca/criação do projeto"):
+                        if nome_projeto_config.strip():
+                            # Salvar novo nome
+                            salvar_configuracao("todoist_nome_projeto", nome_projeto_config.strip())
+                            
+                            # Limpar ID antigo para forçar nova busca
+                            conn = conectar()
+                            c = conn.cursor()
+                            c.execute("DELETE FROM configuracoes WHERE chave = 'todoist_projeto_id'")
+                            conn.commit()
+                            conn.close()
+                            
+                            # Buscar/criar projeto
+                            with st.spinner("Procurando/criando projeto..."):
+                                projeto_id = obter_projeto_agendamentos()
+                                
+                            if projeto_id:
+                                st.success(f"✅ Projeto configurado: {nome_projeto_config} (ID: {projeto_id})")
+                            else:
+                                st.error("❌ Erro ao configurar projeto")
+                            
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Digite um nome para o projeto")
                 
                 # Salvar configurações
                 st.markdown("---")
