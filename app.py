@@ -3392,9 +3392,8 @@ Sistema de Agendamento Online
                     except Exception as e:
                         st.warning(f"⚠️ Erro no backup automático: {e}")
                 
-                # TESTE - se aparecer, a posição está certa
-                st.write("🧪 TESTE: Se você vê isso, a posição está correta!")
-                
+                st.write("🧪 TESTE TODOIST")
+                st.write("Se aparecer isso, posição está certa!")                
                 st.success("✅ Todas as configurações foram salvas...")                
                 
                 # NOVA SEÇÃO: INTEGRAÇÃO TODOIST
