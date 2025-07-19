@@ -2812,14 +2812,22 @@ Atenciosamente,
 # Inicializar banco
 init_config()
 
-# Inicializar monitoramento de backup automático
-#iniciar_monitoramento_backup()
-
 # Inicializar tabela de períodos
 init_config_periodos()
 
-#Recuperar agendamentos Atuais e futuros
-recuperar_agendamentos_automatico()
+
+# Recuperação atuais e futuros por sessão - só uma vez por acesso
+if 'agendamentos_recuperados' not in st.session_state:
+    try:
+        print("🔄 Primeira vez nesta sessão - verificando backup do GitHub...")
+        recuperar_agendamentos_automatico()
+        st.session_state.agendamentos_recuperados = True
+        print("✅ Verificação de backup concluída!")
+    except Exception as e:
+        print(f"⚠️ Erro na recuperação automática: {e}")
+        st.session_state.agendamentos_recuperados = True  # Marca como tentado para não repetir
+else:
+    print("✅ Backup já verificado nesta sessão - pulando recuperação")
 
 # Inicializar controle de restauração
 if 'dados_restaurados' not in st.session_state:
