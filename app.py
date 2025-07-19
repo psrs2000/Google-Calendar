@@ -13,6 +13,7 @@ import threading
 import json
 import traceback
 import requests
+import base64
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
@@ -1365,8 +1366,8 @@ def criar_menu_horizontal():
         <p style="color: white; text-align: center; margin: 0; font-size: 1rem; font-weight: 400; letter-spacing: 1px;">🔧 Menu Administrativo</p>
     """, unsafe_allow_html=True)
     
-    # Menu responsivo ATUALIZADO com 6 colunas
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    # Menu responsivo ATUALIZADO com 7 colunas (NOVO!)
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     
     with col1:
         if st.button("⚙️ **Configurações**", 
@@ -1409,6 +1410,14 @@ def criar_menu_horizontal():
             st.rerun()
     
     with col6:
+        if st.button("🔗 **Integrações**", 
+                    key="btn_integracoes", 
+                    use_container_width=True,
+                    help="Integração com Todoist e outros serviços"):
+            st.session_state.menu_opcao = "🔗 Integrações"
+            st.rerun()
+    
+    with col7:
         if st.button("🚪 **Sair**", 
                     key="btn_sair", 
                     use_container_width=True,
@@ -1428,11 +1437,6 @@ def criar_menu_horizontal():
     
     return st.session_state.menu_opcao
 
-# PASSO 1: Adicionar esta função no app.py (depois das outras funções do banco)
-
-import requests
-import json
-import base64
 
 def get_github_config():
     """Obtém configurações do GitHub"""
@@ -2493,6 +2497,320 @@ Atenciosamente,
         print(f"Erro ao enviar código: {e}")
         return False
 
+def obter_client_todoist():
+    """Obtém configurações do Todoist"""
+    try:
+        todoist_ativo = obter_configuracao("todoist_ativo", False)
+        if not todoist_ativo:
+            return None
+            
+        api_token = obter_configuracao("todoist_token", "")
+        
+        if not api_token:
+            print("❌ Token Todoist não configurado")
+            return None
+        
+        return api_token
+        
+    except Exception as e:
+        print(f"❌ Erro ao obter token Todoist: {e}")
+        return None
+
+def testar_conexao_todoist():
+    """Testa a conexão com Todoist"""
+    try:
+        token = obter_client_todoist()
+        if not token:
+            return False, "Token não configurado"
+        
+        # Testar API com endpoint simples
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(
+            "https://api.todoist.com/rest/v2/projects",
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            projetos = response.json()
+            return True, f"✅ Conectado! {len(projetos)} projeto(s) encontrado(s)"
+        elif response.status_code == 401:
+            return False, "❌ Token inválido ou expirado"
+        else:
+            return False, f"❌ Erro na API: {response.status_code}"
+            
+    except requests.exceptions.Timeout:
+        return False, "❌ Timeout - verifique sua conexão"
+    except Exception as e:
+        return False, f"❌ Erro: {str(e)}"
+
+def obter_projeto_agendamentos():
+    """Obtém ou cria projeto 'Agendamentos' no Todoist"""
+    try:
+        token = obter_client_todoist()
+        if not token:
+            return None
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Buscar projetos existentes
+        response = requests.get(
+            "https://api.todoist.com/rest/v2/projects",
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            projetos = response.json()
+            
+            # Procurar projeto "Agendamentos"
+            for projeto in projetos:
+                if projeto['name'].lower() in ['agendamentos', 'agenda', 'clientes']:
+                    return projeto['id']
+            
+            # Se não encontrou, criar projeto
+            novo_projeto = {
+                "name": "📅 Agendamentos",
+                "color": "blue"
+            }
+            
+            response = requests.post(
+                "https://api.todoist.com/rest/v2/projects",
+                headers=headers,
+                json=novo_projeto
+            )
+            
+            if response.status_code == 200:
+                projeto_criado = response.json()
+                print(f"✅ Projeto 'Agendamentos' criado: {projeto_criado['id']}")
+                return projeto_criado['id']
+        
+        return None
+        
+    except Exception as e:
+        print(f"❌ Erro ao obter projeto: {e}")
+        return None
+
+def criar_tarefa_todoist(agendamento_id, nome_cliente, telefone, email_cliente, data, horario):
+    """Cria tarefa no Todoist para o agendamento"""
+    try:
+        token = obter_client_todoist()
+        if not token:
+            print("⚠️ Todoist não configurado")
+            return False
+        
+        projeto_id = obter_projeto_agendamentos()
+        if not projeto_id:
+            print("❌ Erro ao obter projeto Agendamentos")
+            return False
+        
+        # Obter configurações do profissional
+        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+        
+        # Preparar dados da tarefa
+        data_obj = datetime.strptime(data, "%Y-%m-%d")
+        horario_obj = datetime.strptime(horario, "%H:%M").time()
+        
+        # Combinar data e horário
+        data_hora = datetime.combine(data_obj.date(), horario_obj)
+        
+        # Título da tarefa
+        titulo = f"📅 {nome_cliente} - {horario}"
+        
+        # Descrição com detalhes
+        descricao = f"""
+**Agendamento - {nome_clinica}**
+
+👤 **Cliente:** {nome_cliente}
+📞 **Telefone:** {telefone}
+📧 **Email:** {email_cliente}
+👨‍⚕️ **Profissional:** {nome_profissional}
+
+🆔 **ID Sistema:** {agendamento_id}
+"""
+        
+        # Dados da tarefa
+        tarefa_data = {
+            "content": titulo,
+            "description": descricao.strip(),
+            "project_id": projeto_id,
+            "due_datetime": data_hora.strftime("%Y-%m-%dT%H:%M:00"),
+            "labels": ["agendamento"],
+            "priority": 2  # Prioridade normal
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Criar tarefa
+        response = requests.post(
+            "https://api.todoist.com/rest/v2/tasks",
+            headers=headers,
+            json=tarefa_data
+        )
+        
+        if response.status_code == 200:
+            tarefa_criada = response.json()
+            tarefa_id = tarefa_criada['id']
+            
+            # Salvar referência no banco para poder deletar depois
+            salvar_configuracao(f"todoist_task_{agendamento_id}", tarefa_id)
+            
+            print(f"✅ Tarefa Todoist criada: {nome_cliente} - {data} {horario}")
+            return True
+        else:
+            print(f"❌ Erro ao criar tarefa Todoist: {response.status_code} - {response.text}")
+            return False
+        
+    except Exception as e:
+        print(f"❌ Erro ao criar tarefa Todoist: {e}")
+        return False
+
+def atualizar_tarefa_todoist(agendamento_id, nome_cliente, novo_status):
+    """Atualiza tarefa no Todoist baseado no status"""
+    try:
+        token = obter_client_todoist()
+        if not token:
+            return False
+        
+        # Buscar ID da tarefa
+        tarefa_id = obter_configuracao(f"todoist_task_{agendamento_id}", "")
+        if not tarefa_id:
+            print(f"⚠️ Tarefa Todoist não encontrada para ID {agendamento_id}")
+            return False
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        if novo_status == 'atendido':
+            # Marcar como concluída
+            response = requests.post(
+                f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}/close",
+                headers=headers
+            )
+            
+            if response.status_code == 204:
+                print(f"✅ Tarefa Todoist marcada como concluída: {nome_cliente}")
+                return True
+            else:
+                print(f"❌ Erro ao marcar tarefa como concluída: {response.status_code}")
+                return False
+        
+        elif novo_status == 'cancelado':
+            # Deletar tarefa
+            return deletar_tarefa_todoist(agendamento_id)
+        
+        elif novo_status == 'confirmado':
+            # Adicionar label "confirmado"
+            # Buscar dados atuais da tarefa
+            response = requests.get(
+                f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}",
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                tarefa_atual = response.json()
+                labels_atuais = tarefa_atual.get('labels', [])
+                
+                if 'confirmado' not in labels_atuais:
+                    labels_atuais.append('confirmado')
+                    
+                    # Atualizar tarefa
+                    update_data = {
+                        "labels": labels_atuais
+                    }
+                    
+                    response = requests.post(
+                        f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}",
+                        headers=headers,
+                        json=update_data
+                    )
+                    
+                    if response.status_code == 200:
+                        print(f"✅ Tarefa Todoist atualizada para confirmado: {nome_cliente}")
+                        return True
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao atualizar tarefa Todoist: {e}")
+        return False
+
+def deletar_tarefa_todoist(agendamento_id):
+    """Deleta tarefa do Todoist"""
+    try:
+        token = obter_client_todoist()
+        if not token:
+            return False
+        
+        # Buscar ID da tarefa
+        tarefa_id = obter_configuracao(f"todoist_task_{agendamento_id}", "")
+        if not tarefa_id:
+            print(f"⚠️ Tarefa Todoist não encontrada para deletar ID {agendamento_id}")
+            return True  # Considera sucesso se não existe
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Deletar tarefa
+        response = requests.delete(
+            f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            # Remover referência do banco
+            conn = conectar()
+            c = conn.cursor()
+            c.execute("DELETE FROM configuracoes WHERE chave = ?", (f"todoist_task_{agendamento_id}",))
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ Tarefa Todoist deletada: ID {agendamento_id}")
+            return True
+        else:
+            print(f"⚠️ Erro ao deletar tarefa Todoist: {response.status_code}")
+            return True  # Considera sucesso para não travar o sistema
+        
+    except Exception as e:
+        print(f"❌ Erro ao deletar tarefa Todoist: {e}")
+        return False
+
+def gerar_instrucoes_todoist():
+    """Gera instruções para obter token do Todoist"""
+    return """
+🎯 **Como obter seu Token do Todoist:**
+
+1. **Acesse:** https://todoist.com/app/settings/integrations
+2. **Faça login** na sua conta Todoist
+3. **Role até** "API token"
+4. **Copie** o token (40 caracteres)
+5. **Cole** no campo abaixo
+
+⚠️ **Importante:**
+• **Mantenha** o token seguro (não compartilhe)
+• **Se vazar**, gere um novo nas configurações
+• **Funciona** com conta gratuita ou premium
+
+✨ **O que acontece:**
+• **Cria projeto** "📅 Agendamentos" automaticamente
+• **Cada agendamento** vira uma tarefa
+• **Notificações** no seu celular/desktop
+• **Marca como concluído** quando atendido
+"""
     
 # Inicializar banco
 init_config()
