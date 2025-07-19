@@ -4766,7 +4766,7 @@ Sistema de Agendamento Online
                         salvar_configuracao("todoist_incluir_pendentes", criar_para_pendentes)
                         salvar_configuracao("todoist_marcar_concluido", marcar_concluido)
                         salvar_configuracao("todoist_remover_cancelados", remover_cancelados)
-                    
+                        salvar_configuracao("todoist_nome_projeto", nome_projeto_config.strip() if nome_projeto_config.strip() else "📅 Agendamentos")                    
                     st.success("✅ Configurações do Todoist salvas!")
                     
                     if todoist_ativo and todoist_token:
