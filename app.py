@@ -490,7 +490,7 @@ def horario_disponivel(data, horario):
     return True
 
 def adicionar_agendamento(nome, telefone, email, data, horario):
-    """Adiciona agendamento com integração Google Calendar"""
+    """Adiciona agendamento com integração Todoist"""
     conn = conectar()
     c = conn.cursor()
     
@@ -511,7 +511,7 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
     finally:
         conn.close()
     
-    # Envio de emails (código original)
+    # Envio de emails (código original mantido)
     envio_automatico = obter_configuracao("envio_automatico", False)
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
     
@@ -520,6 +520,30 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
             enviar_email_confirmacao(agendamento_id, nome, email, data, horario)
         except Exception as e:
             print(f"❌ Erro ao enviar email de confirmação automática: {e}")
+    
+    # NOVO: Integração com Todoist
+    todoist_ativo = obter_configuracao("todoist_ativo", False)
+    incluir_pendentes = obter_configuracao("todoist_incluir_pendentes", True)
+    
+    if todoist_ativo and agendamento_id:
+        # Decidir se deve criar tarefa baseado nas configurações
+        deve_criar = False
+        
+        if status_inicial == "confirmado":
+            deve_criar = True  # Sempre cria para confirmados
+        elif status_inicial == "pendente" and incluir_pendentes:
+            deve_criar = True  # Só cria para pendentes se configurado
+        
+        if deve_criar:
+            try:
+                sucesso = criar_tarefa_todoist(agendamento_id, nome, telefone, email, data, horario)
+                if sucesso:
+                    print(f"✅ Tarefa Todoist criada: {nome} - {data} {horario}")
+                else:
+                    print(f"⚠️ Falha ao criar tarefa Todoist: {nome}")
+            except Exception as e:
+                print(f"❌ Erro na integração Todoist: {e}")
+    
     backup_agendamentos_futuros_github()
     return status_inicial
 
@@ -528,22 +552,18 @@ def cancelar_agendamento(nome, telefone, data):
     conn = conectar()
     c = conn.cursor()
     
-    # MUDANÇA PRINCIPAL: Buscar TODOS os agendamentos do dia, não só o primeiro
+    # Buscar TODOS os agendamentos do dia
     agendamentos_do_dia = []
     
     try:
-        # Tentar buscar com email e ID - TODOS OS AGENDAMENTOS DO DIA
         c.execute("SELECT id, email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
         agendamentos_do_dia = c.fetchall()
     except sqlite3.OperationalError:
-        # Se não tem coluna email, buscar só ID e horário - TODOS OS AGENDAMENTOS DO DIA
         try:
             c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
             agendamentos_sem_email = c.fetchall()
-            # Adicionar email vazio para manter formato
             agendamentos_do_dia = [(ag[0], '', ag[1]) for ag in agendamentos_sem_email]
         except:
-            # Fallback para versões muito antigas sem coluna status
             c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
             agendamentos_sem_email = c.fetchall()
             agendamentos_do_dia = [(ag[0], '', ag[1]) for ag in agendamentos_sem_email]
@@ -553,7 +573,6 @@ def cancelar_agendamento(nome, telefone, data):
         c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
         existe = c.fetchone()[0] > 0
     except sqlite3.OperationalError:
-        # Fallback para versões antigas sem coluna status
         c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
         existe = c.fetchone()[0] > 0
     
@@ -567,28 +586,29 @@ def cancelar_agendamento(nome, telefone, data):
 
             print(f"✅ {len(agendamentos_do_dia)} agendamento(s) cancelado(s): {nome} - {data}")
 
-            # NOVO: Integração com Google Calendar para MÚLTIPLOS eventos
-            google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+            # NOVO: Integração com Todoist para MÚLTIPLOS eventos
+            todoist_ativo = obter_configuracao("todoist_ativo", False)
+            remover_cancelados = obter_configuracao("todoist_remover_cancelados", True)
             
-            if google_calendar_ativo:
+            if todoist_ativo and remover_cancelados:
                 eventos_deletados = 0
                 for agendamento in agendamentos_do_dia:
                     agendamento_id = agendamento[0]
                     horario = agendamento[2]
                     
                     try:
-                        sucesso = deletar_evento_google_calendar(agendamento_id)
+                        sucesso = deletar_tarefa_todoist(agendamento_id)
                         if sucesso:
                             eventos_deletados += 1
-                            print(f"✅ Evento Google Calendar deletado: {horario}")
+                            print(f"✅ Tarefa Todoist removida: {horario}")
                         else:
-                            print(f"⚠️ Falha ao deletar evento Google Calendar: {horario}")
+                            print(f"⚠️ Falha ao remover tarefa Todoist: {horario}")
                     except Exception as e:
-                        print(f"❌ Erro ao deletar evento Google Calendar {horario}: {e}")
+                        print(f"❌ Erro ao remover tarefa Todoist {horario}: {e}")
                 
-                print(f"📅 Google Calendar: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
+                print(f"📝 Todoist: {eventos_deletados}/{len(agendamentos_do_dia)} tarefas removidas")
             
-            # Enviar email de cancelamento (usando dados do primeiro agendamento)
+            # Enviar email de cancelamento (código original mantido)
             envio_automatico = obter_configuracao("envio_automatico", False)
             enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
             
@@ -597,7 +617,6 @@ def cancelar_agendamento(nome, telefone, data):
                 email_cliente = primeiro_agendamento[1] if len(primeiro_agendamento) > 1 else ""
                 
                 if email_cliente:
-                    # Se múltiplos agendamentos, mencionar no email
                     if len(agendamentos_do_dia) > 1:
                         horarios_cancelados = ", ".join([ag[2] for ag in agendamentos_do_dia])
                         horario_para_email = f"Horários: {horarios_cancelados}"
@@ -612,8 +631,8 @@ def cancelar_agendamento(nome, telefone, data):
                             print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
                     except Exception as e:
                         print(f"❌ Erro ao enviar email de cancelamento: {e}")
-            backup_agendamentos_futuros_github()
             
+            backup_agendamentos_futuros_github()
             return True
             
         except sqlite3.OperationalError:
@@ -622,7 +641,6 @@ def cancelar_agendamento(nome, telefone, data):
                 c.execute("ALTER TABLE agendamentos ADD COLUMN status TEXT DEFAULT 'pendente'")
                 conn.commit()
                 
-                # Tentar novamente
                 c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
                          (nome, telefone, data))
                 conn.commit()
@@ -630,46 +648,25 @@ def cancelar_agendamento(nome, telefone, data):
                 
                 print(f"✅ {len(agendamentos_do_dia)} agendamento(s) cancelado(s): {nome} - {data}")
                 
-                # Google Calendar e email (mesmo código de cima)
-                google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+                # Todoist e email (mesmo código de cima)
+                todoist_ativo = obter_configuracao("todoist_ativo", False)
+                remover_cancelados = obter_configuracao("todoist_remover_cancelados", True)
                 
-                if google_calendar_ativo:
+                if todoist_ativo and remover_cancelados:
                     eventos_deletados = 0
                     for agendamento in agendamentos_do_dia:
                         agendamento_id = agendamento[0]
                         horario = agendamento[2]
                         
                         try:
-                            sucesso = deletar_evento_google_calendar(agendamento_id)
+                            sucesso = deletar_tarefa_todoist(agendamento_id)
                             if sucesso:
                                 eventos_deletados += 1
-                                print(f"✅ Evento Google Calendar deletado: {horario}")
+                                print(f"✅ Tarefa Todoist removida: {horario}")
                         except Exception as e:
-                            print(f"❌ Erro ao deletar evento Google Calendar {horario}: {e}")
+                            print(f"❌ Erro ao remover tarefa Todoist {horario}: {e}")
                     
-                    print(f"📅 Google Calendar: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
-                
-                # Email de cancelamento
-                envio_automatico = obter_configuracao("envio_automatico", False)
-                enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
-                
-                if envio_automatico and enviar_cancelamento and agendamentos_do_dia:
-                    primeiro_agendamento = agendamentos_do_dia[0]
-                    email_cliente = primeiro_agendamento[1] if len(primeiro_agendamento) > 1 else ""
-                    
-                    if email_cliente:
-                        if len(agendamentos_do_dia) > 1:
-                            horarios_cancelados = ", ".join([ag[2] for ag in agendamentos_do_dia])
-                            horario_para_email = f"Horários: {horarios_cancelados}"
-                        else:
-                            horario_para_email = agendamentos_do_dia[0][2]
-                        
-                        try:
-                            sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_para_email, "cliente")
-                            if sucesso:
-                                print(f"✅ Email de cancelamento enviado para {email_cliente}")
-                        except Exception as e:
-                            print(f"❌ Erro ao enviar email de cancelamento: {e}")
+                    print(f"📝 Todoist: {eventos_deletados}/{len(agendamentos_do_dia)} tarefas removidas")
                 
                 return True
                 
@@ -764,7 +761,7 @@ def buscar_agendamentos():
     return agendamentos
 
 def atualizar_status_agendamento(agendamento_id, novo_status):
-    """Atualiza status do agendamento com integração Google Calendar"""
+    """Atualiza status do agendamento com integração Todoist"""
     conn = conectar()
     c = conn.cursor()
     
@@ -777,10 +774,10 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
     conn.commit()
     conn.close()
     
-    # NOVO: Integração com Google Calendar
-    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+    # NOVO: Integração com Todoist
+    todoist_ativo = obter_configuracao("todoist_ativo", False)
     
-    if google_calendar_ativo and agendamento_dados:
+    if todoist_ativo and agendamento_dados:
         nome_cliente = agendamento_dados[0]
         email = agendamento_dados[1] if len(agendamento_dados) > 1 else ""
         data = agendamento_dados[2] if len(agendamento_dados) > 2 else ""
@@ -789,23 +786,40 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
         
         try:
             if novo_status == 'confirmado':
-                # Criar evento se não existir
-                event_id = obter_event_id_google(agendamento_id)
-                if not event_id:
-                    criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario)
+                # Verificar se tarefa já existe
+                tarefa_existente = obter_configuracao(f"todoist_task_{agendamento_id}", "")
                 
-            elif novo_status == 'cancelado':
-                # Deletar evento
-                deletar_evento_google_calendar(agendamento_id)
+                if not tarefa_existente:
+                    # Criar nova tarefa se não existe
+                    sucesso = criar_tarefa_todoist(agendamento_id, nome_cliente, telefone, email, data, horario)
+                    if sucesso:
+                        print(f"✅ Tarefa Todoist criada para confirmação: {nome_cliente}")
+                else:
+                    # Atualizar tarefa existente
+                    sucesso = atualizar_tarefa_todoist(agendamento_id, nome_cliente, novo_status)
+                    if sucesso:
+                        print(f"✅ Tarefa Todoist atualizada para confirmado: {nome_cliente}")
                 
             elif novo_status == 'atendido':
-                # Atualizar evento
-                atualizar_evento_google_calendar(agendamento_id, nome_cliente, novo_status)
+                # Marcar como concluída
+                marcar_concluido = obter_configuracao("todoist_marcar_concluido", True)
+                if marcar_concluido:
+                    sucesso = atualizar_tarefa_todoist(agendamento_id, nome_cliente, novo_status)
+                    if sucesso:
+                        print(f"🎉 Tarefa Todoist marcada como concluída: {nome_cliente}")
+                
+            elif novo_status == 'cancelado':
+                # Remover tarefa
+                remover_cancelados = obter_configuracao("todoist_remover_cancelados", True)
+                if remover_cancelados:
+                    sucesso = deletar_tarefa_todoist(agendamento_id)
+                    if sucesso:
+                        print(f"🗑️ Tarefa Todoist removida: {nome_cliente}")
                 
         except Exception as e:
-            print(f"❌ Erro na integração Google Calendar: {e}")
+            print(f"❌ Erro na integração Todoist: {e}")
     
-    # Envio de emails (código original)
+    # Envio de emails (código original mantido)
     envio_automatico = obter_configuracao("envio_automatico", False)
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
     
@@ -827,7 +841,8 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
                 enviar_email_cancelamento(nome_cliente, email, data, horario, "admin")
             except Exception as e:
                 print(f"❌ Erro ao enviar email de cancelamento: {e}")
-    backup_agendamentos_futuros_github()            
+    
+    backup_agendamentos_futuros_github()           
 
 def deletar_agendamento(agendamento_id):
     conn = conectar()
