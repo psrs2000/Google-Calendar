@@ -4974,6 +4974,7 @@ Sistema de Agendamento Online
             
             debug_google_calendar_interface_corrigido()
             testar_sincronizacao_corrigida()
+            st.markdown('</div>', unsafe_allow_html=True)
 
 else:
     # INTERFACE DO CLIENTE
