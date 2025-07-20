@@ -3167,6 +3167,7 @@ Atenciosamente,
         print(f"Erro ao enviar código: {e}")
         return False
 
+
    
 # Inicializar banco
 init_config()
@@ -4968,6 +4969,9 @@ Sistema de Agendamento Online
 
             st.markdown('</div>', unsafe_allow_html=True)
 
+            st.markdown("---")
+            teste_google_calendar_simples()
+
         elif opcao == "🔧 Debug Google":  # Nova opção temporária
             
             st.markdown("### 🔧 Debug Google Calendar")
@@ -5628,3 +5632,32 @@ else:
         <p style="font-size: 0.9rem; opacity: 0.7;">Sistema de Agendamento Online</p>
     </div>
     """, unsafe_allow_html=True)
+
+def teste_google_calendar_simples():
+    """Função bem simples só para testar se conseguimos acessar o Google Calendar"""
+    
+    st.subheader("🧪 Teste Google Calendar")
+    st.info("Vamos testar se conseguimos conectar com seu Google Calendar!")
+    
+    if st.button("🔍 Testar Conexão", type="primary"):
+        try:
+            # Tentar usar a função que já existe no seu código
+            service = get_google_calendar_service()
+            
+            if service:
+                # Se conectou, tentar listar calendários
+                calendars = service.calendarList().list().execute()
+                
+                st.success("✅ Conexão funcionando!")
+                st.write(f"📅 Encontrados {len(calendars.get('items', []))} calendários:")
+                
+                # Mostrar os calendários
+                for i, cal in enumerate(calendars.get('items', [])[:5]):
+                    nome = cal.get('summary', 'Sem nome')
+                    st.write(f"   {i+1}. {nome}")
+                
+            else:
+                st.error("❌ Não conseguiu conectar. Verifique as configurações do Google Calendar.")
+                
+        except Exception as e:
+            st.error(f"❌ Erro: {str(e)}")
