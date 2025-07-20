@@ -2262,6 +2262,190 @@ def remover_event_id_google(agendamento_id):
     finally:
         conn.close()
 
+def verificar_sincronizacao_bidirecional():
+    """Verifica eventos modificados no Google Calendar e sincroniza com o sistema"""
+    try:
+        # Usar a função get_google_calendar_service() que já existe
+        service = get_google_calendar_service()
+        if not service:
+            return False, "Erro ao conectar com Google Calendar"
+        
+        # Usar configuração existente ou padrão
+        try:
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+        except:
+            calendar_id = "primary"
+        
+        # Buscar eventos dos próximos 30 dias
+        from datetime import datetime, timedelta
+        agora = datetime.now()
+        fim_periodo = agora + timedelta(days=30)
+        
+        agora_iso = agora.isoformat()
+        fim_iso = fim_periodo.isoformat()
+        
+        print(f"🔍 Verificando eventos Google Calendar: {agora_iso} até {fim_iso}")
+        
+        # Buscar eventos do Google Calendar
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=agora_iso,
+            timeMax=fim_iso,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        eventos_google = events_result.get('items', [])
+        print(f"📅 Encontrados {len(eventos_google)} eventos no Google Calendar")
+        
+        # Buscar agendamentos do sistema
+        agendamentos_sistema = buscar_agendamentos()
+        print(f"📋 Encontrados {len(agendamentos_sistema)} agendamentos no sistema")
+        
+        sincronizacoes = 0
+        
+        # Verificar cada evento do Google
+        for evento in eventos_google:
+            try:
+                # Verificar se evento tem ID do sistema na descrição
+                descricao = evento.get('description', '')
+                
+                if '🆔 ID:' in descricao:
+                    # Extrair ID do agendamento
+                    id_match = descricao.split('🆔 ID:')[1].split('\n')[0].strip()
+                    
+                    try:
+                        agendamento_id = int(id_match)
+                    except:
+                        print(f"⚠️ ID inválido encontrado: {id_match}")
+                        continue
+                    
+                    print(f"🔍 Verificando evento com ID {agendamento_id}")
+                    
+                    # Buscar agendamento no sistema
+                    agendamento_encontrado = None
+                    for ag in agendamentos_sistema:
+                        if ag[0] == agendamento_id:  # ag[0] é o ID
+                            agendamento_encontrado = ag
+                            break
+                    
+                    if agendamento_encontrado:
+                        # Verificar se foi cancelado no Google
+                        status_google = evento.get('status', 'confirmed')
+                        
+                        if status_google == 'cancelled':
+                            # Cancelar no sistema se não estiver cancelado
+                            status_sistema = agendamento_encontrado[6] if len(agendamento_encontrado) > 6 else 'pendente'
+                            
+                            if status_sistema != 'cancelado':
+                                print(f"🔄 Cancelando agendamento {agendamento_id} (cancelado no Google)")
+                                atualizar_status_agendamento(agendamento_id, 'cancelado')
+                                sincronizacoes += 1
+                        
+                        # Verificar mudanças de horário/data
+                        start_time = evento.get('start', {})
+                        if 'dateTime' in start_time:
+                            # Converter horário do Google para local
+                            data_google = datetime.fromisoformat(start_time['dateTime'].replace('Z', '+00:00'))
+                            data_google_local = data_google.strftime('%Y-%m-%d')
+                            horario_google_local = data_google.strftime('%H:%M')
+                            
+                            data_sistema = agendamento_encontrado[1]
+                            horario_sistema = agendamento_encontrado[2]
+                            
+                            if data_google_local != data_sistema or horario_google_local != horario_sistema:
+                                print(f"🔄 Atualizando horário do agendamento {agendamento_id}")
+                                print(f"   Sistema: {data_sistema} {horario_sistema}")
+                                print(f"   Google:  {data_google_local} {horario_google_local}")
+                                
+                                # Atualizar data/horário no sistema
+                                conn = conectar()
+                                c = conn.cursor()
+                                c.execute("UPDATE agendamentos SET data = ?, horario = ? WHERE id = ?",
+                                         (data_google_local, horario_google_local, agendamento_id))
+                                conn.commit()
+                                conn.close()
+                                sincronizacoes += 1
+                    else:
+                        print(f"⚠️ Agendamento {agendamento_id} não encontrado no sistema")
+            
+            except Exception as e:
+                print(f"❌ Erro ao processar evento: {e}")
+                continue
+        
+        if sincronizacoes > 0:
+            print(f"✅ Sincronização concluída: {sincronizacoes} alterações")
+        else:
+            print(f"ℹ️ Sincronização concluída: nenhuma alteração necessária")
+        
+        return True, f"Sincronização concluída: {sincronizacoes} alterações"
+        
+    except Exception as e:
+        print(f"❌ Erro na sincronização: {e}")
+        return False, f"Erro na sincronização: {str(e)}"
+
+def testar_sincronizacao_bidirecional():
+    """Função para testar a sincronização bidirecional manualmente"""
+    print("🧪 TESTE DE SINCRONIZAÇÃO BIDIRECIONAL")
+    print("=" * 50)
+    
+    # Verificar se Google Calendar está configurado
+    try:
+        service = get_google_calendar_service()
+        if not service:
+            print("❌ Google Calendar não configurado")
+            return False
+        
+        print("✅ Google Calendar conectado")
+        
+        # Executar verificação
+        sucesso, mensagem = verificar_sincronizacao_bidirecional()
+        
+        if sucesso:
+            print(f"✅ {mensagem}")
+            return True
+        else:
+            print(f"❌ {mensagem}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Erro no teste: {e}")
+        return False
+
+# ========================================
+# MONITORAMENTO AUTOMÁTICO (SIMPLES)
+# ========================================
+
+def iniciar_monitoramento_sync_simples():
+    """Versão simples do monitoramento automático"""
+    def monitorar():
+        print("🔄 Monitoramento de sincronização bidirecional iniciado")
+        while True:
+            try:
+                # Verificar a cada 15 minutos (para teste, pode ajustar)
+                time.sleep(900)  # 15 minutos
+                
+                # Verificar se Google Calendar está ativo
+                google_ativo = obter_configuracao("google_calendar_ativo", False)
+                
+                if google_ativo:
+                    print("🔍 Executando verificação automática...")
+                    sucesso, mensagem = verificar_sincronizacao_bidirecional()
+                    
+                    if sucesso and "alterações" in mensagem and not mensagem.endswith("0 alterações"):
+                        print(f"✅ Sync automática: {mensagem}")
+                    elif not sucesso:
+                        print(f"❌ Erro na sync automática: {mensagem}")
+                
+            except Exception as e:
+                print(f"❌ Erro no monitoramento: {e}")
+                time.sleep(300)  # Esperar 5 minutos se der erro
+    
+    # Iniciar thread em background
+    thread = threading.Thread(target=monitorar, daemon=True)
+    thread.start()
+    print("✅ Monitoramento automático iniciado (a cada 15 minutos)")
+
 # ========================================
 # FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
 # ========================================
@@ -2834,6 +3018,14 @@ init_config()
 # Inicializar tabela de períodos
 init_config_periodos()
 
+# Inicializar monitoramento de sincronização (comentar se não quiser automático)
+try:
+    iniciar_monitoramento_sync_simples()
+except Exception as e:
+    print(f"⚠️ Erro ao iniciar monitoramento: {e}")
+
+# Para testar manualmente, descomente a linha abaixo:
+testar_sincronizacao_bidirecional()
 
 # Recuperação atuais e futuros por sessão - só uma vez por acesso
 if 'agendamentos_recuperados' not in st.session_state:
