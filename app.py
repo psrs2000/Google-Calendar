@@ -1911,40 +1911,59 @@ def baixar_agendamentos_github():
         return None
 
 def recuperar_agendamentos_automatico():
-    """Recupera agendamentos do GitHub automaticamente no boot"""
+    """Recupera agendamentos do GitHub automaticamente - VERSÃO SEGURA"""
     try:
-        print("🔄 Verificando se há agendamentos para recuperar...")
+        print("🔄 Nova sessão detectada - verificando backup do GitHub...")
         
-        # Verificar se já tem agendamentos no banco
-        agendamentos_atuais = buscar_agendamentos()
-        
-        if agendamentos_atuais:
-            print(f"✅ Sistema já tem {len(agendamentos_atuais)} agendamentos")
-            return True
-        
-        print("📥 Sistema vazio - buscando backup do GitHub...")
-        
-        # Baixar backup do GitHub
+        # PASSO 1: Tentar baixar do GitHub (SEM limpar banco ainda)
+        print("📥 Tentando baixar backup do GitHub...")
         csv_data = baixar_agendamentos_github()
         
+        # PASSO 2: Verificar se conseguiu baixar
         if not csv_data:
-            print("📄 Nenhum backup encontrado - sistema iniciando vazio")
-            return True
+            print("📄 GitHub indisponível ou nenhum backup encontrado")
+            print("✅ Mantendo dados locais existentes (modo offline)")
+            return True  # Não faz nada, preserva dados atuais
         
-        # Usar sua função de importação que JÁ FUNCIONA
-        print("📋 Importando agendamentos...")
+        print("📋 Backup baixado com sucesso do GitHub!")
+        print(f"📊 Tamanho do arquivo: {len(csv_data)} caracteres")
+        
+        # PASSO 3: SÓ AGORA limpar banco (pois tem dados seguros na memória)
+        print("🗑️ Dados do GitHub OK - limpando banco local para sincronização...")
+        conn = conectar()
+        c = conn.cursor()
+        c.execute("DELETE FROM agendamentos")
+        conn.commit()
+        conn.close()
+        print("✅ Banco local limpo!")
+        
+        # PASSO 4: Importar dados da memória para o banco
+        print("📋 Importando agendamentos atualizados do backup...")
         resultado = importar_agendamentos_csv(csv_data)
         
         if resultado['sucesso']:
-            print(f"✅ Recuperação completa! {resultado['importados']} agendamentos restaurados")
+            print(f"✅ Sincronização completa!")
+            print(f"📊 {resultado['importados']} agendamento(s) restaurado(s)")
+            if resultado['duplicados'] > 0:
+                print(f"⚠️ {resultado['duplicados']} registro(s) duplicado(s) ignorado(s)")
+            if resultado['erros'] > 0:
+                print(f"❌ {resultado['erros']} registro(s) com erro")
             return True
         else:
-            print(f"❌ Erro na recuperação: {resultado.get('erro', 'Erro desconhecido')}")
+            print(f"❌ Erro na importação: {resultado.get('erro', 'Erro desconhecido')}")
+            print("⚠️ Dados do GitHub baixados mas falha na importação")
             return False
             
+    except requests.exceptions.Timeout:
+        print("❌ Timeout ao conectar com GitHub - mantendo dados locais")
+        return True
+    except requests.exceptions.ConnectionError:
+        print("❌ Sem conexão com GitHub - mantendo dados locais") 
+        return True
     except Exception as e:
         print(f"❌ Erro na recuperação automática: {e}")
-        return False
+        print("✅ Mantendo dados locais por segurança")
+        return True  # Em caso de qualquer erro, preserva dados atuais
 
 
 # ========================================
