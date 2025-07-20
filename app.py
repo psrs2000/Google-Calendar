@@ -5097,8 +5097,7 @@ else:
                                                         dados = st.session_state.dados_agendamento
                                                         conn = conectar()
                                                         c = conn.cursor()
-                                                        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", 
-                                                                  (nome, telefone, data_str))
+                                                        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (dados['nome'], dados['telefone'], dados['data']))
 
                                                         if c.fetchone()[0] > 0:
                                                             st.error("❌ Você já tem agendamento para esta data!")
@@ -5185,7 +5184,7 @@ else:
                                         # ADICIONAR AQUI (antes do try):
                                         conn = conectar()
                                         c = conn.cursor()
-                                        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (dados['nome'], dados['telefone'], dados['data']))
+                                        c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data_str))
                                         if c.fetchone()[0] > 0:
                                             st.error("❌ Você já tem agendamento para esta data!")
                                             conn.close()
