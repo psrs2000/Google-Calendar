@@ -2561,6 +2561,232 @@ def testar_deteccao_mudancas():
         print("❌ Teste falhou!")
         return None
 
+def sincronizar_eventos_deletados(mudancas, modo="automatico"):
+    """
+    Cancela no sistema os agendamentos que foram deletados no Google Calendar
+    
+    Args:
+        mudancas: Dict retornado por comparar_eventos_com_banco()
+        modo: "automatico" ou "manual" (para logs diferentes)
+    
+    Returns:
+        Dict com resultado da sincronização
+    """
+    
+    try:
+        eventos_deletados = mudancas.get('deletados', [])
+        
+        if not eventos_deletados:
+            print("✅ Nenhum evento deletado para sincronizar")
+            return {
+                'sucesso': True,
+                'processados': 0,
+                'cancelados': 0,
+                'erros': 0,
+                'detalhes': []
+            }
+        
+        print(f"🔄 Iniciando sincronização de {len(eventos_deletados)} evento(s) deletado(s)...")
+        
+        resultado = {
+            'sucesso': True,
+            'processados': 0,
+            'cancelados': 0,
+            'erros': 0,
+            'detalhes': []
+        }
+        
+        conn = conectar()
+        c = conn.cursor()
+        
+        for item in eventos_deletados:
+            agendamento_id = item['agendamento_id']
+            dados_banco = item['dados_banco']
+            
+            try:
+                resultado['processados'] += 1
+                
+                # Extrair dados do agendamento
+                if len(dados_banco) >= 7:
+                    _, data, horario, nome, telefone, email, status_atual = dados_banco[:7]
+                else:
+                    _, data, horario, nome, telefone = dados_banco[:5]
+                    email = ""
+                    status_atual = "confirmado"
+                
+                print(f"🔄 Processando: {nome} - {data} às {horario}")
+                
+                # Verificar se ainda está confirmado (pode ter sido cancelado manualmente)
+                c.execute("SELECT status FROM agendamentos WHERE id = ?", (agendamento_id,))
+                status_resultado = c.fetchone()
+                
+                if not status_resultado:
+                    print(f"⚠️ Agendamento {agendamento_id} não encontrado no banco")
+                    resultado['erros'] += 1
+                    resultado['detalhes'].append({
+                        'agendamento_id': agendamento_id,
+                        'nome': nome,
+                        'acao': 'erro',
+                        'motivo': 'Agendamento não encontrado no banco'
+                    })
+                    continue
+                
+                status_atual_real = status_resultado[0]
+                
+                if status_atual_real != 'confirmado':
+                    print(f"ℹ️ Agendamento {agendamento_id} já está como '{status_atual_real}' - pulando")
+                    resultado['detalhes'].append({
+                        'agendamento_id': agendamento_id,
+                        'nome': nome,
+                        'acao': 'pulado',
+                        'motivo': f'Status já é "{status_atual_real}"'
+                    })
+                    continue
+                
+                # CANCELAR O AGENDAMENTO
+                c.execute("UPDATE agendamentos SET status = ? WHERE id = ?", 
+                         ('cancelado', agendamento_id))
+                
+                print(f"✅ Agendamento {agendamento_id} cancelado por sincronização")
+                resultado['cancelados'] += 1
+                
+                # Registrar detalhes
+                resultado['detalhes'].append({
+                    'agendamento_id': agendamento_id,
+                    'nome': nome,
+                    'data': data,
+                    'horario': horario,
+                    'acao': 'cancelado',
+                    'motivo': 'Evento deletado no Google Calendar'
+                })
+                
+                # ENVIAR EMAIL DE CANCELAMENTO (se configurado)
+                envio_automatico = obter_configuracao("envio_automatico", False)
+                enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
+                
+                if envio_automatico and enviar_cancelamento and email:
+                    try:
+                        sucesso_email = enviar_email_cancelamento(
+                            nome, email, data, horario, "sincronizacao"
+                        )
+                        if sucesso_email:
+                            print(f"📧 Email de cancelamento enviado para {email}")
+                        else:
+                            print(f"⚠️ Falha ao enviar email para {email}")
+                    except Exception as e:
+                        print(f"❌ Erro ao enviar email para {email}: {e}")
+                
+            except Exception as e:
+                print(f"❌ Erro ao processar agendamento {agendamento_id}: {e}")
+                resultado['erros'] += 1
+                resultado['detalhes'].append({
+                    'agendamento_id': agendamento_id,
+                    'nome': dados_banco[3] if len(dados_banco) > 3 else 'Nome não disponível',
+                    'acao': 'erro',
+                    'motivo': str(e)
+                })
+        
+        # Commit das mudanças
+        conn.commit()
+        conn.close()
+        
+        # Backup automático após sincronização
+        try:
+            backup_agendamentos_futuros_github()
+            print("💾 Backup automático realizado após sincronização")
+        except Exception as e:
+            print(f"⚠️ Erro no backup automático: {e}")
+        
+        # Log final
+        print(f"""
+🎯 SINCRONIZAÇÃO DE EVENTOS DELETADOS CONCLUÍDA:
+✅ Processados: {resultado['processados']}
+🚫 Cancelados: {resultado['cancelados']}
+❌ Erros: {resultado['erros']}
+        """)
+        
+        return resultado
+        
+    except Exception as e:
+        print(f"❌ Erro geral na sincronização de deletados: {e}")
+        return {
+            'sucesso': False,
+            'erro': str(e),
+            'processados': 0,
+            'cancelados': 0,
+            'erros': 0,
+            'detalhes': []
+        }
+
+
+def sincronizar_mudancas_google_calendar(modo="manual"):
+    """
+    Função principal que detecta e aplica todas as mudanças do Google Calendar
+    
+    Args:
+        modo: "manual" (chamada pelo usuário) ou "automatico" (verificação automática)
+    
+    Returns:
+        Dict com resultado completo da sincronização
+    """
+    
+    try:
+        print(f"🔄 Iniciando sincronização {modo} com Google Calendar...")
+        
+        # PASSO 1: Detectar mudanças
+        mudancas = comparar_eventos_com_banco()
+        
+        if not mudancas:
+            return {
+                'sucesso': False,
+                'erro': 'Falha na detecção de mudanças',
+                'estatisticas': {}
+            }
+        
+        # PASSO 2: Aplicar sincronização de eventos deletados
+        resultado_deletados = sincronizar_eventos_deletados(mudancas, modo)
+        
+        # PASSO 3: Aplicar sincronização de eventos editados
+        # (Implementaremos no Passo 3)
+        resultado_editados = {
+            'processados': 0,
+            'atualizados': 0,
+            'erros': 0,
+            'detalhes': []
+        }
+        
+        # Compilar resultado final
+        resultado_final = {
+            'sucesso': True,
+            'modo': modo,
+            'timestamp': datetime.now().isoformat(),
+            'mudancas_detectadas': {
+                'deletados': len(mudancas.get('deletados', [])),
+                'editados': len(mudancas.get('editados', [])),
+                'sem_mudancas': len(mudancas.get('sem_mudancas', []))
+            },
+            'acoes_realizadas': {
+                'cancelamentos': resultado_deletados['cancelados'],
+                'atualizacoes': resultado_editados['atualizados'],
+                'erros_total': resultado_deletados['erros'] + resultado_editados['erros']
+            },
+            'detalhes': {
+                'deletados': resultado_deletados['detalhes'],
+                'editados': resultado_editados['detalhes']
+            }
+        }
+        
+        return resultado_final
+        
+    except Exception as e:
+        print(f"❌ Erro na sincronização principal: {e}")
+        return {
+            'sucesso': False,
+            'erro': str(e),
+            'modo': modo,
+            'timestamp': datetime.now().isoformat()
+        }
+
 # ========================================
 # FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
 # ========================================
@@ -3743,8 +3969,72 @@ Sistema de Agendamento Online
                                         st.error(f"❌ Erro no teste: {str(e)}")
                         
                         with col2:
-                            if st.button("🔄 Sincronizar Agora", help="Aplicar mudanças detectadas"):
-                                st.info("⚠️ Função de sincronização será implementada no Passo 2")
+                            if st.button("🔄 Sincronizar Agora", help="Aplicar mudanças detectadas no Google Calendar"):
+                                with st.spinner("🔄 Sincronizando com Google Calendar..."):
+                                    try:
+                                        resultado = sincronizar_mudancas_google_calendar(modo="manual")
+                                        
+                                        if resultado['sucesso']:
+                                            st.success("✅ Sincronização concluída!")
+                                            
+                                            # Mostrar estatísticas
+                                            mudancas = resultado['mudancas_detectadas']
+                                            acoes = resultado['acoes_realizadas']
+                                            
+                                            # Métricas em colunas
+                                            col1_met, col2_met, col3_met = st.columns(3)
+                                            
+                                            with col1_met:
+                                                st.metric(
+                                                    "Deletados Detectados", 
+                                                    mudancas['deletados'],
+                                                    help="Eventos que estavam no sistema mas foram removidos do Google Calendar"
+                                                )
+                                            
+                                            with col2_met:
+                                                st.metric(
+                                                    "Cancelamentos Aplicados", 
+                                                    acoes['cancelamentos'],
+                                                    help="Agendamentos que foram cancelados no sistema"
+                                                )
+                                            
+                                            with col3_met:
+                                                st.metric(
+                                                    "Erros", 
+                                                    acoes['erros_total'],
+                                                    help="Problemas encontrados durante a sincronização"
+                                                )
+                                            
+                                            # Detalhes dos cancelamentos
+                                            if acoes['cancelamentos'] > 0:
+                                                st.success(f"🚫 **{acoes['cancelamentos']} agendamento(s) cancelado(s) automaticamente:**")
+                                                
+                                                for detalhe in resultado['detalhes']['deletados']:
+                                                    if detalhe['acao'] == 'cancelado':
+                                                        st.write(f"• **{detalhe['nome']}** - {detalhe['data']} às {detalhe['horario']}")
+                                                        st.caption(f"   Motivo: {detalhe['motivo']}")
+                                            
+                                            # Agendamentos que não precisaram de ação
+                                            if mudancas['sem_mudancas'] > 0:
+                                                st.info(f"✅ {mudancas['sem_mudancas']} agendamento(s) já sincronizado(s) corretamente")
+                                            
+                                            # Aviso sobre emails
+                                            envio_automatico = obter_configuracao("envio_automatico", False)
+                                            if envio_automatico and acoes['cancelamentos'] > 0:
+                                                st.info("📧 Emails de cancelamento foram enviados automaticamente aos clientes afetados")
+                                            
+                                            # Se não houve mudanças
+                                            if mudancas['deletados'] == 0 and mudancas['editados'] == 0:
+                                                st.success("🎉 **Perfeito!** Tudo já está sincronizado entre o sistema e o Google Calendar.")
+                                        
+                                        else:
+                                            st.error(f"❌ Erro na sincronização: {resultado.get('erro', 'Erro desconhecido')}")
+                                            
+                                    except Exception as e:
+                                        st.error(f"❌ Erro na sincronização: {str(e)}")
+                                        import traceback
+                                        with st.expander("🔍 Detalhes do erro (para debug)"):
+                                            st.code(traceback.format_exc())
                         
                         # Configurações avançadas
                         with st.expander("⚙️ Configurações Avançadas"):
