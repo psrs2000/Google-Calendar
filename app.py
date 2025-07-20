@@ -2262,252 +2262,75 @@ def remover_event_id_google(agendamento_id):
     finally:
         conn.close()
 
-def debug_google_calendar_connection():
-    """Função para debugar a conexão com Google Calendar"""
-    print("\n" + "="*60)
-    print("🔍 DEBUG: VERIFICANDO GOOGLE CALENDAR")
-    print("="*60)
-    
+def verificar_sincronizacao_bidirecional_corrigida():
+    """Versão corrigida com formato de data/hora adequado"""
     try:
-        # 1. Verificar se as funções Google existem
-        print("1️⃣ Verificando se funções Google existem...")
-        
-        try:
-            service = get_google_calendar_service()
-            print("✅ Função get_google_calendar_service() existe")
-        except NameError:
-            print("❌ Função get_google_calendar_service() NÃO existe")
-            return False
-        except Exception as e:
-            print(f"⚠️ Função existe mas deu erro: {e}")
-        
-        # 2. Verificar se service foi criado
-        print("2️⃣ Verificando se service foi criado...")
-        if service:
-            print("✅ Service criado com sucesso")
-        else:
-            print("❌ Service não foi criado (None)")
-            return False
-        
-        # 3. Testar conexão básica
-        print("3️⃣ Testando conexão básica...")
-        try:
-            calendars = service.calendarList().list().execute()
-            print(f"✅ Conexão OK - {len(calendars.get('items', []))} calendários encontrados")
-            
-            # Mostrar calendários
-            for cal in calendars.get('items', [])[:3]:  # Mostrar só os 3 primeiros
-                print(f"   📅 {cal.get('summary', 'Sem nome')} (ID: {cal.get('id', 'Sem ID')[:20]}...)")
-                
-        except Exception as e:
-            print(f"❌ Erro na conexão: {e}")
-            return False
-        
-        # 4. Verificar calendar_id
-        print("4️⃣ Verificando calendar_id...")
-        try:
-            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
-            print(f"✅ Calendar ID: {calendar_id}")
-        except:
-            calendar_id = "primary"
-            print(f"⚠️ Usando calendar_id padrão: {calendar_id}")
-        
-        # 5. Testar busca de eventos
-        print("5️⃣ Testando busca de eventos...")
-        try:
-            from datetime import datetime, timedelta
-            agora = datetime.now()
-            fim = agora + timedelta(days=7)  # Só 7 dias para teste
-            
-            events_result = service.events().list(
-                calendarId=calendar_id,
-                timeMin=agora.isoformat(),
-                timeMax=fim.isoformat(),
-                maxResults=10,  # Máximo 10 para teste
-                singleEvents=True,
-                orderBy='startTime'
-            ).execute()
-            
-            eventos = events_result.get('items', [])
-            print(f"✅ Busca de eventos OK - {len(eventos)} eventos encontrados")
-            
-            # Mostrar alguns eventos
-            for i, evento in enumerate(eventos[:3]):  # Mostrar só os 3 primeiros
-                titulo = evento.get('summary', 'Sem título')
-                descricao = evento.get('description', '')
-                tem_id_sistema = '🆔 ID:' in descricao
-                print(f"   📅 Evento {i+1}: {titulo} | Tem ID sistema: {tem_id_sistema}")
-                
-        except Exception as e:
-            print(f"❌ Erro na busca de eventos: {e}")
-            return False
-        
-        # 6. Verificar agendamentos do sistema
-        print("6️⃣ Verificando agendamentos do sistema...")
-        try:
-            agendamentos = buscar_agendamentos()
-            print(f"✅ {len(agendamentos)} agendamentos no sistema")
-            
-            # Mostrar alguns agendamentos
-            for i, ag in enumerate(agendamentos[:3]):  # Mostrar só os 3 primeiros
-                if len(ag) >= 4:
-                    print(f"   📋 Agendamento {i+1}: ID={ag[0]}, Data={ag[1]}, Horário={ag[2]}, Nome={ag[3]}")
-                    
-        except Exception as e:
-            print(f"❌ Erro ao buscar agendamentos: {e}")
-            return False
-        
-        print("\n✅ DEBUG CONCLUÍDO - Tudo parece estar funcionando!")
-        print("="*60)
-        return True
-        
-    except Exception as e:
-        print(f"\n❌ ERRO GERAL NO DEBUG: {e}")
-        print("="*60)
-        return False
-
-def teste_sincronizacao_simples():
-    """Versão super simples do teste de sincronização"""
-    print("\n" + "="*60)
-    print("🧪 TESTE SIMPLES DE SINCRONIZAÇÃO")
-    print("="*60)
-    
-    # Primeiro, executar debug
-    if not debug_google_calendar_connection():
-        print("❌ Debug falhou - não é possível continuar")
-        return False
-    
-    print("\n🔄 Executando sincronização...")
-    
-    try:
-        sucesso, mensagem = verificar_sincronizacao_bidirecional()
-        
-        if sucesso:
-            print(f"✅ SUCESSO: {mensagem}")
-        else:
-            print(f"❌ FALHA: {mensagem}")
-            
-        return sucesso
-        
-    except Exception as e:
-        print(f"❌ ERRO NO TESTE: {e}")
-        return False
-
-def monitoramento_debug():
-    """Versão com debug do monitoramento"""
-    print("🔄 INICIANDO MONITORAMENTO COM DEBUG")
-    
-    def monitorar_com_logs():
-        contador = 0
-        while True:
-            try:
-                contador += 1
-                agora = datetime.now().strftime("%H:%M:%S")
-                print(f"\n⏰ [{agora}] Verificação automática #{contador}")
-                
-                # Verificar se Google Calendar está ativo
-                google_ativo = obter_configuracao("google_calendar_ativo", False)
-                print(f"📊 Google Calendar ativo: {google_ativo}")
-                
-                if google_ativo:
-                    # Executar sincronização
-                    sucesso, mensagem = verificar_sincronizacao_bidirecional()
-                    
-                    if sucesso:
-                        print(f"✅ {mensagem}")
-                    else:
-                        print(f"❌ {mensagem}")
-                else:
-                    print("⏸️ Google Calendar desativado - pulando verificação")
-                
-                # Aguardar 30 segundos (para debug)
-                print(f"⏳ Próxima verificação em 30 segundos...")
-                time.sleep(30)
-                
-            except Exception as e:
-                print(f"❌ Erro no monitoramento: {e}")
-                import traceback
-                traceback.print_exc()
-                time.sleep(30)
-    
-    # Iniciar thread
-    import threading
-    thread = threading.Thread(target=monitorar_com_logs, daemon=True)
-    thread.start()
-    print("✅ Monitoramento iniciado!")
-
-# ========================================
-# VERSÃO SUPER SIMPLES DA SINCRONIZAÇÃO
-# ========================================
-
-def verificar_sincronizacao_bidirecional():
-    """Versão com mais logs para debug"""
-    print("\n🔍 INICIANDO verificar_sincronizacao_bidirecional()")
-    
-    try:
-        # 1. Conectar com Google
-        print("1️⃣ Conectando com Google Calendar...")
+        print("🔍 Conectando com Google Calendar...")
         service = get_google_calendar_service()
         if not service:
-            print("❌ Falha na conexão")
             return False, "Erro ao conectar com Google Calendar"
-        print("✅ Conectado com Google Calendar")
         
-        # 2. Configurar período
+        # CORREÇÃO: Usar timezone adequado e formato RFC3339
         from datetime import datetime, timedelta
-        agora = datetime.now()
+        import pytz
+        
+        # Usar timezone do Brasil
+        tz_brasil = pytz.timezone('America/Sao_Paulo')
+        agora = datetime.now(tz_brasil)
         fim_periodo = agora + timedelta(days=30)
         
-        agora_iso = agora.isoformat()
-        fim_iso = fim_periodo.isoformat()
+        # Formato RFC3339 correto
+        agora_iso = agora.strftime('%Y-%m-%dT%H:%M:%S%z')
+        fim_iso = fim_periodo.strftime('%Y-%m-%dT%H:%M:%S%z')
         
-        print(f"2️⃣ Período de busca: {agora_iso} até {fim_iso}")
+        # Adicionar os dois pontos no timezone (formato esperado pela API)
+        if len(agora_iso) > 19 and agora_iso[-2] != ':':
+            agora_iso = agora_iso[:-2] + ':' + agora_iso[-2:]
+        if len(fim_iso) > 19 and fim_iso[-2] != ':':
+            fim_iso = fim_iso[:-2] + ':' + fim_iso[-2:]
         
-        # 3. Buscar eventos
+        print(f"📅 Período: {agora_iso} até {fim_iso}")
+        
+        # Configurar calendar_id
         try:
             calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
         except:
             calendar_id = "primary"
         
-        print(f"3️⃣ Buscando eventos no calendário: {calendar_id}")
+        print(f"📋 Buscando eventos no calendário: {calendar_id}")
         
+        # BUSCA CORRIGIDA
         events_result = service.events().list(
             calendarId=calendar_id,
             timeMin=agora_iso,
             timeMax=fim_iso,
             singleEvents=True,
-            orderBy='startTime'
+            orderBy='startTime',
+            maxResults=50  # Limite para não sobrecarregar
         ).execute()
         
         eventos_google = events_result.get('items', [])
-        print(f"✅ Encontrados {len(eventos_google)} eventos no Google Calendar")
+        print(f"✅ {len(eventos_google)} eventos encontrados no Google Calendar")
         
-        # 4. Buscar agendamentos
-        print("4️⃣ Buscando agendamentos no sistema...")
+        # Buscar agendamentos do sistema
         agendamentos_sistema = buscar_agendamentos()
-        print(f"✅ Encontrados {len(agendamentos_sistema)} agendamentos no sistema")
+        print(f"✅ {len(agendamentos_sistema)} agendamentos no sistema")
         
-        # 5. Processar eventos
-        print("5️⃣ Processando eventos...")
         sincronizacoes = 0
-        eventos_processados = 0
         
+        # Processar eventos
         for evento in eventos_google:
-            eventos_processados += 1
-            
             try:
                 descricao = evento.get('description', '')
                 titulo = evento.get('summary', 'Sem título')
                 
-                print(f"   📅 Processando evento: {titulo}")
-                
                 if '🆔 ID:' in descricao:
-                    # Extrair ID
+                    # Extrair ID do agendamento
                     id_match = descricao.split('🆔 ID:')[1].split('\n')[0].strip()
                     
                     try:
                         agendamento_id = int(id_match)
-                        print(f"      🆔 ID encontrado: {agendamento_id}")
+                        print(f"🔍 Verificando agendamento ID {agendamento_id}: {titulo}")
                         
                         # Buscar no sistema
                         agendamento_encontrado = None
@@ -2517,40 +2340,267 @@ def verificar_sincronizacao_bidirecional():
                                 break
                         
                         if agendamento_encontrado:
-                            print(f"      ✅ Agendamento encontrado no sistema")
-                            
-                            # Verificar status
+                            # Verificar se foi cancelado no Google
                             status_google = evento.get('status', 'confirmed')
                             status_sistema = agendamento_encontrado[6] if len(agendamento_encontrado) > 6 else 'pendente'
                             
-                            print(f"      📊 Status Google: {status_google} | Sistema: {status_sistema}")
-                            
                             if status_google == 'cancelled' and status_sistema != 'cancelado':
-                                print(f"      🔄 SINCRONIZANDO: Cancelando agendamento {agendamento_id}")
+                                print(f"🔄 SYNC: Cancelando agendamento {agendamento_id}")
                                 atualizar_status_agendamento(agendamento_id, 'cancelado')
                                 sincronizacoes += 1
-                        else:
-                            print(f"      ⚠️ Agendamento {agendamento_id} não encontrado no sistema")
                             
+                            # Verificar mudanças de horário/data
+                            start_time = evento.get('start', {})
+                            if 'dateTime' in start_time:
+                                # Parse da data do Google
+                                data_google_raw = start_time['dateTime']
+                                
+                                # Converter para datetime
+                                if data_google_raw.endswith('Z'):
+                                    data_google_raw = data_google_raw[:-1] + '+00:00'
+                                
+                                data_google = datetime.fromisoformat(data_google_raw.replace('Z', '+00:00'))
+                                
+                                # Converter para timezone local
+                                if data_google.tzinfo is None:
+                                    data_google = pytz.utc.localize(data_google)
+                                
+                                data_google_local = data_google.astimezone(tz_brasil)
+                                data_str = data_google_local.strftime('%Y-%m-%d')
+                                horario_str = data_google_local.strftime('%H:%M')
+                                
+                                data_sistema = agendamento_encontrado[1]
+                                horario_sistema = agendamento_encontrado[2]
+                                
+                                if data_str != data_sistema or horario_str != horario_sistema:
+                                    print(f"🔄 SYNC: Atualizando horário do agendamento {agendamento_id}")
+                                    print(f"   Sistema: {data_sistema} {horario_sistema}")
+                                    print(f"   Google:  {data_str} {horario_str}")
+                                    
+                                    # Atualizar no banco
+                                    conn = conectar()
+                                    c = conn.cursor()
+                                    c.execute("UPDATE agendamentos SET data = ?, horario = ? WHERE id = ?",
+                                             (data_str, horario_str, agendamento_id))
+                                    conn.commit()
+                                    conn.close()
+                                    sincronizacoes += 1
+                        
                     except ValueError:
-                        print(f"      ⚠️ ID inválido: {id_match}")
-                else:
-                    print(f"      ℹ️ Evento sem ID do sistema")
-                    
+                        print(f"⚠️ ID inválido: {id_match}")
+                        continue
+            
             except Exception as e:
-                print(f"      ❌ Erro ao processar evento: {e}")
+                print(f"❌ Erro ao processar evento: {e}")
+                continue
         
-        print(f"6️⃣ Processamento concluído:")
-        print(f"   📊 Eventos processados: {eventos_processados}")
-        print(f"   🔄 Sincronizações realizadas: {sincronizacoes}")
+        print(f"✅ Sincronização concluída: {sincronizacoes} alterações")
+        return True, f"Sincronização concluída: {sincronizacoes} alterações"
+        
+    except Exception as e:
+        print(f"❌ Erro na sincronização: {e}")
+        return False, f"Erro na sincronização: {str(e)}"
+
+# ========================================
+# VERSÃO ALTERNATIVA SEM PYTZ (caso não tenha a biblioteca)
+# ========================================
+
+def verificar_sincronizacao_bidirecional_simples():
+    """Versão simples sem pytz"""
+    try:
+        print("🔍 Conectando com Google Calendar...")
+        service = get_google_calendar_service()
+        if not service:
+            return False, "Erro ao conectar com Google Calendar"
+        
+        # Usar UTC simples
+        from datetime import datetime, timedelta, timezone
+        
+        agora = datetime.now(timezone.utc)
+        fim_periodo = agora + timedelta(days=30)
+        
+        # Formato ISO simples
+        agora_iso = agora.isoformat()
+        fim_iso = fim_periodo.isoformat()
+        
+        print(f"📅 Período UTC: {agora_iso} até {fim_iso}")
+        
+        try:
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+        except:
+            calendar_id = "primary"
+        
+        # Busca com parâmetros mínimos
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=agora_iso,
+            timeMax=fim_iso,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        eventos_google = events_result.get('items', [])
+        print(f"✅ {len(eventos_google)} eventos encontrados")
+        
+        # Buscar agendamentos
+        agendamentos_sistema = buscar_agendamentos()
+        print(f"✅ {len(agendamentos_sistema)} agendamentos no sistema")
+        
+        sincronizacoes = 0
+        
+        # Processar só os cancelamentos por enquanto
+        for evento in eventos_google:
+            try:
+                descricao = evento.get('description', '')
+                
+                if '🆔 ID:' in descricao:
+                    id_match = descricao.split('🆔 ID:')[1].split('\n')[0].strip()
+                    
+                    try:
+                        agendamento_id = int(id_match)
+                        
+                        # Buscar no sistema
+                        agendamento_encontrado = None
+                        for ag in agendamentos_sistema:
+                            if ag[0] == agendamento_id:
+                                agendamento_encontrado = ag
+                                break
+                        
+                        if agendamento_encontrado:
+                            status_google = evento.get('status', 'confirmed')
+                            status_sistema = agendamento_encontrado[6] if len(agendamento_encontrado) > 6 else 'pendente'
+                            
+                            if status_google == 'cancelled' and status_sistema != 'cancelado':
+                                print(f"🔄 Cancelando agendamento {agendamento_id}")
+                                atualizar_status_agendamento(agendamento_id, 'cancelado')
+                                sincronizacoes += 1
+                        
+                    except ValueError:
+                        continue
+            
+            except Exception as e:
+                print(f"❌ Erro: {e}")
+                continue
         
         return True, f"Sincronização concluída: {sincronizacoes} alterações"
         
     except Exception as e:
-        print(f"❌ ERRO na sincronização: {e}")
-        import traceback
-        traceback.print_exc()
-        return False, f"Erro na sincronização: {str(e)}"
+        print(f"❌ Erro: {e}")
+        return False, f"Erro: {str(e)}"
+
+# ========================================
+# ATUALIZAR O DEBUG PARA USAR A VERSÃO CORRIGIDA
+# ========================================
+
+def debug_google_calendar_interface_corrigido():
+    """Debug corrigido com formato de data adequado"""
+    
+    st.subheader("🔍 Debug Google Calendar - CORRIGIDO")
+    
+    if st.button("🧪 Testar Busca de Eventos (CORRIGIDO)", type="primary"):
+        
+        log_container = st.empty()
+        logs = []
+        
+        def add_log(message):
+            logs.append(message)
+            log_container.text_area("📋 Logs:", "\n".join(logs), height=400)
+        
+        try:
+            add_log("🚀 Testando busca de eventos com formato corrigido...")
+            
+            service = get_google_calendar_service()
+            if not service:
+                add_log("❌ Service não criado")
+                return
+            
+            # TESTE 1: Formato UTC simples
+            add_log("1️⃣ Testando com UTC simples...")
+            try:
+                from datetime import datetime, timedelta, timezone
+                
+                agora = datetime.now(timezone.utc)
+                fim = agora + timedelta(days=7)
+                
+                agora_iso = agora.isoformat()
+                fim_iso = fim.isoformat()
+                
+                add_log(f"   Período: {agora_iso} até {fim_iso}")
+                
+                events_result = service.events().list(
+                    calendarId="primary",
+                    timeMin=agora_iso,
+                    timeMax=fim_iso,
+                    maxResults=5
+                ).execute()
+                
+                eventos = events_result.get('items', [])
+                add_log(f"✅ UTC: {len(eventos)} eventos encontrados")
+                
+                for i, evento in enumerate(eventos[:3]):
+                    titulo = evento.get('summary', 'Sem título')
+                    add_log(f"   📅 {i+1}. {titulo}")
+                
+            except Exception as e:
+                add_log(f"❌ Erro UTC: {e}")
+            
+            # TESTE 2: Sem parâmetros de tempo (só eventos futuros)
+            add_log("2️⃣ Testando sem timeMin/timeMax...")
+            try:
+                events_result = service.events().list(
+                    calendarId="primary",
+                    maxResults=5,
+                    orderBy='startTime',
+                    singleEvents=True
+                ).execute()
+                
+                eventos = events_result.get('items', [])
+                add_log(f"✅ Sem filtros: {len(eventos)} eventos encontrados")
+                
+            except Exception as e:
+                add_log(f"❌ Erro sem filtros: {e}")
+            
+            add_log("✅ Teste concluído!")
+            st.success("✅ Teste de formatos concluído!")
+            
+        except Exception as e:
+            add_log(f"❌ Erro geral: {e}")
+            st.error(f"❌ Erro: {e}")
+
+# ========================================
+# TESTE DE SINCRONIZAÇÃO CORRIGIDO
+# ========================================
+
+def testar_sincronizacao_corrigida():
+    """Teste de sincronização com formato corrigido"""
+    
+    st.subheader("🔄 Teste de Sincronização - CORRIGIDO")
+    
+    if st.button("🧪 Testar Sincronização (CORRIGIDO)", type="secondary"):
+        
+        log_container = st.empty()
+        logs = []
+        
+        def add_log(message):
+            logs.append(message)
+            log_container.text_area("📋 Logs da Sincronização:", "\n".join(logs), height=300)
+        
+        try:
+            add_log("🔄 Testando sincronização com formato corrigido...")
+            
+            # Usar a versão simples primeiro
+            sucesso, mensagem = verificar_sincronizacao_bidirecional_simples()
+            
+            if sucesso:
+                add_log(f"✅ SUCESSO: {mensagem}")
+                st.success(f"✅ {mensagem}")
+            else:
+                add_log(f"❌ FALHA: {mensagem}")
+                st.error(f"❌ {mensagem}")
+                
+        except Exception as e:
+            add_log(f"❌ ERRO: {e}")
+            st.error(f"❌ Erro: {e}")
 
 # ========================================
 # FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
@@ -3124,18 +3174,7 @@ init_config()
 # Inicializar tabela de períodos
 init_config_periodos()
 
-print("\n🚀 INICIANDO DEBUG DO GOOGLE CALENDAR...")
 
-# Executar debug manual
-debug_google_calendar_connection()
-
-# Executar teste manual
-teste_sincronizacao_simples()
-
-# Iniciar monitoramento com debug (comente se não quiser)
-# monitoramento_debug()
-
-print("✅ Inicialização com debug concluída!")
 
 # Recuperação atuais e futuros por sessão - só uma vez por acesso
 if 'agendamentos_recuperados' not in st.session_state:
@@ -4928,6 +4967,13 @@ Sistema de Agendamento Online
                 interface_backup_email()
 
             st.markdown('</div>', unsafe_allow_html=True)
+
+        elif opcao == "🔧 Debug Google":  # Nova opção temporária
+            
+            st.markdown("### 🔧 Debug Google Calendar")
+            
+            debug_google_calendar_interface_corrigido()
+            testar_sincronizacao_corrigida()
 
 else:
     # INTERFACE DO CLIENTE
