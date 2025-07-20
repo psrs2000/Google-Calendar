@@ -12,8 +12,14 @@ import hashlib
 import threading
 import json
 import traceback
-import requests
-import base64
+try:
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+    print("✅ Imports Google OK")
+except ImportError as e:
+    print(f"❌ Erro nos imports Google: {e}")
+
 
 # Verificar se é modo admin (versão dinâmica corrigida)
 is_admin = False
@@ -490,7 +496,7 @@ def horario_disponivel(data, horario):
     return True
 
 def adicionar_agendamento(nome, telefone, email, data, horario):
-    """Adiciona agendamento com integração Todoist"""
+    """Adiciona agendamento com integração Google Calendar"""
     conn = conectar()
     c = conn.cursor()
     
@@ -511,7 +517,16 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
     finally:
         conn.close()
     
-    # Envio de emails (código original mantido)
+    # NOVO: Integração com Google Calendar
+    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
+    
+    if google_calendar_ativo and status_inicial == "confirmado" and agendamento_id:
+        try:
+            criar_evento_google_calendar(agendamento_id, nome, telefone, email, data, horario)
+        except Exception as e:
+            print(f"❌ Erro na integração Google Calendar: {e}")
+    
+    # Envio de emails (código original)
     envio_automatico = obter_configuracao("envio_automatico", False)
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
     
@@ -520,30 +535,6 @@ def adicionar_agendamento(nome, telefone, email, data, horario):
             enviar_email_confirmacao(agendamento_id, nome, email, data, horario)
         except Exception as e:
             print(f"❌ Erro ao enviar email de confirmação automática: {e}")
-    
-    # NOVO: Integração com Todoist
-    todoist_ativo = obter_configuracao("todoist_ativo", False)
-    incluir_pendentes = obter_configuracao("todoist_incluir_pendentes", True)
-    
-    if todoist_ativo and agendamento_id:
-        # Decidir se deve criar tarefa baseado nas configurações
-        deve_criar = False
-        
-        if status_inicial == "confirmado":
-            deve_criar = True  # Sempre cria para confirmados
-        elif status_inicial == "pendente" and incluir_pendentes:
-            deve_criar = True  # Só cria para pendentes se configurado
-        
-        if deve_criar:
-            try:
-                sucesso = criar_tarefa_todoist(agendamento_id, nome, telefone, email, data, horario)
-                if sucesso:
-                    print(f"✅ Tarefa Todoist criada: {nome} - {data} {horario}")
-                else:
-                    print(f"⚠️ Falha ao criar tarefa Todoist: {nome}")
-            except Exception as e:
-                print(f"❌ Erro na integração Todoist: {e}")
-    
     backup_agendamentos_futuros_github()
     return status_inicial
 
@@ -552,18 +543,22 @@ def cancelar_agendamento(nome, telefone, data):
     conn = conectar()
     c = conn.cursor()
     
-    # Buscar TODOS os agendamentos do dia
+    # MUDANÇA PRINCIPAL: Buscar TODOS os agendamentos do dia, não só o primeiro
     agendamentos_do_dia = []
     
     try:
+        # Tentar buscar com email e ID - TODOS OS AGENDAMENTOS DO DIA
         c.execute("SELECT id, email, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
         agendamentos_do_dia = c.fetchall()
     except sqlite3.OperationalError:
+        # Se não tem coluna email, buscar só ID e horário - TODOS OS AGENDAMENTOS DO DIA
         try:
             c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
             agendamentos_sem_email = c.fetchall()
+            # Adicionar email vazio para manter formato
             agendamentos_do_dia = [(ag[0], '', ag[1]) for ag in agendamentos_sem_email]
         except:
+            # Fallback para versões muito antigas sem coluna status
             c.execute("SELECT id, horario FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
             agendamentos_sem_email = c.fetchall()
             agendamentos_do_dia = [(ag[0], '', ag[1]) for ag in agendamentos_sem_email]
@@ -573,6 +568,7 @@ def cancelar_agendamento(nome, telefone, data):
         c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status IN ('pendente', 'confirmado')", (nome, telefone, data))
         existe = c.fetchone()[0] > 0
     except sqlite3.OperationalError:
+        # Fallback para versões antigas sem coluna status
         c.execute("SELECT COUNT(*) FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=?", (nome, telefone, data))
         existe = c.fetchone()[0] > 0
     
@@ -586,29 +582,28 @@ def cancelar_agendamento(nome, telefone, data):
 
             print(f"✅ {len(agendamentos_do_dia)} agendamento(s) cancelado(s): {nome} - {data}")
 
-            # NOVO: Integração com Todoist para MÚLTIPLOS eventos
-            todoist_ativo = obter_configuracao("todoist_ativo", False)
-            remover_cancelados = obter_configuracao("todoist_remover_cancelados", True)
+            # NOVO: Integração com Google Calendar para MÚLTIPLOS eventos
+            google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
             
-            if todoist_ativo and remover_cancelados:
+            if google_calendar_ativo:
                 eventos_deletados = 0
                 for agendamento in agendamentos_do_dia:
                     agendamento_id = agendamento[0]
                     horario = agendamento[2]
                     
                     try:
-                        sucesso = deletar_tarefa_todoist(agendamento_id)
+                        sucesso = deletar_evento_google_calendar(agendamento_id)
                         if sucesso:
                             eventos_deletados += 1
-                            print(f"✅ Tarefa Todoist removida: {horario}")
+                            print(f"✅ Evento Google Calendar deletado: {horario}")
                         else:
-                            print(f"⚠️ Falha ao remover tarefa Todoist: {horario}")
+                            print(f"⚠️ Falha ao deletar evento Google Calendar: {horario}")
                     except Exception as e:
-                        print(f"❌ Erro ao remover tarefa Todoist {horario}: {e}")
+                        print(f"❌ Erro ao deletar evento Google Calendar {horario}: {e}")
                 
-                print(f"📝 Todoist: {eventos_deletados}/{len(agendamentos_do_dia)} tarefas removidas")
+                print(f"📅 Google Calendar: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
             
-            # Enviar email de cancelamento (código original mantido)
+            # Enviar email de cancelamento (usando dados do primeiro agendamento)
             envio_automatico = obter_configuracao("envio_automatico", False)
             enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
             
@@ -617,6 +612,7 @@ def cancelar_agendamento(nome, telefone, data):
                 email_cliente = primeiro_agendamento[1] if len(primeiro_agendamento) > 1 else ""
                 
                 if email_cliente:
+                    # Se múltiplos agendamentos, mencionar no email
                     if len(agendamentos_do_dia) > 1:
                         horarios_cancelados = ", ".join([ag[2] for ag in agendamentos_do_dia])
                         horario_para_email = f"Horários: {horarios_cancelados}"
@@ -631,8 +627,8 @@ def cancelar_agendamento(nome, telefone, data):
                             print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
                     except Exception as e:
                         print(f"❌ Erro ao enviar email de cancelamento: {e}")
-            
             backup_agendamentos_futuros_github()
+            
             return True
             
         except sqlite3.OperationalError:
@@ -641,6 +637,7 @@ def cancelar_agendamento(nome, telefone, data):
                 c.execute("ALTER TABLE agendamentos ADD COLUMN status TEXT DEFAULT 'pendente'")
                 conn.commit()
                 
+                # Tentar novamente
                 c.execute("UPDATE agendamentos SET status = 'cancelado' WHERE nome_cliente=? AND telefone=? AND data=?", 
                          (nome, telefone, data))
                 conn.commit()
@@ -648,25 +645,46 @@ def cancelar_agendamento(nome, telefone, data):
                 
                 print(f"✅ {len(agendamentos_do_dia)} agendamento(s) cancelado(s): {nome} - {data}")
                 
-                # Todoist e email (mesmo código de cima)
-                todoist_ativo = obter_configuracao("todoist_ativo", False)
-                remover_cancelados = obter_configuracao("todoist_remover_cancelados", True)
+                # Google Calendar e email (mesmo código de cima)
+                google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
                 
-                if todoist_ativo and remover_cancelados:
+                if google_calendar_ativo:
                     eventos_deletados = 0
                     for agendamento in agendamentos_do_dia:
                         agendamento_id = agendamento[0]
                         horario = agendamento[2]
                         
                         try:
-                            sucesso = deletar_tarefa_todoist(agendamento_id)
+                            sucesso = deletar_evento_google_calendar(agendamento_id)
                             if sucesso:
                                 eventos_deletados += 1
-                                print(f"✅ Tarefa Todoist removida: {horario}")
+                                print(f"✅ Evento Google Calendar deletado: {horario}")
                         except Exception as e:
-                            print(f"❌ Erro ao remover tarefa Todoist {horario}: {e}")
+                            print(f"❌ Erro ao deletar evento Google Calendar {horario}: {e}")
                     
-                    print(f"📝 Todoist: {eventos_deletados}/{len(agendamentos_do_dia)} tarefas removidas")
+                    print(f"📅 Google Calendar: {eventos_deletados}/{len(agendamentos_do_dia)} eventos deletados")
+                
+                # Email de cancelamento
+                envio_automatico = obter_configuracao("envio_automatico", False)
+                enviar_cancelamento = obter_configuracao("enviar_cancelamento", True)
+                
+                if envio_automatico and enviar_cancelamento and agendamentos_do_dia:
+                    primeiro_agendamento = agendamentos_do_dia[0]
+                    email_cliente = primeiro_agendamento[1] if len(primeiro_agendamento) > 1 else ""
+                    
+                    if email_cliente:
+                        if len(agendamentos_do_dia) > 1:
+                            horarios_cancelados = ", ".join([ag[2] for ag in agendamentos_do_dia])
+                            horario_para_email = f"Horários: {horarios_cancelados}"
+                        else:
+                            horario_para_email = agendamentos_do_dia[0][2]
+                        
+                        try:
+                            sucesso = enviar_email_cancelamento(nome, email_cliente, data, horario_para_email, "cliente")
+                            if sucesso:
+                                print(f"✅ Email de cancelamento enviado para {email_cliente}")
+                        except Exception as e:
+                            print(f"❌ Erro ao enviar email de cancelamento: {e}")
                 
                 return True
                 
@@ -761,7 +779,7 @@ def buscar_agendamentos():
     return agendamentos
 
 def atualizar_status_agendamento(agendamento_id, novo_status):
-    """Atualiza status do agendamento com integração Todoist"""
+    """Atualiza status do agendamento com integração Google Calendar"""
     conn = conectar()
     c = conn.cursor()
     
@@ -774,10 +792,10 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
     conn.commit()
     conn.close()
     
-    # NOVO: Integração com Todoist
-    todoist_ativo = obter_configuracao("todoist_ativo", False)
+    # NOVO: Integração com Google Calendar
+    google_calendar_ativo = obter_configuracao("google_calendar_ativo", False)
     
-    if todoist_ativo and agendamento_dados:
+    if google_calendar_ativo and agendamento_dados:
         nome_cliente = agendamento_dados[0]
         email = agendamento_dados[1] if len(agendamento_dados) > 1 else ""
         data = agendamento_dados[2] if len(agendamento_dados) > 2 else ""
@@ -786,40 +804,23 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
         
         try:
             if novo_status == 'confirmado':
-                # Verificar se tarefa já existe
-                tarefa_existente = obter_configuracao(f"todoist_task_{agendamento_id}", "")
-                
-                if not tarefa_existente:
-                    # Criar nova tarefa se não existe
-                    sucesso = criar_tarefa_todoist(agendamento_id, nome_cliente, telefone, email, data, horario)
-                    if sucesso:
-                        print(f"✅ Tarefa Todoist criada para confirmação: {nome_cliente}")
-                else:
-                    # Atualizar tarefa existente
-                    sucesso = atualizar_tarefa_todoist(agendamento_id, nome_cliente, novo_status)
-                    if sucesso:
-                        print(f"✅ Tarefa Todoist atualizada para confirmado: {nome_cliente}")
-                
-            elif novo_status == 'atendido':
-                # Marcar como concluída
-                marcar_concluido = obter_configuracao("todoist_marcar_concluido", True)
-                if marcar_concluido:
-                    sucesso = atualizar_tarefa_todoist(agendamento_id, nome_cliente, novo_status)
-                    if sucesso:
-                        print(f"🎉 Tarefa Todoist marcada como concluída: {nome_cliente}")
+                # Criar evento se não existir
+                event_id = obter_event_id_google(agendamento_id)
+                if not event_id:
+                    criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario)
                 
             elif novo_status == 'cancelado':
-                # Remover tarefa
-                remover_cancelados = obter_configuracao("todoist_remover_cancelados", True)
-                if remover_cancelados:
-                    sucesso = deletar_tarefa_todoist(agendamento_id)
-                    if sucesso:
-                        print(f"🗑️ Tarefa Todoist removida: {nome_cliente}")
+                # Deletar evento
+                deletar_evento_google_calendar(agendamento_id)
+                
+            elif novo_status == 'atendido':
+                # Atualizar evento
+                atualizar_evento_google_calendar(agendamento_id, nome_cliente, novo_status)
                 
         except Exception as e:
-            print(f"❌ Erro na integração Todoist: {e}")
+            print(f"❌ Erro na integração Google Calendar: {e}")
     
-    # Envio de emails (código original mantido)
+    # Envio de emails (código original)
     envio_automatico = obter_configuracao("envio_automatico", False)
     enviar_confirmacao = obter_configuracao("enviar_confirmacao", True)
     
@@ -841,8 +842,7 @@ def atualizar_status_agendamento(agendamento_id, novo_status):
                 enviar_email_cancelamento(nome_cliente, email, data, horario, "admin")
             except Exception as e:
                 print(f"❌ Erro ao enviar email de cancelamento: {e}")
-    
-    backup_agendamentos_futuros_github()           
+    backup_agendamentos_futuros_github()            
 
 def deletar_agendamento(agendamento_id):
     conn = conectar()
@@ -1381,8 +1381,8 @@ def criar_menu_horizontal():
         <p style="color: white; text-align: center; margin: 0; font-size: 1rem; font-weight: 400; letter-spacing: 1px;">🔧 Menu Administrativo</p>
     """, unsafe_allow_html=True)
     
-    # Menu responsivo ATUALIZADO com 7 colunas (NOVO!)
-    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    # Menu responsivo ATUALIZADO com 6 colunas
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
         if st.button("⚙️ **Configurações**", 
@@ -1425,14 +1425,6 @@ def criar_menu_horizontal():
             st.rerun()
     
     with col6:
-        if st.button("🔗 **Integrações**", 
-                    key="btn_integracoes", 
-                    use_container_width=True,
-                    help="Integração com Todoist e outros serviços"):
-            st.session_state.menu_opcao = "🔗 Integrações"
-            st.rerun()
-    
-    with col7:
         if st.button("🚪 **Sair**", 
                     key="btn_sair", 
                     use_container_width=True,
@@ -1452,6 +1444,11 @@ def criar_menu_horizontal():
     
     return st.session_state.menu_opcao
 
+# PASSO 1: Adicionar esta função no app.py (depois das outras funções do banco)
+
+import requests
+import json
+import base64
 
 def get_github_config():
     """Obtém configurações do GitHub"""
@@ -1965,6 +1962,305 @@ def recuperar_agendamentos_automatico():
         print("✅ Mantendo dados locais por segurança")
         return True  # Em caso de qualquer erro, preserva dados atuais
 
+
+
+def get_google_calendar_service():
+    """Configura Google Calendar usando Streamlit Secrets"""
+    try:
+        print("🔍 Iniciando get_google_calendar_service...")
+        
+        # Obter credenciais dos secrets
+        creds_info = {
+            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
+            "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
+            "token_uri": "https://oauth2.googleapis.com/token"
+        }
+        
+        print("🔍 Secrets lidos com sucesso")
+        
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+        
+        print("🔍 Imports OK")
+        
+        credentials = Credentials.from_authorized_user_info(creds_info)
+        print("🔍 Credentials criadas")
+        
+        # Renovar token se necessário
+        if credentials.expired:
+            print("🔍 Token expirado, renovando...")
+            credentials.refresh(Request())
+            print("🔍 Token renovado")
+        
+        print("🔍 Criando service...")
+        service = build('calendar', 'v3', credentials=credentials)
+        print("✅ Service criado com sucesso")
+        return service
+        
+    except Exception as e:
+        print(f"❌ ERRO NA FUNÇÃO: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, data, horario, max_tentativas=3):
+    print(f"🔍 DEBUG: Tentando criar evento - ID: {agendamento_id}, Cliente: {nome_cliente}")  # ← ADICIONAR ESTA LINHA
+    """Cria evento no Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Criando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)
+                    continue
+                return False
+            
+            # Configurações do calendário
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Montar data/hora do evento
+            data_inicio = datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
+            
+            # Duração baseada na configuração
+            intervalo_consultas = obter_configuracao("intervalo_consultas", 60)
+            data_fim = data_inicio + timedelta(minutes=intervalo_consultas)
+            
+            # Dados do profissional
+            nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
+            especialidade = obter_configuracao("especialidade", "Clínico Geral")
+            nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
+            
+            evento = {
+                'summary': f'📅 {nome_cliente} - {especialidade}',
+                'description': f'''
+🏥 {nome_clinica}
+👨‍⚕️ {nome_profissional} - {especialidade}
+
+👤 Cliente: {nome_cliente}
+📱 Telefone: {telefone}
+📧 Email: {email}
+
+🆔 ID: {agendamento_id}
+📝 Sistema de Agendamento Online
+                '''.strip(),
+                'start': {
+                    'dateTime': data_inicio.isoformat(),
+                    'timeZone': 'America/Sao_Paulo',
+                },
+                'end': {
+                    'dateTime': data_fim.isoformat(),
+                    'timeZone': 'America/Sao_Paulo',
+                },
+                'attendees': [
+                    {'email': email}
+                ] if email else [],
+                'reminders': {
+                    'useDefault': False,
+                    'overrides': [
+                        {'method': 'email', 'minutes': 24 * 60},  # 1 dia antes
+                        {'method': 'popup', 'minutes': 60},       # 1 hora antes
+                    ],
+                },
+                'colorId': '2',  # Verde para consultas
+            }
+            
+            evento_criado = service.events().insert(
+                calendarId=calendar_id, 
+                body=evento
+            ).execute()
+            
+            # Se chegou aqui, deu certo!
+            print(f"✅ Evento criado com sucesso na tentativa {tentativa}")
+            
+            # Salvar ID do evento no banco
+            salvar_event_id_google(agendamento_id, evento_criado['id'])
+            
+            return evento_criado['id']
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            # Se não é a última tentativa, aguardar antes de tentar novamente
+            if tentativa < max_tentativas:
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam para criar evento!")
+                return False
+    
+    return False
+
+def deletar_evento_google_calendar(agendamento_id, max_tentativas=3):
+    """Deleta evento do Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Deletando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)  # 2s, 4s, 6s...
+                    continue
+                return False
+            
+            # Buscar ID do evento
+            event_id = obter_event_id_google(agendamento_id)
+            if not event_id:
+                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+                return False
+            
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Tentar deletar
+            service.events().delete(
+                calendarId=calendar_id, 
+                eventId=event_id
+            ).execute()
+            
+            # Se chegou aqui, deu certo!
+            print(f"✅ Evento deletado com sucesso na tentativa {tentativa}")
+            
+            # Remover ID do banco apenas se deletou com sucesso
+            remover_event_id_google(agendamento_id)
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            # Se não é a última tentativa, aguardar antes de tentar novamente
+            if tentativa < max_tentativas:
+                # Backoff exponencial com jitter
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)  # 1-2.5s, 4-5.5s, 9-10.5s
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam!")
+                
+                # IMPORTANTE: Mesmo que falhe, marcar como "tentou deletar" 
+                # para não ficar tentando infinitamente
+                remover_event_id_google(agendamento_id)
+                
+                return False
+    
+    return False
+
+def atualizar_evento_google_calendar(agendamento_id, nome_cliente, status, max_tentativas=3):
+    """Atualiza evento no Google Calendar com múltiplas tentativas"""
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Atualizando evento Google Calendar")
+            
+            service = get_google_calendar_service()
+            if not service:
+                print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
+                if tentativa < max_tentativas:
+                    time.sleep(tentativa * 2)
+                    continue
+                return False
+            
+            event_id = obter_event_id_google(agendamento_id)
+            if not event_id:
+                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
+                return False
+            
+            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            
+            # Buscar evento atual
+            evento = service.events().get(
+                calendarId=calendar_id, 
+                eventId=event_id
+            ).execute()
+            
+            # Atualizar título baseado no status
+            if status == 'atendido':
+                evento['summary'] = f'✅ ATENDIDO - {nome_cliente}'
+                evento['colorId'] = '10'  # Verde escuro para atendidos
+            elif status == 'cancelado':
+                evento['summary'] = f'❌ CANCELADO - {nome_cliente}'
+                evento['colorId'] = '4'  # Vermelho para cancelados
+            
+            service.events().update(
+                calendarId=calendar_id, 
+                eventId=event_id, 
+                body=evento
+            ).execute()
+            
+            print(f"✅ Evento atualizado com sucesso na tentativa {tentativa}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
+            
+            if tentativa < max_tentativas:
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
+                print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
+                time.sleep(delay)
+            else:
+                print(f"💥 Todas as {max_tentativas} tentativas falharam para atualizar evento!")
+                return False
+    
+    return False
+
+def salvar_event_id_google(agendamento_id, event_id):
+    """Salva ID do evento Google Calendar no banco"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        # Criar coluna se não existir
+        try:
+            c.execute("ALTER TABLE agendamentos ADD COLUMN google_event_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # Coluna já existe
+        
+        c.execute("UPDATE agendamentos SET google_event_id = ? WHERE id = ?", 
+                  (event_id, agendamento_id))
+        conn.commit()
+        print(f"💾 Event ID salvo: {event_id}")
+    except Exception as e:
+        print(f"❌ Erro ao salvar event ID: {e}")
+    finally:
+        conn.close()
+
+def obter_event_id_google(agendamento_id):
+    """Obtém ID do evento Google Calendar"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT google_event_id FROM agendamentos WHERE id = ?", (agendamento_id,))
+        resultado = c.fetchone()
+        return resultado[0] if resultado and resultado[0] else None
+    except sqlite3.OperationalError:
+        return None  # Coluna não existe ainda
+    except Exception as e:
+        print(f"❌ Erro ao obter event ID: {e}")
+        return None
+    finally:
+        conn.close()
+
+def remover_event_id_google(agendamento_id):
+    """Remove ID do evento Google Calendar"""
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE agendamentos SET google_event_id = NULL WHERE id = ?", 
+                  (agendamento_id,))
+        conn.commit()
+        print(f"🗑️ Event ID removido para agendamento {agendamento_id}")
+    except Exception as e:
+        print(f"❌ Erro ao remover event ID: {e}")
+    finally:
+        conn.close()
 
 # ========================================
 # FUNÇÕES PARA BACKUP POR EMAIL - PASSO 1
@@ -2531,357 +2827,15 @@ Atenciosamente,
         print(f"Erro ao enviar código: {e}")
         return False
 
-def obter_client_todoist():
-    """Obtém configurações do Todoist"""
-    try:
-        todoist_ativo = obter_configuracao("todoist_ativo", False)
-        if not todoist_ativo:
-            return None
-            
-        api_token = obter_configuracao("todoist_token", "")
-        
-        if not api_token:
-            print("❌ Token Todoist não configurado")
-            return None
-        
-        return api_token
-        
-    except Exception as e:
-        print(f"❌ Erro ao obter token Todoist: {e}")
-        return None
-
-def testar_conexao_todoist():
-    """Testa a conexão com Todoist"""
-    try:
-        token = obter_client_todoist()
-        if not token:
-            return False, "Token não configurado"
-        
-        # Testar API com endpoint simples
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        response = requests.get(
-            "https://api.todoist.com/rest/v2/projects",
-            headers=headers,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            projetos = response.json()
-            return True, f"✅ Conectado! {len(projetos)} projeto(s) encontrado(s)"
-        elif response.status_code == 401:
-            return False, "❌ Token inválido ou expirado"
-        else:
-            return False, f"❌ Erro na API: {response.status_code}"
-            
-    except requests.exceptions.Timeout:
-        return False, "❌ Timeout - verifique sua conexão"
-    except Exception as e:
-        return False, f"❌ Erro: {str(e)}"
-
-def obter_projeto_agendamentos():
-    """Obtém ou cria UM ÚNICO projeto 'Agendamentos' no Todoist"""
-    try:
-        token = obter_client_todoist()
-        if not token:
-            return None
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        # Obter nome configurado do projeto (ou usar padrão)
-        nome_projeto = obter_configuracao("todoist_nome_projeto", "📅 Agendamentos")
-        
-        # Buscar projetos existentes
-        response = requests.get(
-            "https://api.todoist.com/rest/v2/projects",
-            headers=headers
-        )
-        
-        if response.status_code == 200:
-            projetos = response.json()
-            
-            # 1. PRIMEIRO: Procurar pelo nome configurado exato
-            for projeto in projetos:
-                if projeto['name'] == nome_projeto:
-                    print(f"✅ Projeto encontrado: {nome_projeto} (ID: {projeto['id']})")
-                    # Salvar ID para não precisar buscar sempre
-                    salvar_configuracao("todoist_projeto_id", projeto['id'])
-                    return projeto['id']
-            
-            # 2. SEGUNDO: Procurar por nomes similares (compatibilidade)
-            nomes_similares = ['📅 Agendamentos', 'Agendamentos', 'Agenda', 'Clientes']
-            for projeto in projetos:
-                if projeto['name'] in nomes_similares:
-                    print(f"✅ Projeto similar encontrado: {projeto['name']} (ID: {projeto['id']})")
-                    # Atualizar nome nas configurações para usar o existente
-                    salvar_configuracao("todoist_nome_projeto", projeto['name'])
-                    salvar_configuracao("todoist_projeto_id", projeto['id'])
-                    return projeto['id']
-            
-            # 3. TERCEIRO: Se não encontrou, criar novo projeto
-            novo_projeto = {
-                "name": nome_projeto,
-                "color": "blue",
-                "comment_count": 0
-            }
-            
-            response = requests.post(
-                "https://api.todoist.com/rest/v2/projects",
-                headers=headers,
-                json=novo_projeto
-            )
-            
-            if response.status_code == 200:
-                projeto_criado = response.json()
-                projeto_id = projeto_criado['id']
-                
-                print(f"✅ Novo projeto criado: {nome_projeto} (ID: {projeto_id})")
-                
-                # Salvar configurações
-                salvar_configuracao("todoist_projeto_id", projeto_id)
-                salvar_configuracao("todoist_nome_projeto", nome_projeto)
-                
-                return projeto_id
-            else:
-                print(f"❌ Erro ao criar projeto: {response.status_code} - {response.text}")
-        
-        return None
-        
-    except Exception as e:
-        print(f"❌ Erro ao obter projeto: {e}")
-        return None
-
-def criar_tarefa_todoist(agendamento_id, nome_cliente, telefone, email_cliente, data, horario):
-    """Cria tarefa no Todoist para o agendamento"""
-    try:
-        token = obter_client_todoist()
-        if not token:
-            print("⚠️ Todoist não configurado")
-            return False
-        
-        projeto_id = obter_projeto_agendamentos()
-        if not projeto_id:
-            print("❌ Erro ao obter projeto Agendamentos")
-            return False
-        
-        # Obter configurações do profissional
-        nome_profissional = obter_configuracao("nome_profissional", "Dr. João Silva")
-        nome_clinica = obter_configuracao("nome_clinica", "Clínica São Lucas")
-        
-        # Preparar dados da tarefa
-        data_obj = datetime.strptime(data, "%Y-%m-%d")
-        horario_obj = datetime.strptime(horario, "%H:%M").time()
-        
-        # Combinar data e horário
-        data_hora = datetime.combine(data_obj.date(), horario_obj)
-        
-        # Título da tarefa
-        titulo = f"📅 {nome_cliente} - {horario}"
-        
-        # Descrição com detalhes
-        descricao = f"""
-**Agendamento - {nome_clinica}**
-
-👤 **Cliente:** {nome_cliente}
-📞 **Telefone:** {telefone}
-📧 **Email:** {email_cliente}
-👨‍⚕️ **Profissional:** {nome_profissional}
-
-🆔 **ID Sistema:** {agendamento_id}
-"""
-        
-        # Dados da tarefa
-        tarefa_data = {
-            "content": titulo,
-            "description": descricao.strip(),
-            "project_id": projeto_id,
-            "due_datetime": data_hora.strftime("%Y-%m-%dT%H:%M:00"),
-            "labels": ["agendamento"],
-            "priority": 2  # Prioridade normal
-        }
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        # Criar tarefa
-        response = requests.post(
-            "https://api.todoist.com/rest/v2/tasks",
-            headers=headers,
-            json=tarefa_data
-        )
-        
-        if response.status_code == 200:
-            tarefa_criada = response.json()
-            tarefa_id = tarefa_criada['id']
-            
-            # Salvar referência no banco para poder deletar depois
-            salvar_configuracao(f"todoist_task_{agendamento_id}", tarefa_id)
-            
-            print(f"✅ Tarefa Todoist criada: {nome_cliente} - {data} {horario}")
-            return True
-        else:
-            print(f"❌ Erro ao criar tarefa Todoist: {response.status_code} - {response.text}")
-            return False
-        
-    except Exception as e:
-        print(f"❌ Erro ao criar tarefa Todoist: {e}")
-        return False
-
-def atualizar_tarefa_todoist(agendamento_id, nome_cliente, novo_status):
-    """Atualiza tarefa no Todoist baseado no status"""
-    try:
-        token = obter_client_todoist()
-        if not token:
-            return False
-        
-        # Buscar ID da tarefa
-        tarefa_id = obter_configuracao(f"todoist_task_{agendamento_id}", "")
-        if not tarefa_id:
-            print(f"⚠️ Tarefa Todoist não encontrada para ID {agendamento_id}")
-            return False
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        if novo_status == 'atendido':
-            # Marcar como concluída
-            response = requests.post(
-                f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}/close",
-                headers=headers
-            )
-            
-            if response.status_code == 204:
-                print(f"✅ Tarefa Todoist marcada como concluída: {nome_cliente}")
-                return True
-            else:
-                print(f"❌ Erro ao marcar tarefa como concluída: {response.status_code}")
-                return False
-        
-        elif novo_status == 'cancelado':
-            # Deletar tarefa
-            return deletar_tarefa_todoist(agendamento_id)
-        
-        elif novo_status == 'confirmado':
-            # Adicionar label "confirmado"
-            # Buscar dados atuais da tarefa
-            response = requests.get(
-                f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}",
-                headers=headers
-            )
-            
-            if response.status_code == 200:
-                tarefa_atual = response.json()
-                labels_atuais = tarefa_atual.get('labels', [])
-                
-                if 'confirmado' not in labels_atuais:
-                    labels_atuais.append('confirmado')
-                    
-                    # Atualizar tarefa
-                    update_data = {
-                        "labels": labels_atuais
-                    }
-                    
-                    response = requests.post(
-                        f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}",
-                        headers=headers,
-                        json=update_data
-                    )
-                    
-                    if response.status_code == 200:
-                        print(f"✅ Tarefa Todoist atualizada para confirmado: {nome_cliente}")
-                        return True
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Erro ao atualizar tarefa Todoist: {e}")
-        return False
-
-def deletar_tarefa_todoist(agendamento_id):
-    """Deleta tarefa do Todoist"""
-    try:
-        token = obter_client_todoist()
-        if not token:
-            return False
-        
-        # Buscar ID da tarefa
-        tarefa_id = obter_configuracao(f"todoist_task_{agendamento_id}", "")
-        if not tarefa_id:
-            print(f"⚠️ Tarefa Todoist não encontrada para deletar ID {agendamento_id}")
-            return True  # Considera sucesso se não existe
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        # Deletar tarefa
-        response = requests.delete(
-            f"https://api.todoist.com/rest/v2/tasks/{tarefa_id}",
-            headers=headers
-        )
-        
-        if response.status_code == 204:
-            # Remover referência do banco
-            conn = conectar()
-            c = conn.cursor()
-            c.execute("DELETE FROM configuracoes WHERE chave = ?", (f"todoist_task_{agendamento_id}",))
-            conn.commit()
-            conn.close()
-            
-            print(f"✅ Tarefa Todoist deletada: ID {agendamento_id}")
-            return True
-        else:
-            print(f"⚠️ Erro ao deletar tarefa Todoist: {response.status_code}")
-            return True  # Considera sucesso para não travar o sistema
-        
-    except Exception as e:
-        print(f"❌ Erro ao deletar tarefa Todoist: {e}")
-        return False
-
-def gerar_instrucoes_todoist():
-    """Gera instruções para obter token do Todoist"""
-    return """
-🎯 **Como obter seu Token do Todoist:**
-
-1. **Acesse:** https://todoist.com/app/settings/integrations
-2. **Faça login** na sua conta Todoist
-3. **Role até** "API token"
-4. **Copie** o token (40 caracteres)
-5. **Cole** no campo abaixo
-
-⚠️ **Importante:**
-• **Mantenha** o token seguro (não compartilhe)
-• **Se vazar**, gere um novo nas configurações
-• **Funciona** com conta gratuita ou premium
-
-✨ **O que acontece:**
-• **Cria projeto** "📅 Agendamentos" automaticamente
-• **Cada agendamento** vira uma tarefa
-• **Notificações** no seu celular/desktop
-• **Marca como concluído** quando atendido
-"""
-    
+   
 # Inicializar banco
 init_config()
-
-# Inicializar monitoramento de backup automático
-#iniciar_monitoramento_backup()
 
 # Inicializar tabela de períodos
 init_config_periodos()
 
-# Recuperação por sessão - só uma vez por acesso
+
+# Recuperação atuais e futuros por sessão - só uma vez por acesso
 if 'agendamentos_recuperados' not in st.session_state:
     try:
         print("🔄 Primeira vez nesta sessão - verificando backup do GitHub...")
@@ -2910,8 +2864,7 @@ else:
 # INTERFACE PRINCIPAL
 if is_admin:
     
-    # Dentro de alguma seção do admin, adicione:
-       
+   
     # PAINEL ADMINISTRATIVO
     st.markdown("""
     <div class="admin-header">
@@ -3340,7 +3293,96 @@ Sistema de Agendamento Online
                                     st.error(f"❌ Erro ao enviar email: {str(e)}")
                             else:
                                 st.warning("⚠️ Preencha o email de teste e configure o sistema primeiro")
+   
+                    
+                    # Seção Google Calendar
+                    st.markdown("---")
+                    st.markdown("**📅 Integração Google Calendar**")
+                    
+                    google_calendar_ativo = st.checkbox(
+                        "Ativar sincronização com Google Calendar",
+                        value=obter_configuracao("google_calendar_ativo", False),
+                        help="Sincroniza automaticamente agendamentos confirmados com seu Google Calendar"
+                    )
+                    
+                    if google_calendar_ativo:
+                        st.success("✅ Google Calendar ativado - agendamentos serão sincronizados automaticamente!")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.info("""
+                            **📋 Como funciona:**
+                            • Agendamento confirmado → Cria evento
+                            • Agendamento cancelado → Remove evento  
+                            • Agendamento atendido → Marca como concluído
+                            """)
+                        
+                        with col2:
 
+                            if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
+                                try:
+                                    st.write("🔍 Testando imports...")
+                                    
+                                    # Teste de import direto
+                                    import importlib
+                                    
+                                    # Testar cada biblioteca individualmente
+                                    try:
+                                        google_auth = importlib.import_module('google.auth')
+                                        st.write("✅ google.auth OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.auth: {e}")
+                                        
+                                    try:
+                                        google_oauth2 = importlib.import_module('google.oauth2.credentials')
+                                        st.write("✅ google.oauth2.credentials OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ google.oauth2.credentials: {e}")
+                                        
+                                    try:
+                                        googleapiclient = importlib.import_module('googleapiclient.discovery')
+                                        st.write("✅ googleapiclient.discovery OK")
+                                    except ImportError as e:
+                                        st.error(f"❌ googleapiclient.discovery: {e}")
+                                        
+                                    st.info("📝 Se algum import falhou, o problema é falta de bibliotecas no requirements.txt")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Erro geral: {e}")
+
+                                with st.spinner("Testando conexão..."):
+                                    try:
+                                        service = get_google_calendar_service()
+                                        if service:
+                                            # Testar listando calendários
+                                            calendars = service.calendarList().list().execute()
+                                            st.success("✅ Conexão com Google Calendar funcionando!")
+                                            
+                                            # Mostrar calendários disponíveis
+                                            with st.expander("📅 Calendários disponíveis"):
+                                                for calendar in calendars.get('items', []):
+                                                    if calendar['id'] == 'primary':
+                                                        st.write(f"📋 **{calendar['summary']}** (Principal) ⭐")
+                                                    else:
+                                                        st.write(f"📋 **{calendar['summary']}**")
+                                                        
+                                        else:
+                                            st.error("❌ Não foi possível conectar. Verifique as credenciais nos Secrets.")
+                                    except Exception as e:
+                                        st.error(f"❌ Erro na conexão: {str(e)}")
+                    else:
+                        st.info("💡 Ative a sincronização para ter seus agendamentos automaticamente no Google Calendar!")
+                        
+                        st.markdown("""
+                        **🔧 Configuração necessária:**
+                        
+                        Configure nos **Streamlit Secrets**:
+                        - `GOOGLE_CLIENT_ID`
+                        - `GOOGLE_CLIENT_SECRET` 
+                        - `GOOGLE_REFRESH_TOKEN`
+                        - `GOOGLE_CALENDAR_ID` (opcional, padrão: "primary")
+                        """)
                     
                     # Seção de backup GitHub (manter como está)
                     st.markdown("---")
@@ -3429,6 +3471,7 @@ Sistema de Agendamento Online
                 
                 # Salvar configurações da tab 3
                 salvar_configuracao("envio_automatico", envio_automatico)
+                salvar_configuracao("google_calendar_ativo", google_calendar_ativo)
                 salvar_configuracao("email_teste", email_teste if envio_automatico else "")
                 if envio_automatico:
                     salvar_configuracao("email_sistema", email_sistema)
@@ -4394,7 +4437,7 @@ Sistema de Agendamento Online
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
-
+            
             st.markdown('</div>', unsafe_allow_html=True)
 
         elif opcao == "💾 Backup & Restauração":
@@ -4582,277 +4625,6 @@ Sistema de Agendamento Online
             with tab_auto:
                 interface_backup_email()
 
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        elif opcao == "🔗 Integrações":
-            
-            st.markdown("""
-            <div class="main-card">
-                <div class="card-header">
-                    <h2 class="card-title">🔗 Integrações Externas</h2>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # ========================================
-            # SEÇÃO TODOIST
-            # ========================================
-            
-            st.subheader("📝 Integração com Todoist")
-            
-            todoist_ativo = st.checkbox(
-                "Ativar sincronização com Todoist",
-                value=obter_configuracao("todoist_ativo", False),
-                help="Cria tarefas automaticamente no Todoist para cada agendamento confirmado"
-            )
-            
-            if todoist_ativo:
-                st.success("✅ Integração com Todoist ativada")
-                
-                # Tabs para organizar melhor
-                tab_config, tab_teste, tab_opcoes = st.tabs(["🔑 Configuração", "🧪 Teste", "⚙️ Opções"])
-                
-                with tab_config:
-                    st.markdown("**🔑 Token da API Todoist**")
-                    
-                    todoist_token = st.text_input(
-                        "Digite seu token:",
-                        value=obter_configuracao("todoist_token", ""),
-                        type="password",
-                        placeholder="Token de 40 caracteres do Todoist",
-                        help="Obtenha em: https://todoist.com/app/settings/integrations"
-                    )
-                    
-                    # Instruções
-                    with st.expander("📖 Como obter o token do Todoist"):
-                        instrucoes = gerar_instrucoes_todoist()
-                        st.markdown(instrucoes)
-                    
-                    # Link direto
-                    st.markdown("**🔗 Links úteis:**")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.link_button("🔑 Obter Token", "https://todoist.com/app/settings/integrations")
-                    with col2:
-                        st.link_button("📱 Baixar App", "https://todoist.com/downloads")
-                
-                with tab_teste:
-                    st.markdown("**🧪 Testar Integração**")
-                    
-                    # Teste de conexão
-                    if st.button("🔍 Testar Conexão", type="primary", use_container_width=True):
-                        if todoist_token:
-                            # Salvar temporariamente para teste
-                            salvar_configuracao("todoist_token", todoist_token)
-                            salvar_configuracao("todoist_ativo", True)
-                            
-                            with st.spinner("Testando conexão com Todoist..."):
-                                sucesso, mensagem = testar_conexao_todoist()
-                                
-                            if sucesso:
-                                st.success(mensagem)
-                                
-                                # Verificar projeto
-                                projeto_id = obter_projeto_agendamentos()
-                                if projeto_id:
-                                    st.info(f"📁 Projeto 'Agendamentos' ID: {projeto_id}")
-                                
-                            else:
-                                st.error(mensagem)
-                                salvar_configuracao("todoist_ativo", False)
-                        else:
-                            st.warning("⚠️ Digite o token primeiro")
-                    
-                    # Criar tarefa de teste
-                    st.markdown("---")
-                    if st.button("📝 Criar Tarefa de Teste", type="secondary", use_container_width=True):
-                        if todoist_ativo and todoist_token:
-                            salvar_configuracao("todoist_ativo", todoist_ativo)
-                            salvar_configuracao("todoist_token", todoist_token)
-                            
-                            with st.spinner("Criando tarefa de teste..."):
-                                from datetime import datetime
-                                agora = datetime.now()
-                                
-                                sucesso = criar_tarefa_todoist(
-                                    9999,  # ID de teste
-                                    "TESTE - Sistema Agendamento",
-                                    "(00) 0000-0000", 
-                                    "teste@exemplo.com",
-                                    agora.strftime("%Y-%m-%d"),
-                                    agora.strftime("%H:%M")
-                                )
-                                
-                                if sucesso:
-                                    st.success("✅ Tarefa criada! Verifique seu Todoist.")
-                                else:
-                                    st.error("❌ Erro ao criar tarefa.")
-                        else:
-                            st.warning("⚠️ Configure a integração primeiro")
-                
-                with tab_opcoes:
-                    st.markdown("**⚙️ Configurações Avançadas**")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        criar_para_pendentes = st.checkbox(
-                            "Criar tarefas para agendamentos pendentes",
-                            value=obter_configuracao("todoist_incluir_pendentes", True),
-                            help="Se desmarcado, só cria para confirmados"
-                        )
-                        
-                        marcar_concluido = st.checkbox(
-                            "Marcar como concluído quando atendido",
-                            value=obter_configuracao("todoist_marcar_concluido", True),
-                            help="Marca tarefa como concluída automaticamente"
-                        )
-                    
-                    with col2:
-                        remover_cancelados = st.checkbox(
-                            "Remover tarefas canceladas",
-                            value=obter_configuracao("todoist_remover_cancelados", True),
-                            help="Remove tarefa quando agendamento é cancelado"
-                        )
-                        
-                        # Estatísticas
-                        total_tarefas = 0
-                        try:
-                            conn = conectar()
-                            c = conn.cursor()
-                            c.execute("SELECT COUNT(*) FROM configuracoes WHERE chave LIKE 'todoist_task_%'")
-                            total_tarefas = c.fetchone()[0]
-                            conn.close()
-                        except:
-                            total_tarefas = 0
-                        
-                        st.metric("📊 Tarefas Criadas", total_tarefas)
-
-                    st.markdown("**📁 Configuração do Projeto**")
-                    
-                    nome_projeto_atual = obter_configuracao("todoist_nome_projeto", "📅 Agendamentos")
-                    
-                    col_proj1, col_proj2 = st.columns(2)
-                    
-                    with col_proj1:
-                        nome_projeto_config = st.text_input(
-                            "Nome do projeto no Todoist:",
-                            value=nome_projeto_atual,
-                            placeholder="📅 Agendamentos",
-                            help="Nome do projeto onde as tarefas serão criadas"
-                        )
-                    
-                    with col_proj2:
-                        # Mostrar projeto atual se configurado
-                        projeto_id_atual = obter_configuracao("todoist_projeto_id", "")
-                        if projeto_id_atual:
-                            st.info(f"📁 **Projeto atual:**\nID: {projeto_id_atual}")
-                        else:
-                            st.info("📁 **Projeto:** Será criado automaticamente")
-                    
-                    # Botão para recriar projeto
-                    if st.button("🔄 Atualizar/Recriar Projeto", help="Força a busca/criação do projeto"):
-                        if nome_projeto_config.strip():
-                            # Salvar novo nome
-                            salvar_configuracao("todoist_nome_projeto", nome_projeto_config.strip())
-                            
-                            # Limpar ID antigo para forçar nova busca
-                            conn = conectar()
-                            c = conn.cursor()
-                            c.execute("DELETE FROM configuracoes WHERE chave = 'todoist_projeto_id'")
-                            conn.commit()
-                            conn.close()
-                            
-                            # Buscar/criar projeto
-                            with st.spinner("Procurando/criando projeto..."):
-                                projeto_id = obter_projeto_agendamentos()
-                                
-                            if projeto_id:
-                                st.success(f"✅ Projeto configurado: {nome_projeto_config} (ID: {projeto_id})")
-                            else:
-                                st.error("❌ Erro ao configurar projeto")
-                            
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ Digite um nome para o projeto")
-                
-                # Salvar configurações
-                st.markdown("---")
-                if st.button("💾 Salvar Configurações Todoist", type="primary", use_container_width=True):
-                    salvar_configuracao("todoist_ativo", todoist_ativo)
-                    if todoist_ativo:
-                        salvar_configuracao("todoist_token", todoist_token)
-                        salvar_configuracao("todoist_incluir_pendentes", criar_para_pendentes)
-                        salvar_configuracao("todoist_marcar_concluido", marcar_concluido)
-                        salvar_configuracao("todoist_remover_cancelados", remover_cancelados)
-                        salvar_configuracao("todoist_nome_projeto", nome_projeto_config.strip() if nome_projeto_config.strip() else "📅 Agendamentos")                    
-                    st.success("✅ Configurações do Todoist salvas!")
-                    
-                    if todoist_ativo and todoist_token:
-                        st.info("🎯 **Todoist configurado!** Novos agendamentos criarão tarefas automaticamente.")
-                    
-                    st.rerun()
-            
-            else:
-                st.info("💡 A integração com Todoist transforma cada agendamento em uma tarefa na sua lista de afazeres")
-                
-                # Benefícios
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("""
-                    **🎯 Benefícios:**
-                    • 📱 **Notificações** no celular
-                    • 🔄 **Sincronização** automática  
-                    • ✅ **Marcação** de concluídas
-                    • 📊 **Organização** por projeto
-                    """)
-                
-                with col2:
-                    st.markdown("""
-                    **📱 Compatibilidade:**
-                    • iPhone e Android
-                    • Windows e Mac
-                    • Navegador web
-                    • Conta gratuita OK
-                    """)
-            
-            # ========================================
-            # FUTURAS INTEGRAÇÕES
-            # ========================================
-            
-            st.markdown("---")
-            st.subheader("🔮 Próximas Integrações")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown("""
-                **📅 Google Calendar**
-                🔧 Em desenvolvimento
-                
-                • Eventos automáticos
-                • Sincronização bidirecional
-                """)
-            
-            with col2:
-                st.markdown("""
-                **💬 WhatsApp Business**
-                🔧 Planejado
-                
-                • Mensagens automáticas
-                • Confirmações por WhatsApp
-                """)
-            
-            with col3:
-                st.markdown("""
-                **📊 Notion**
-                🔧 Planejado
-                
-                • Base de dados de clientes
-                • Relatórios automatizados
-                """)
-            
             st.markdown('</div>', unsafe_allow_html=True)
 
 else:
