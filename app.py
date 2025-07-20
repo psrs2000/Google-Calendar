@@ -2423,7 +2423,7 @@ def iniciar_monitoramento_sync_simples():
         while True:
             try:
                 # Verificar a cada 15 minutos (para teste, pode ajustar)
-                time.sleep(900)  # 15 minutos
+                time.sleep(30)  # 15 minutos
                 
                 # Verificar se Google Calendar está ativo
                 google_ativo = obter_configuracao("google_calendar_ativo", False)
@@ -3025,7 +3025,7 @@ except Exception as e:
     print(f"⚠️ Erro ao iniciar monitoramento: {e}")
 
 # Para testar manualmente, descomente a linha abaixo:
-testar_sincronizacao_bidirecional()
+# testar_sincronizacao_bidirecional()
 
 # Recuperação atuais e futuros por sessão - só uma vez por acesso
 if 'agendamentos_recuperados' not in st.session_state:
