@@ -1319,7 +1319,7 @@ def importar_agendamentos_csv(csv_content):
                     continue
                 
                 # Verificar se já existe (evitar duplicatas)
-                c.execute("SELECT COUNT(*) FROM agendamentos WHERE data=? AND horario=? AND nome_cliente=? AND telefone=?", 
+                c.execute("SELECT COUNT(*) FROM agendamentos WHERE data=? AND horario=? AND nome_cliente=? AND telefone=? AND status IN ('pendente', 'confirmado')", 
                          (data, horario, nome, telefone))
                 
                 if c.fetchone()[0] > 0:
