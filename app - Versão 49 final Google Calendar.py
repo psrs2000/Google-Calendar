@@ -1456,7 +1456,7 @@ def get_github_config():
     # Configuração padrão (fallback)
     config_local = {
         "token": "",  # ← Vazio agora!
-        "repo": "psrs2000/Agenda_Livre",
+        "repo": "psrs2000/Google_Calendar_PVT",
         "branch": "main",
         "config_file": "configuracoes.json"
     }    
@@ -3409,7 +3409,7 @@ Sistema de Agendamento Online
                                     try:
                                         if backup_configuracoes_github():
                                             st.success("✅ Backup enviado com sucesso!")
-                                            st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
+                                            st.info("🔗 Confira em: https://github.com/psrs2000/Google_Calendar_PVT")
                                         else:
                                             st.error("❌ Erro no backup. Verifique as configurações.")
                                     except Exception as e:
@@ -3438,7 +3438,7 @@ Sistema de Agendamento Online
                                 try:
                                     if backup_configuracoes_github():
                                         st.success("✅ Backup enviado com sucesso!")
-                                        st.info("🔗 Confira em: https://github.com/psrs2000/Agenda_Livre")
+                                        st.info("🔗 Confira em: https://github.com/psrs2000/Google_Calendar_PVT")
                                     else:
                                         st.error("❌ Erro no backup. Verifique token GitHub.")
                                 except Exception as e:
