@@ -1853,8 +1853,8 @@ def backup_agendamentos_futuros_github():
         csv_data = exportar_agendamentos_csv()
         
         if not csv_data:
-            print("❌ Nenhum dado para backup")
-            return False
+            print("📝 Lista vazia - enviando backup de limpeza")
+            csv_data = "ID,Data,Horário,Nome,Telefone,Email,Status\n"  # CSV vazio com cabeçalho
         
         print("✅ CSV gerado com sucesso")
         
@@ -3484,7 +3484,11 @@ Sistema de Agendamento Online
                     salvar_configuracao("verificacao_codigo_ativa", verificacao_codigo if envio_automatico else False)
                 
                 # NOVO: Salvar configuração de backup GitHub
-                salvar_configuracao("backup_github_ativo", backup_github_ativo)
+                try:
+                    salvar_configuracao("backup_github_ativo", backup_github_ativo)
+                except NameError:
+                    # Primeira execução - usar valor padrão
+                    salvar_configuracao("backup_github_ativo", obter_configuracao("backup_github_ativo", False))
                 
                 st.success("✅ Todas as configurações foram salvas com sucesso!")
                 
