@@ -2098,58 +2098,100 @@ def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, 
     return False
 
 def deletar_evento_google_calendar(agendamento_id, max_tentativas=3):
-    """Deleta evento do Google Calendar com múltiplas tentativas"""
+    """
+    NOVA VERSÃO: Deleta evento procurando por nome e data
+    (Mais confiável que o método antigo por ID)
+    """
     
+    # Primeiro, vamos buscar os dados do agendamento
+    conn = conectar()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT nome_cliente, data FROM agendamentos WHERE id = ?", (agendamento_id,))
+        resultado = c.fetchone()
+        
+        if not resultado:
+            print(f"⚠️ Agendamento ID {agendamento_id} não encontrado no banco")
+            return False
+            
+        nome_cliente, data = resultado
+        print(f"🔍 Dados encontrados: {nome_cliente} em {data}")
+        
+    except Exception as e:
+        print(f"❌ Erro ao buscar dados do agendamento: {e}")
+        return False
+    finally:
+        conn.close()
+    
+    # Agora usar o método por nome+data
     for tentativa in range(1, max_tentativas + 1):
         try:
-            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Deletando evento Google Calendar")
+            print(f"🔄 Tentativa {tentativa}/{max_tentativas} - Procurando evento: {nome_cliente} em {data}")
             
             service = get_google_calendar_service()
             if not service:
                 print(f"❌ Tentativa {tentativa}: Falha ao conectar com Google Calendar")
                 if tentativa < max_tentativas:
-                    time.sleep(tentativa * 2)  # 2s, 4s, 6s...
+                    time.sleep(tentativa * 2)
                     continue
-                return False
-            
-            # Buscar ID do evento
-            event_id = obter_event_id_google(agendamento_id)
-            if not event_id:
-                print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
                 return False
             
             calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
             
-            # Tentar deletar
-            service.events().delete(
-                calendarId=calendar_id, 
-                eventId=event_id
+            # Converter data para busca no Google
+            data_obj = datetime.strptime(data, "%Y-%m-%d")
+            data_inicio = data_obj.strftime("%Y-%m-%dT00:00:00-03:00")
+            data_fim = data_obj.strftime("%Y-%m-%dT23:59:59-03:00")
+            
+            # Buscar eventos do dia
+            eventos = service.events().list(
+                calendarId=calendar_id,
+                timeMin=data_inicio,
+                timeMax=data_fim,
+                singleEvents=True,
+                orderBy='startTime'
             ).execute()
             
-            # Se chegou aqui, deu certo!
-            print(f"✅ Evento deletado com sucesso na tentativa {tentativa}")
+            eventos_encontrados = eventos.get('items', [])
+            print(f"📋 Encontrei {len(eventos_encontrados)} evento(s) no dia")
             
-            # Remover ID do banco apenas se deletou com sucesso
-            remover_event_id_google(agendamento_id)
+            # Procurar evento com nome do cliente
+            evento_para_deletar = None
             
-            return True
+            for evento in eventos_encontrados:
+                titulo_evento = evento.get('summary', '')
+                print(f"🔍 Verificando: '{titulo_evento}'")
+                
+                # Verificar se nome está no título (busca flexível)
+                if nome_cliente.lower() in titulo_evento.lower():
+                    evento_para_deletar = evento
+                    print(f"✅ Encontrei evento do {nome_cliente}!")
+                    break
             
+            # Deletar se encontrou
+            if evento_para_deletar:
+                event_id = evento_para_deletar['id']
+                
+                service.events().delete(
+                    calendarId=calendar_id,
+                    eventId=event_id
+                ).execute()
+                
+                print(f"✅ Evento deletado com sucesso na tentativa {tentativa}")
+                return True
+            else:
+                print(f"⚠️ Evento não encontrado para {nome_cliente} em {data}")
+                return False
+                
         except Exception as e:
             print(f"❌ Tentativa {tentativa} falhou: {str(e)}")
             
-            # Se não é a última tentativa, aguardar antes de tentar novamente
             if tentativa < max_tentativas:
-                # Backoff exponencial com jitter
-                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)  # 1-2.5s, 4-5.5s, 9-10.5s
+                delay = (tentativa ** 2) + random.uniform(0.5, 1.5)
                 print(f"⏳ Aguardando {delay:.1f}s antes da próxima tentativa...")
                 time.sleep(delay)
             else:
                 print(f"💥 Todas as {max_tentativas} tentativas falharam!")
-                
-                # IMPORTANTE: Mesmo que falhe, marcar como "tentou deletar" 
-                # para não ficar tentando infinitamente
-                remover_event_id_google(agendamento_id)
-                
                 return False
     
     return False
