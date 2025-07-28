@@ -1326,20 +1326,53 @@ def importar_agendamentos_csv(csv_content):
                     duplicados += 1
                     continue
                 
-                # Inserir no banco
+                # Inserir no banco MANTENDO O ID ORIGINAL
                 try:
-                    c.execute("""INSERT INTO agendamentos 
-                               (nome_cliente, telefone, email, data, horario, status) 
-                               VALUES (?, ?, ?, ?, ?, ?)""",
-                             (nome, telefone, email, data, horario, status))
-                    importados += 1
+                    # Primeiro: tentar com ID específico (para manter ligação com Google)
+                    if agendamento_id and agendamento_id.strip():
+                        # Verificar se esse ID já existe
+                        c.execute("SELECT COUNT(*) FROM agendamentos WHERE id = ?", (agendamento_id,))
+                        if c.fetchone()[0] == 0:  # ID não existe, pode usar
+                            c.execute("""INSERT INTO agendamentos 
+                                       (id, nome_cliente, telefone, email, data, horario, status) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                                     (agendamento_id, nome, telefone, email, data, horario, status))
+                            print(f"✅ Restaurado agendamento ID {agendamento_id} (mantém ligação Google)")
+                            importados += 1
+                        else:
+                            # ID já existe, pular
+                            duplicados += 1
+                    else:
+                        # Se não tem ID, criar novo (método antigo)
+                        c.execute("""INSERT INTO agendamentos 
+                                   (nome_cliente, telefone, email, data, horario, status) 
+                                   VALUES (?, ?, ?, ?, ?, ?)""",
+                                 (nome, telefone, email, data, horario, status))
+                        print(f"✅ Criado novo agendamento (sem ID original)")
+                        importados += 1
+                        
                 except sqlite3.OperationalError:
-                    # Versão antiga sem email e status
-                    c.execute("""INSERT INTO agendamentos 
-                               (nome_cliente, telefone, data, horario) 
-                               VALUES (?, ?, ?, ?)""",
-                             (nome, telefone, data, horario))
-                    importados += 1
+                    # Fallback para versões antigas sem email e status
+                    try:
+                        if agendamento_id and agendamento_id.strip():
+                            c.execute("SELECT COUNT(*) FROM agendamentos WHERE id = ?", (agendamento_id,))
+                            if c.fetchone()[0] == 0:
+                                c.execute("""INSERT INTO agendamentos 
+                                           (id, nome_cliente, telefone, data, horario) 
+                                           VALUES (?, ?, ?, ?, ?)""",
+                                         (agendamento_id, nome, telefone, data, horario))
+                                importados += 1
+                            else:
+                                duplicados += 1
+                        else:
+                            c.execute("""INSERT INTO agendamentos 
+                                       (nome_cliente, telefone, data, horario) 
+                                       VALUES (?, ?, ?, ?)""",
+                                     (nome, telefone, data, horario))
+                            importados += 1
+                    except Exception as e:
+                        print(f"❌ Erro final: {e}")
+                        erros += 1
                     
             except Exception as e:
                 print(f"Erro ao processar linha: {e}")
