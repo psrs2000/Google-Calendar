@@ -1259,21 +1259,58 @@ def exportar_agendamentos_csv():
         output = io.StringIO()
         writer = csv.writer(output)
         
-        # Cabeçalho
-        writer.writerow(['ID', 'Data', 'Horário', 'Nome', 'Telefone', 'Email', 'Status'])
-        
-        # Dados
-        for agendamento in agendamentos:
-            if len(agendamento) == 7:
-                writer.writerow(agendamento)
-            elif len(agendamento) == 6:
-                # Adicionar status padrão se não existir
-                row = list(agendamento) + ['pendente']
-                writer.writerow(row)
-            else:
-                # Formato antigo sem email
-                row = list(agendamento) + ['Não informado', 'pendente']
-                writer.writerow(row)
+        # Cabeçalho - INCLUINDO google_event_id para manter ligação
+        writer.writerow(['ID', 'Data', 'Horário', 'Nome', 'Telefone', 'Email', 'Status', 'Google_Event_ID'])
+
+        # Buscar agendamentos com google_event_id
+        conn = conectar()
+        c = conn.cursor()
+
+        try:
+            # Tentar buscar com google_event_id
+            c.execute("SELECT id, data, horario, nome_cliente, telefone, email, status, google_event_id FROM agendamentos ORDER BY data, horario")
+            agendamentos_completos = c.fetchall()
+            print(f"✅ Exportando {len(agendamentos_completos)} agendamentos com google_event_id")
+            
+        except sqlite3.OperationalError:
+            # Se não tem coluna google_event_id, usar método antigo
+            print("⚠️ Coluna google_event_id não existe - usando método antigo")
+            c.execute("SELECT id, data, horario, nome_cliente, telefone, email, status FROM agendamentos ORDER BY data, horario")
+            agendamentos_sem_google = c.fetchall()
+            # Adicionar campo vazio para google_event_id
+            agendamentos_completos = [list(ag) + [''] for ag in agendamentos_sem_google]
+
+        finally:
+            conn.close()
+
+        # Dados - GARANTINDO que cada campo seja separado corretamente
+        for agendamento in agendamentos_completos:
+            try:
+                if len(agendamento) >= 7:
+                    # Formato completo: [id, data, horario, nome, telefone, email, status, google_event_id]
+                    row = [
+                        str(agendamento[0]),  # ID
+                        str(agendamento[1]),  # Data
+                        str(agendamento[2]),  # Horário
+                        str(agendamento[3]),  # Nome
+                        str(agendamento[4]),  # Telefone
+                        str(agendamento[5]) if agendamento[5] else '',  # Email
+                        str(agendamento[6]) if agendamento[6] else 'pendente',  # Status
+                        str(agendamento[7]) if len(agendamento) > 7 and agendamento[7] else ''  # Google Event ID
+                    ]
+                    writer.writerow(row)
+                    print(f"✅ Exportado: ID={row[0]}, Nome={row[3]}, Data={row[1]}")
+                    
+                else:
+                    # Formato incompleto - completar campos faltantes
+                    row = list(agendamento) + [''] * (8 - len(agendamento))
+                    row = [str(campo) for campo in row]  # Converter tudo para string
+                    writer.writerow(row)
+                    print(f"⚠️ Exportado formato antigo: {row}")
+                    
+            except Exception as e:
+                print(f"❌ Erro ao exportar agendamento {agendamento}: {e}")
+                continue
         
         # Retornar conteúdo do CSV
         csv_data = output.getvalue()
