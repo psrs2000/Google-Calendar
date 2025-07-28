@@ -4204,10 +4204,6 @@ Sistema de Agendamento Online
                     background: #eff6ff;
                 }
                 
-                .card-atendido {
-                    border-left: 4px solid #10b981;
-                    background: #ecfdf5;
-                }
                 
                 .card-cancelado {
                     border-left: 4px solid #ef4444;
@@ -4255,10 +4251,6 @@ Sistema de Agendamento Online
                     color: #eff6ff;
                 }
                 
-                .badge-atendido {
-                    background: #34d399;
-                    color: #ecfdf5;
-                }
                 
                 .badge-cancelado {
                     background: #f87171;
@@ -4420,13 +4412,6 @@ Sistema de Agendamento Online
                                     'text': 'Confirmado',
                                     'actions': ['attend', 'cancel']
                                 },
-                                'atendido': {
-                                    'icon': '🎉', 
-                                    'card_class': 'card-atendido',
-                                    'badge_class': 'badge-atendido',
-                                    'text': 'Atendido',
-                                    'actions': ['delete']
-                                },
                                 'cancelado': {
                                     'icon': '❌', 
                                     'card_class': 'card-cancelado',
@@ -4473,12 +4458,6 @@ Sistema de Agendamento Online
                                     if st.button("❌", key=f"reject_{agendamento_id}", help="Recusar", use_container_width=True):
                                         atualizar_status_agendamento(agendamento_id, 'cancelado')
                                         st.success(f"❌ {nome} recusado!")
-                                        st.rerun()
-                                
-                                if 'attend' in config['actions']:
-                                    if st.button("🎉", key=f"attend_{agendamento_id}", help="Atender", use_container_width=True):
-                                        atualizar_status_agendamento(agendamento_id, 'atendido')
-                                        st.success(f"🎉 {nome} atendido!")
                                         st.rerun()
                                 
                                 if 'cancel' in config['actions']:
