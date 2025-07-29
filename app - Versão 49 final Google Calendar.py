@@ -627,6 +627,19 @@ def cancelar_agendamento(nome, telefone, data):
                             print(f"❌ Falha ao enviar email de cancelamento para {email_cliente}")
                     except Exception as e:
                         print(f"❌ Erro ao enviar email de cancelamento: {e}")
+            
+            # NOVO: Excluir automaticamente os cancelados (simula admin clicando 2 vezes)
+            # SEMPRE executar, independente de configuração de email
+            print(f"🗑️ Iniciando exclusão automática dos agendamentos cancelados...")
+            for agendamento in agendamentos_do_dia:
+                agendamento_id = agendamento[0]
+                print(f"🗑️ Excluindo agendamento ID: {agendamento_id}")
+                try:
+                    deletar_agendamento(agendamento_id)
+                    print(f"✅ Agendamento ID {agendamento_id} excluído com sucesso")
+                except Exception as e:
+                    print(f"❌ Erro ao excluir agendamento ID {agendamento_id}: {e}")
+            
             backup_agendamentos_futuros_github()
             
             return True
@@ -685,11 +698,19 @@ def cancelar_agendamento(nome, telefone, data):
                                 print(f"✅ Email de cancelamento enviado para {email_cliente}")
                         except Exception as e:
                             print(f"❌ Erro ao enviar email de cancelamento: {e}")
-
-                # NOVO: Excluir automaticamente os cancelados (simula admin clicando 2 vezes)
+                
+                # NOVO: Excluir automaticamente os cancelados (também aqui no fallback)
+                print(f"🗑️ Iniciando exclusão automática dos agendamentos cancelados (fallback)...")
                 for agendamento in agendamentos_do_dia:
                     agendamento_id = agendamento[0]
-                    deletar_agendamento(agendamento_id)
+                    print(f"🗑️ Excluindo agendamento ID: {agendamento_id}")
+                    try:
+                        deletar_agendamento(agendamento_id)
+                        print(f"✅ Agendamento ID {agendamento_id} excluído com sucesso")
+                    except Exception as e:
+                        print(f"❌ Erro ao excluir agendamento ID {agendamento_id}: {e}")
+                
+                backup_agendamentos_futuros_github()
                 
                 return True
                 
