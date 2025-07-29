@@ -4486,7 +4486,7 @@ Sistema de Agendamento Online
                                         # NOVO: Excluir automaticamente após cancelar (simula 2 cliques)
                                         deletar_agendamento(agendamento_id)
                                         st.success(f"❌ {nome} cancelado e excluído!")
-                                        #st.rerun()
+                                        st.rerun()
                                 
                                 if 'cancel' in config['actions']:
                                     if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
