@@ -3593,7 +3593,7 @@ Sistema de Agendamento Online
                 st.markdown("**📋 Resumo das configurações salvas:**")
                 st.info(f"""
                 📅 **Agendamento:** {intervalo_selecionado} de {horario_inicio.strftime('%H:%M')} às {horario_fim.strftime('%H:%M')}
-                ⏰ **Antecedência:** {antecedencia_selecionada}
+                ⏰ **Antecedência:** {antecedencia_minima_config} horas
                 🔄 **Confirmação:** {'Automática' if confirmacao_automatica else 'Manual'}
                 📧 **Email:** {'Ativado' if envio_automatico else 'Desativado'}
                 ☁️ **Backup:** {'Ativado' if backup_github_ativo else 'Desativado'}
