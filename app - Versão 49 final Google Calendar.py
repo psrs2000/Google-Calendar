@@ -4759,7 +4759,7 @@ else:
             data_limite_antecedencia = agora + timedelta(hours=antecedencia_minima)
             
             datas_validas = []
-            for i in range(1, dias_futuros_config + 1):
+            for i in range(0, dias_futuros_config + 1):
                 data = hoje + timedelta(days=i)
                 dia_semana = data.strftime("%A")
                 data_str = data.strftime("%Y-%m-%d")  # Formato para verificar períodos
