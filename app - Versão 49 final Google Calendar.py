@@ -685,6 +685,11 @@ def cancelar_agendamento(nome, telefone, data):
                                 print(f"✅ Email de cancelamento enviado para {email_cliente}")
                         except Exception as e:
                             print(f"❌ Erro ao enviar email de cancelamento: {e}")
+
+                # NOVO: Excluir automaticamente os cancelados (simula admin clicando 2 vezes)
+                for agendamento in agendamentos_do_dia:
+                    agendamento_id = agendamento[0]
+                    deletar_agendamento(agendamento_id)
                 
                 return True
                 
@@ -4457,8 +4462,10 @@ Sistema de Agendamento Online
                                 if 'reject' in config['actions']:
                                     if st.button("❌", key=f"reject_{agendamento_id}", help="Recusar", use_container_width=True):
                                         atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                        st.success(f"❌ {nome} recusado!")
-                                        st.rerun()
+                                        # NOVO: Excluir automaticamente após cancelar (simula 2 cliques)
+                                        deletar_agendamento(agendamento_id)
+                                        st.success(f"❌ {nome} cancelado e excluído!")
+                                        #st.rerun()
                                 
                                 if 'cancel' in config['actions']:
                                     if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
