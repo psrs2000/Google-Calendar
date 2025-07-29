@@ -4450,61 +4450,47 @@ Sistema de Agendamento Online
                             config = status_config.get(status, status_config['pendente'])
                             
                             # Card super compacto
-                            col_info, col_actions = st.columns([5, 1])
+                            #col_info, col_actions = st.columns([5, 1])
                             
-                            with col_info:
-                                st.markdown(f"""
-                                <div class="card-compacto {config['card_class']}">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <div class="nome-compacto">
-                                            {config['icon']} {nome}
-                                        </div>
-                                        <div class="horario-destaque">
-                                            🕐 {horario}
-                                        </div>
-                                    </div>
-                                    <div class="info-compacta">
-                                        📱 {telefone} | 📧 {email if email else 'Não informado'}
-                                    </div>
+                            # Card integrado com botões na mesma linha
+                            st.markdown(f"""
+                            <div class="card-compacto {config['card_class']}">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <div>
+                                        <div class="nome-compacto">{config['icon']} {nome}</div>
+                                        <div class="info-compacta">📱 {telefone} | 📧 {email if email else 'Não informado'} | 🕐 {horario}</div>
                                         <span class="status-badge {config['badge_class']}">{config['text']}</span>
                                     </div>
                                 </div>
-                                """, unsafe_allow_html=True)
-                            
-                            with col_actions:
-                                # Ações baseadas no status
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Botões logo após (mais próximos do card)
+                            if 'confirm' in config['actions'] or 'reject' in config['actions'] or 'cancel' in config['actions']:
+                                col1, col2, col3 = st.columns([1, 1, 4])  # Terceira coluna maior para "empurrar" botões para esquerda
+                                
                                 if 'confirm' in config['actions']:
-                                    if st.button("✅", key=f"confirm_{agendamento_id}", help="Confirmar", use_container_width=True):
-                                        atualizar_status_agendamento(agendamento_id, 'confirmado')
-                                        st.success(f"✅ {nome} confirmado!")
-                                        st.rerun()
+                                    with col1:
+                                        if st.button("✅ Confirmar", key=f"confirm_{agendamento_id}", type="primary", use_container_width=True):
+                                            atualizar_status_agendamento(agendamento_id, 'confirmado')
+                                            st.success(f"✅ {nome} confirmado!")
+                                            st.rerun()
                                 
                                 if 'reject' in config['actions']:
-                                    if st.button("❌", key=f"reject_{agendamento_id}", help="Recusar", use_container_width=True):
-                                        atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                        # NOVO: Excluir automaticamente após cancelar (simula 2 cliques)
-                                        deletar_agendamento(agendamento_id)
-                                        st.success(f"❌ {nome} cancelado e excluído!")
-                                        st.rerun()
+                                    with col2:
+                                        if st.button("❌ Recusar", key=f"reject_{agendamento_id}", type="secondary", use_container_width=True):
+                                            atualizar_status_agendamento(agendamento_id, 'cancelado')
+                                            deletar_agendamento(agendamento_id)
+                                            st.success(f"❌ {nome} cancelado e excluído!")
+                                            st.rerun()
                                 
                                 if 'cancel' in config['actions']:
-                                    if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
-                                        atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                        # NOVO: Excluir automaticamente após cancelar (igual ao botão recusar)
-                                        deletar_agendamento(agendamento_id)
-                                        st.success(f"❌ {nome} cancelado e excluído!")
-                                        st.rerun()
-                                
-                                if 'delete' in config['actions']:
-                                    if st.button("🗑️", key=f"delete_{agendamento_id}", help="Excluir", use_container_width=True):
-                                        if st.session_state.get(f"confirm_delete_{agendamento_id}", False):
+                                    with col2:
+                                        if st.button("❌ Cancelar", key=f"cancel_{agendamento_id}", type="secondary", use_container_width=True):
+                                            atualizar_status_agendamento(agendamento_id, 'cancelado')
                                             deletar_agendamento(agendamento_id)
-                                            st.success(f"🗑️ {nome} excluído!")
+                                            st.success(f"❌ {nome} cancelado e excluído!")
                                             st.rerun()
-                                        else:
-                                            st.session_state[f"confirm_delete_{agendamento_id}"] = True
-                                            st.warning("⚠️ Clique novamente")
                 
                 else:
                     if st.session_state.dia_selecionado:
