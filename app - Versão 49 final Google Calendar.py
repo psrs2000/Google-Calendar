@@ -3035,29 +3035,14 @@ if is_admin:
                     )
                     
                     # Antecedência mínima
-                    antecedencia_atual = obter_configuracao("antecedencia_minima", 2)
-                    antecedencia_opcoes = {
-                        "30 minutos": 0.5,
-                        "1 hora": 1,
-                        "2 horas": 2,
-                        "4 horas": 4,
-                        "6 horas": 6,
-                        "12 horas": 12,
-                        "24 horas": 24,
-                        "48 horas": 48
-                    }
-                    
-                    antecedencia_texto = "2 horas"
-                    for texto, horas in antecedencia_opcoes.items():
-                        if horas == antecedencia_atual:
-                            antecedencia_texto = texto
-                            break
-                    
-                    antecedencia_selecionada = st.selectbox(
-                        "Antecedência mínima para agendamento:",
-                        list(antecedencia_opcoes.keys()),
-                        index=list(antecedencia_opcoes.keys()).index(antecedencia_texto),
-                        help="Tempo mínimo necessário entre o agendamento e 00:00 da data da  consulta"
+                    antecedencia_minima_config = st.number_input(
+                        "Antecedência mínima para agendamento (em horas):",
+                        min_value=-24.0,  # Permite valores negativos para ajustar fuso horário
+                        max_value=48.0,
+                        value=float(obter_configuracao("antecedencia_minima", 2.0)),
+                        step=0.5,
+                        help="Tempo mínimo entre agendamento e consulta. Use valores NEGATIVOS para compensar diferença de fuso horário do servidor.",
+                        format="%.1f"
                     )
                 
                 with col2:
@@ -3552,7 +3537,7 @@ Sistema de Agendamento Online
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
                 # Salvar configurações da tab 1
                 salvar_configuracao("dias_futuros", dias_futuros)
-                salvar_configuracao("antecedencia_minima", antecedencia_opcoes[antecedencia_selecionada])
+                salvar_configuracao("antecedencia_minima", antecedencia_minima_config)
                 salvar_configuracao("horario_inicio", horario_inicio.strftime("%H:%M"))
                 salvar_configuracao("horario_fim", horario_fim.strftime("%H:%M"))
                 salvar_configuracao("intervalo_consultas", intervalo_opcoes[intervalo_selecionado])
