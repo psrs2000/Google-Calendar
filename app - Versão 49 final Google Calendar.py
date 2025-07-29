@@ -628,28 +628,6 @@ def cancelar_agendamento(nome, telefone, data):
                     except Exception as e:
                         print(f"❌ Erro ao enviar email de cancelamento: {e}")
             backup_agendamentos_futuros_github()
-
-            # NOVO: Após cancelar, excluir definitivamente para simplificar
-            print(f"🗑️ Excluindo agendamentos cancelados para simplificar administração...")
-
-            try:
-                conn = conectar()
-                c = conn.cursor()
-                
-                # Excluir todos os agendamentos que foram cancelados para esta pessoa/data
-                c.execute("DELETE FROM agendamentos WHERE nome_cliente=? AND telefone=? AND data=? AND status='cancelado'", 
-                         (nome, telefone, data))
-                
-                registros_excluidos = c.rowcount
-                conn.commit()
-                conn.close()
-                
-                print(f"✅ {registros_excluidos} registro(s) excluído(s) definitivamente")
-                backup_agendamentos_futuros_github()
-                
-            except Exception as e:
-                print(f"⚠️ Erro ao excluir após cancelamento: {e}")
-                # Não falha - só avisa que não conseguiu excluir
             
             return True
             
@@ -4227,6 +4205,11 @@ Sistema de Agendamento Online
                 }
                 
                 
+                .card-cancelado {
+                    border-left: 4px solid #ef4444;
+                    background: #fef2f2;
+                }
+                
                 .nome-compacto {
                     font-size: 1rem !important;
                     font-weight: 600 !important;
@@ -4268,6 +4251,11 @@ Sistema de Agendamento Online
                     color: #eff6ff;
                 }
                 
+                
+                .badge-cancelado {
+                    background: #f87171;
+                    color: #fef2f2;
+                }
                 
                 /* Botões menores */
                 .stButton > button {
@@ -4424,6 +4412,13 @@ Sistema de Agendamento Online
                                     'text': 'Confirmado',
                                     'actions': ['attend', 'cancel']
                                 },
+                                'cancelado': {
+                                    'icon': '❌', 
+                                    'card_class': 'card-cancelado',
+                                    'badge_class': 'badge-cancelado',
+                                    'text': 'Cancelado',
+                                    'actions': ['delete']
+                                }
                             }
                             
                             config = status_config.get(status, status_config['pendente'])
