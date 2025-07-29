@@ -4771,8 +4771,7 @@ else:
                 # 4. Respeita antecedência mínima
                 if (dia_semana in dias_uteis and 
                     data.date() not in datas_bloqueadas_dt and 
-                    not data_em_periodo_bloqueado(data_str) and  # NOVA VERIFICAÇÃO!
-                    data.date() > data_limite_antecedencia.date()):
+                    not data_em_periodo_bloqueado(data_str)):
                     datas_validas.append(data.date())
             
             if not datas_validas:
@@ -5040,8 +5039,36 @@ else:
                             
                     except:
                         horarios_possiveis = [f"{str(h).zfill(2)}:00" for h in range(9, 18)]
-                    
-                    horarios_disponiveis = [h for h in horarios_possiveis if horario_disponivel(data_str, h)]
+                                        
+                    # NOVA LÓGICA: Verificar antecedência por horário específico
+                    horarios_disponiveis = []
+                    agora = datetime.now()
+
+                    for horario in horarios_possiveis:
+                        # 1. Verificar se horário está disponível (lógica original)
+                        if not horario_disponivel(data_str, horario):
+                            continue
+                        
+                        # 2. NOVA: Verificar antecedência específica para este horário
+                        try:
+                            # Criar datetime completo: data + horário da consulta
+                            data_horario_consulta = datetime.strptime(f"{data_str} {horario}", "%Y-%m-%d %H:%M")
+                            
+                            # Calcular quanto tempo falta para a consulta
+                            tempo_restante = data_horario_consulta - agora
+                            
+                            # Verificar se respeita a antecedência mínima
+                            antecedencia_horas = antecedencia_minima
+                            if tempo_restante.total_seconds() >= (antecedencia_horas * 3600):  # 3600 segundos = 1 hora
+                                horarios_disponiveis.append(horario)
+                                print(f"✅ Horário {horario} liberado - {tempo_restante.total_seconds()/3600:.1f}h de antecedência")
+                            else:
+                                print(f"❌ Horário {horario} bloqueado - só {tempo_restante.total_seconds()/3600:.1f}h de antecedência")
+                                
+                        except Exception as e:
+                            print(f"⚠️ Erro ao verificar antecedência para {horario}: {e}")
+                            # Em caso de erro, liberar o horário (fallback)
+                            horarios_disponiveis.append(horario)
                     
                     if horarios_disponiveis:
                         horario = st.selectbox("Escolha o horário:", horarios_disponiveis)
