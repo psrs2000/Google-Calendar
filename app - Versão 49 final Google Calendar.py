@@ -4452,65 +4452,30 @@ Sistema de Agendamento Online
                             # Card super compacto
                             col_info, col_actions = st.columns([5, 1])
                             
-                            st.markdown(f"""
-                            <div class="card-compacto {config['card_class']}">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div class="nome-compacto">
-                                        {config['icon']} {nome}
+                            with col_info:
+                                st.markdown(f"""
+                                <div class="card-compacto {config['card_class']}">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div class="nome-compacto">
+                                            {config['icon']} {nome}
+                                        </div>
+                                        <div class="horario-destaque">
+                                            🕐 {horario}
+                                        </div>
                                     </div>
-                                    <div class="horario-destaque">
-                                        🕐 {horario}
+                                    <div class="info-compacta">
+                                        📱 {telefone} | 📧 {email if email else 'Não informado'}
+                                    </div>
+                                    <div>
+                                        <span class="status-badge {config['badge_class']}">{config['text']}</span>
                                     </div>
                                 </div>
-                                <div class="info-compacta">
-                                    📱 {telefone} | 📧 {email if email else 'Não informado'}
-                                </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-                                    <span class="status-badge {config['badge_class']}">{config['text']}</span>
-                                    <div class="botoes-integrados">
-                                        <!-- Botões serão inseridos aqui pelo Streamlit -->
-                                    </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                            # Botões integrados logo após o card
-                            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-
-                            # Ações baseadas no status
-                            if 'confirm' in config['actions']:
-                                with col1:
+                                """, unsafe_allow_html=True)
+                            
+                            with col_actions:
+                                # Ações baseadas no status
+                                if 'confirm' in config['actions']:
                                     if st.button("✅", key=f"confirm_{agendamento_id}", help="Confirmar", use_container_width=True):
-                                        atualizar_status_agendamento(agendamento_id, 'confirmado')
-                                        st.success(f"✅ {nome} confirmado!")
-                                        st.rerun()
-
-                            if 'reject' in config['actions']:
-                                with col2:
-                                    if st.button("❌", key=f"reject_{agendamento_id}", help="Recusar", use_container_width=True):
-                                        atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                        deletar_agendamento(agendamento_id)
-                                        st.success(f"❌ {nome} cancelado e excluído!")
-                                        st.rerun()
-
-                            if 'cancel' in config['actions']:
-                                with col2:
-                                    if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
-                                        atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                        deletar_agendamento(agendamento_id)
-                                        st.success(f"❌ {nome} cancelado e excluído!")
-                                        st.rerun()
-
-                            if 'delete' in config['actions']:
-                                with col3:
-                                    if st.button("🗑️", key=f"delete_{agendamento_id}", help="Excluir", use_container_width=True):
-                                        if st.session_state.get(f"confirm_delete_{agendamento_id}", False):
-                                            deletar_agendamento(agendamento_id)
-                                            st.success(f"🗑️ {nome} excluído!")
-                                            st.rerun()
-                                        else:
-                                            st.session_state[f"confirm_delete_{agendamento_id}"] = True
-                                            st.warning("⚠️ Clique novamente")
                                         atualizar_status_agendamento(agendamento_id, 'confirmado')
                                         st.success(f"✅ {nome} confirmado!")
                                         st.rerun()
