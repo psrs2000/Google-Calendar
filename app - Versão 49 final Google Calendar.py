@@ -4491,7 +4491,9 @@ Sistema de Agendamento Online
                                 if 'cancel' in config['actions']:
                                     if st.button("❌", key=f"cancel_{agendamento_id}", help="Cancelar", use_container_width=True):
                                         atualizar_status_agendamento(agendamento_id, 'cancelado')
-                                        st.success(f"❌ {nome} cancelado!")
+                                        # NOVO: Excluir automaticamente após cancelar (igual ao botão recusar)
+                                        deletar_agendamento(agendamento_id)
+                                        st.success(f"❌ {nome} cancelado e excluído!")
                                         st.rerun()
                                 
                                 if 'delete' in config['actions']:
