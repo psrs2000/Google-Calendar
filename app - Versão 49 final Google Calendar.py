@@ -395,6 +395,35 @@ def init_config():
         )
     ''')
 
+# NOVA: Tabela de usuários para multi-tenant
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            senha_hash TEXT NOT NULL,
+            tipo TEXT DEFAULT 'user',
+            ativo INTEGER DEFAULT 1,
+            criado_em TEXT,
+            ultimo_login TEXT
+        )
+    ''')
+    
+    # Criar usuário admin padrão se não existir
+    c.execute("SELECT COUNT(*) FROM usuarios WHERE tipo = 'admin'")
+    if c.fetchone()[0] == 0:
+        import hashlib
+        senha_admin = "admin123"  # Senha padrão inicial
+        senha_hash = hashlib.sha256(senha_admin.encode()).hexdigest()
+        from datetime import datetime
+        agora = datetime.now().isoformat()
+        
+        c.execute("""INSERT INTO usuarios 
+                    (nome, email, senha_hash, tipo, ativo, criado_em) 
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                 ("Administrador", "admin@sistema.com", senha_hash, "admin", 1, agora))
+        print("✅ Usuário admin padrão criado: admin@sistema.com / admin123")
+
     try:
         c.execute("SELECT email FROM agendamentos LIMIT 1")
     except sqlite3.OperationalError:
