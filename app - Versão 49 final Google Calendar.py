@@ -3500,8 +3500,31 @@ Sistema de Agendamento Online
                     # Botão de teste
                     if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar_config"):
                         if google_client_id and google_client_secret and google_refresh_token:
-                            st.info("🔄 Testando conexão...")
-                            # Teste será implementado depois
+                            with st.spinner("🔄 Testando conexão..."):
+                                # Salvar temporariamente para o teste
+                                salvar_configuracao("google_client_id", google_client_id)
+                                salvar_configuracao("google_client_secret", google_client_secret)
+                                salvar_configuracao("google_refresh_token", google_refresh_token)
+                                salvar_configuracao("google_calendar_id", google_calendar_id)
+                                
+                                try:
+                                    service = get_google_calendar_service()
+                                    if service:
+                                        # Testar listando calendários
+                                        calendars = service.calendarList().list().execute()
+                                        st.success("✅ Conexão com Google Calendar funcionando!")
+                                        
+                                        # Mostrar calendários disponíveis
+                                        with st.expander("📅 Calendários disponíveis"):
+                                            for calendar in calendars.get('items', []):
+                                                if calendar['id'] == 'primary':
+                                                    st.write(f"📋 **{calendar['summary']}** (Principal) ⭐")
+                                                else:
+                                                    st.write(f"📋 **{calendar['summary']}**")
+                                    else:
+                                        st.error("❌ Não foi possível conectar. Verifique as credenciais.")
+                                except Exception as e:
+                                    st.error(f"❌ Erro na conexão: {str(e)}")
                         else:
                             st.warning("⚠️ Preencha todas as credenciais primeiro")
                             
