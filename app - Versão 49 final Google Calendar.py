@@ -2024,15 +2024,24 @@ def recuperar_agendamentos_automatico():
 
 
 def get_google_calendar_service():
-    """Configura Google Calendar usando Streamlit Secrets"""
+    """Configura Google Calendar usando configurações do banco"""
     try:
         print("🔍 Iniciando get_google_calendar_service...")
         
-        # Obter credenciais dos secrets
+        # NOVO: Obter credenciais das configurações do banco
+        client_id = obter_configuracao("google_client_id", "")
+        client_secret = obter_configuracao("google_client_secret", "")
+        refresh_token = obter_configuracao("google_refresh_token", "")
+        
+        # Verificar se credenciais estão configuradas
+        if not client_id or not client_secret or not refresh_token:
+            print("❌ Credenciais Google Calendar não configuradas")
+            return None
+        
         creds_info = {
-            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
-            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"], 
-            "refresh_token": st.secrets["GOOGLE_REFRESH_TOKEN"],
+            "client_id": client_id,
+            "client_secret": client_secret, 
+            "refresh_token": refresh_token,
             "token_uri": "https://oauth2.googleapis.com/token"
         }
         
@@ -2081,7 +2090,7 @@ def criar_evento_google_calendar(agendamento_id, nome_cliente, telefone, email, 
                 return False
             
             # Configurações do calendário
-            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            calendar_id = obter_configuracao("google_calendar_id", "primary")
             
             # Montar data/hora do evento
             data_inicio = datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
@@ -2195,7 +2204,7 @@ def deletar_evento_google_calendar(agendamento_id, max_tentativas=3):
                     continue
                 return False
             
-            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            calendar_id = obter_configuracao("google_calendar_id", "primary")
             
             # Converter data para busca no Google
             data_obj = datetime.strptime(data, "%Y-%m-%d")
@@ -2275,7 +2284,7 @@ def atualizar_evento_google_calendar(agendamento_id, nome_cliente, status, max_t
                 print(f"⚠️ Event ID não encontrado para agendamento {agendamento_id}")
                 return False
             
-            calendar_id = st.secrets.get("GOOGLE_CALENDAR_ID", "primary")
+            calendar_id = obter_configuracao("google_calendar_id", "primary")
             
             # Buscar evento atual
             evento = service.events().get(
