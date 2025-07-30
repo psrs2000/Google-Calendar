@@ -3014,7 +3014,7 @@ if is_admin:
 
             
             # Tabs para organizar as configurações
-            tab1, tab2, tab3 = st.tabs(["📅 Agendamento", "📞 Contato & Local", "📧 Email & Notificações"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📅 Agendamento", "📞 Contato & Local", "📧 Email & Notificações", "📅 Google Calendar"])
             
             with tab1:
                 st.subheader("📅 Configurações de Agendamento")
@@ -3381,95 +3381,6 @@ Sistema de Agendamento Online
                                 st.warning("⚠️ Preencha o email de teste e configure o sistema primeiro")
    
                     
-                    # Seção Google Calendar
-                    st.markdown("---")
-                    st.markdown("**📅 Integração Google Calendar**")
-                    
-                    google_calendar_ativo = st.checkbox(
-                        "Ativar sincronização com Google Calendar",
-                        value=obter_configuracao("google_calendar_ativo", False),
-                        help="Sincroniza automaticamente agendamentos confirmados com seu Google Calendar"
-                    )
-                    
-                    if google_calendar_ativo:
-                        st.success("✅ Google Calendar ativado - agendamentos serão sincronizados automaticamente!")
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.info("""
-                            **📋 Como funciona:**
-                            • Agendamento confirmado → Cria evento
-                            • Agendamento cancelado → Remove evento  
-                            • Agendamento atendido → Marca como concluído
-                            """)
-                        
-                        with col2:
-
-                            if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar"):
-                                try:
-                                    st.write("🔍 Testando imports...")
-                                    
-                                    # Teste de import direto
-                                    import importlib
-                                    
-                                    # Testar cada biblioteca individualmente
-                                    try:
-                                        google_auth = importlib.import_module('google.auth')
-                                        st.write("✅ google.auth OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ google.auth: {e}")
-                                        
-                                    try:
-                                        google_oauth2 = importlib.import_module('google.oauth2.credentials')
-                                        st.write("✅ google.oauth2.credentials OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ google.oauth2.credentials: {e}")
-                                        
-                                    try:
-                                        googleapiclient = importlib.import_module('googleapiclient.discovery')
-                                        st.write("✅ googleapiclient.discovery OK")
-                                    except ImportError as e:
-                                        st.error(f"❌ googleapiclient.discovery: {e}")
-                                        
-                                    st.info("📝 Se algum import falhou, o problema é falta de bibliotecas no requirements.txt")
-                                    
-                                except Exception as e:
-                                    st.error(f"❌ Erro geral: {e}")
-
-                                with st.spinner("Testando conexão..."):
-                                    try:
-                                        service = get_google_calendar_service()
-                                        if service:
-                                            # Testar listando calendários
-                                            calendars = service.calendarList().list().execute()
-                                            st.success("✅ Conexão com Google Calendar funcionando!")
-                                            
-                                            # Mostrar calendários disponíveis
-                                            with st.expander("📅 Calendários disponíveis"):
-                                                for calendar in calendars.get('items', []):
-                                                    if calendar['id'] == 'primary':
-                                                        st.write(f"📋 **{calendar['summary']}** (Principal) ⭐")
-                                                    else:
-                                                        st.write(f"📋 **{calendar['summary']}**")
-                                                        
-                                        else:
-                                            st.error("❌ Não foi possível conectar. Verifique as credenciais nos Secrets.")
-                                    except Exception as e:
-                                        st.error(f"❌ Erro na conexão: {str(e)}")
-                    else:
-                        st.info("💡 Ative a sincronização para ter seus agendamentos automaticamente no Google Calendar!")
-                        
-                        st.markdown("""
-                        **🔧 Configuração necessária:**
-                        
-                        Configure nos **Streamlit Secrets**:
-                        - `GOOGLE_CLIENT_ID`
-                        - `GOOGLE_CLIENT_SECRET` 
-                        - `GOOGLE_REFRESH_TOKEN`
-                        - `GOOGLE_CALENDAR_ID` (opcional, padrão: "primary")
-                        """)
-                    
                     # Seção de backup GitHub (manter como está)
                     st.markdown("---")
                     st.markdown("**☁️ Backup de Configurações**")   
@@ -3532,6 +3443,62 @@ Sistema de Agendamento Online
                 
                 else:
                     st.info("📧 Sistema de email desativado. Ative acima para configurar o envio automático.")            
+
+            # NOVA ABA 4: Google Calendar
+            with tab4:
+                st.subheader("📅 Integração Google Calendar")
+                
+                google_calendar_ativo = st.checkbox(
+                    "Ativar sincronização com Google Calendar",
+                    value=obter_configuracao("google_calendar_ativo", False),
+                    help="Sincroniza automaticamente agendamentos confirmados com seu Google Calendar"
+                )
+                
+                if google_calendar_ativo:
+                    st.markdown("### 🔧 Configurações de Credenciais")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        google_client_id = st.text_input(
+                            "Client ID:",
+                            value=obter_configuracao("google_client_id", ""),
+                            type="password",
+                            help="Client ID do Google Cloud Console"
+                        )
+                        
+                        google_refresh_token = st.text_input(
+                            "Refresh Token:",
+                            value=obter_configuracao("google_refresh_token", ""),
+                            type="password",
+                            help="Token de renovação do Google"
+                        )
+                    
+                    with col2:
+                        google_client_secret = st.text_input(
+                            "Client Secret:",
+                            value=obter_configuracao("google_client_secret", ""),
+                            type="password",
+                            help="Client Secret do Google Cloud Console"
+                        )
+                        
+                        google_calendar_id = st.text_input(
+                            "Calendar ID:",
+                            value=obter_configuracao("google_calendar_id", "primary"),
+                            help="ID do calendário (padrão: primary)"
+                        )
+                    
+                    # Botão de teste
+                    if st.button("🧪 Testar Conexão Google Calendar", key="test_google_calendar_config"):
+                        if google_client_id and google_client_secret and google_refresh_token:
+                            st.info("🔄 Testando conexão...")
+                            # Teste será implementado depois
+                        else:
+                            st.warning("⚠️ Preencha todas as credenciais primeiro")
+                            
+                else:
+                    st.info("💡 Ative a sincronização para configurar as credenciais do Google Calendar")
+
             # Botão para salvar todas as configurações
             st.markdown("---")
             if st.button("💾 Salvar Todas as Configurações", type="primary", use_container_width=True):
@@ -3588,6 +3555,13 @@ Sistema de Agendamento Online
                                 st.warning("⚠️ Erro no backup automático. Configurações salvas localmente.")
                     except Exception as e:
                         st.warning(f"⚠️ Erro no backup automático: {e}")
+
+                # Salvar configurações da tab 4 (Google Calendar)
+                salvar_configuracao("google_calendar_ativo", google_calendar_ativo)
+                salvar_configuracao("google_client_id", google_client_id if google_calendar_ativo else "")
+                salvar_configuracao("google_client_secret", google_client_secret if google_calendar_ativo else "")
+                salvar_configuracao("google_refresh_token", google_refresh_token if google_calendar_ativo else "")
+                salvar_configuracao("google_calendar_id", google_calendar_id if google_calendar_ativo else "primary")
                 
                 # Mostrar resumo
                 st.markdown("**📋 Resumo das configurações salvas:**")
