@@ -21,33 +21,69 @@ except ImportError as e:
     print(f"❌ Erro nos imports Google: {e}")
 
 
-# Verificar se é modo admin (versão dinâmica corrigida)
-is_admin = False
+# NOVO: Sistema de login multi-usuário baseado em banco
+def verificar_autenticacao():
+    """Verifica se usuário está logado e retorna tipo de usuário"""
+    if 'usuario_logado' not in st.session_state:
+        st.session_state.usuario_logado = None
+        st.session_state.usuario_tipo = None
+        st.session_state.usuario_id = None
+    
+    return st.session_state.usuario_logado
+
+def fazer_login(email, senha):
+    """Faz login do usuário"""
+    conn = conectar()
+    c = conn.cursor()
+    
+    try:
+        import hashlib
+        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+        
+        c.execute("SELECT id, nome, email, tipo, ativo FROM usuarios WHERE email = ? AND senha_hash = ?", 
+                 (email, senha_hash))
+        usuario = c.fetchone()
+        
+        if usuario and usuario[4] == 1:  # ativo = 1
+            st.session_state.usuario_logado = usuario[1]  # nome
+            st.session_state.usuario_tipo = usuario[3]   # tipo
+            st.session_state.usuario_id = usuario[0]     # id
+            st.session_state.usuario_email = usuario[2]  # email
+            
+            # Atualizar último login
+            from datetime import datetime
+            c.execute("UPDATE usuarios SET ultimo_login = ? WHERE id = ?", 
+                     (datetime.now().isoformat(), usuario[0]))
+            conn.commit()
+            
+            return True
+        return False
+        
+    except Exception as e:
+        print(f"Erro no login: {e}")
+        return False
+    finally:
+        conn.close()
+
+def fazer_logout():
+    """Faz logout do usuário"""
+    st.session_state.usuario_logado = None
+    st.session_state.usuario_tipo = None
+    st.session_state.usuario_id = None
+    st.session_state.usuario_email = None
+
+# Verificar autenticação
+usuario_logado = verificar_autenticacao()
+
+# Determinar se é admin baseado no tipo de usuário
+is_admin = (usuario_logado and st.session_state.usuario_tipo == 'admin')
+# NOVO: Verificar também se veio pela URL ?admin (compatibilidade)
 try:
-    # Primeiro, tentar obter a chave dos secrets
-    try:
-        admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
-    except:
-        admin_key = "desenvolvimento"  # Fallback para desenvolvimento local
-    
-    # Verificar query params (método novo)
     query_params = st.query_params
-    is_admin = query_params.get("admin") == admin_key
-    
+    if query_params.get("admin") == "true":
+        is_admin = True
 except:
-    try:
-        # Método antigo (Streamlit Cloud mais antigo)
-        try:
-            admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
-        except:
-            admin_key = "desenvolvimento"
-        
-        query_params = st.experimental_get_query_params()
-        is_admin = query_params.get("admin", [None])[0] == admin_key
-        
-    except:
-        # Fallback final
-        is_admin = False
+    pass
 
 # Configuração da página (AGORA PODE SER PRIMEIRO!)
 if is_admin:
@@ -3015,22 +3051,28 @@ if is_admin:
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     
-    if not st.session_state.authenticated:
+    if not usuario_logado:
         
-        st.subheader("🔒 Acesso Restrito")
+        st.subheader("🔑 Login do Sistema")
         
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            senha = st.text_input("Digite a senha de administrador:", type="password")
+            email_login = st.text_input("Email:", placeholder="admin@sistema.com")
+            senha_login = st.text_input("Senha:", type="password", placeholder="admin123")
             
             if st.button("🚪 Entrar", type="primary", use_container_width=True):
-                if senha == SENHA_CORRETA:
-                    st.session_state.authenticated = True
-                    st.rerun()
+                if email_login and senha_login:
+                    if fazer_login(email_login, senha_login):
+                        st.success(f"✅ Login realizado! Bem-vindo, {st.session_state.usuario_logado}!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Email ou senha incorretos!")
                 else:
-                    st.error("❌ Senha incorreta!")
+                    st.warning("⚠️ Preencha email e senha!")
         
         st.markdown('</div>', unsafe_allow_html=True)
+
     else:
         
         # Estatísticas
