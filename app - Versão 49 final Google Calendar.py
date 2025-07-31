@@ -1541,20 +1541,19 @@ def criar_menu_horizontal():
             st.rerun()
     
     with col5:
-        if st.button("💾 **Backup**", 
-                    key="btn_backup", 
+        if st.button("👥 **Usuários**", 
+                    key="btn_usuarios", 
                     use_container_width=True,
-                    help="Backup e restauração de dados"):
-            st.session_state.menu_opcao = "💾 Backup & Restauração"
+                    help="Gerenciar usuários do sistema"):
+            st.session_state.menu_opcao = "👥 Gerenciar Usuários"
             st.rerun()
     
     with col6:
-        if st.button("🚪 **Sair**", 
-                    key="btn_sair", 
+        if st.button("💾 **Backup**", 
+                    key="btn_backup_novo", 
                     use_container_width=True,
-                    help="Fazer logout do painel admin"):
-            st.session_state.authenticated = False
-            st.session_state.menu_opcao = "⚙️ Configurações Gerais"  # Reset
+                    help="Backup e restauração de dados"):
+            st.session_state.menu_opcao = "💾 Backup & Restauração"
             st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
