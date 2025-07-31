@@ -1506,7 +1506,7 @@ def criar_menu_horizontal():
     """, unsafe_allow_html=True)
     
     # Menu responsivo ATUALIZADO com 6 colunas
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     
     with col1:
         if st.button("⚙️ **Configurações**", 
@@ -1562,6 +1562,15 @@ def criar_menu_horizontal():
             st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
+
+    with col7:
+        if st.button("🚪 **Sair**", 
+                    key="btn_sair", 
+                    use_container_width=True,
+                    help="Fazer logout do sistema"):
+            fazer_logout()
+            st.session_state.menu_opcao = "⚙️ Configurações Gerais"
+            st.rerun()
     
     # Mostrar opção atual selecionada
     st.markdown(f"""
