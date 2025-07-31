@@ -1541,12 +1541,17 @@ def criar_menu_horizontal():
             st.rerun()
     
     with col5:
-        if st.button("👥 **Usuários**", 
-                    key="btn_usuarios", 
-                    use_container_width=True,
-                    help="Gerenciar usuários do sistema"):
-            st.session_state.menu_opcao = "👥 Gerenciar Usuários"
-            st.rerun()
+        # SÓ MOSTRAR para admins
+        if st.session_state.usuario_tipo == 'admin':
+            if st.button("👥 **Usuários**", 
+                        key="btn_usuarios", 
+                        use_container_width=True,
+                        help="Gerenciar usuários do sistema"):
+                st.session_state.menu_opcao = "👥 Gerenciar Usuários"
+                st.rerun()
+        else:
+            # Botão vazio para manter layout
+            st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
     
     with col6:
         if st.button("💾 **Backup**", 
@@ -4588,6 +4593,114 @@ Sistema de Agendamento Online
                 """, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
+
+        elif opcao == "👥 Gerenciar Usuários":
+            # VERIFICAÇÃO DE SEGURANÇA
+            if st.session_state.usuario_tipo != 'admin':
+                st.error("🚫 Acesso negado! Apenas administradores podem gerenciar usuários.")
+                st.session_state.menu_opcao = "⚙️ Configurações Gerais"
+                st.rerun()
+                st.stop()
+            st.subheader("👥 Gerenciamento de Usuários")
+            
+            # Buscar todos os usuários
+            conn = conectar()
+            c = conn.cursor()
+            c.execute("SELECT id, nome, email, tipo, ativo, criado_em, ultimo_login FROM usuarios ORDER BY tipo, nome")
+            usuarios = c.fetchall()
+            conn.close()
+            
+            # Estatísticas
+            total_usuarios = len(usuarios)
+            usuarios_ativos = len([u for u in usuarios if u[4] == 1])
+            admins = len([u for u in usuarios if u[3] == 'admin'])
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("👥 Total Usuários", total_usuarios)
+            with col2:
+                st.metric("✅ Ativos", usuarios_ativos)
+            with col3:
+                st.metric("🔐 Admins", admins)
+            
+            # Botão para adicionar novo usuário
+            if st.button("➕ Adicionar Novo Usuário", type="primary"):
+                st.session_state.show_add_user = True
+            
+            # Formulário para adicionar usuário
+            if st.session_state.get('show_add_user', False):
+                with st.expander("➕ Adicionar Novo Usuário", expanded=True):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        novo_nome = st.text_input("Nome completo:", placeholder="Dr. João Silva")
+                        novo_email = st.text_input("Email:", placeholder="joao@clinica.com")
+                    
+                    with col2:
+                        nova_senha = st.text_input("Senha:", type="password", placeholder="senha123")
+                        novo_tipo = st.selectbox("Tipo de usuário:", ["user", "admin"])
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    
+                    with col_btn1:
+                        if st.button("✅ Criar Usuário", type="primary", use_container_width=True):
+                            if novo_nome and novo_email and nova_senha:
+                                # Função para criar usuário será implementada
+                                st.success("🚧 Funcionalidade em desenvolvimento...")
+                            else:
+                                st.warning("⚠️ Preencha todos os campos!")
+                    
+                    with col_btn2:
+                        if st.button("❌ Cancelar", use_container_width=True):
+                            st.session_state.show_add_user = False
+                            st.rerun()
+            
+            # Lista de usuários
+            st.markdown("---")
+            st.subheader("📋 Lista de Usuários")
+            
+            for usuario in usuarios:
+                user_id, nome, email, tipo, ativo, criado_em, ultimo_login = usuario
+                
+                # Determinar cor do card baseado no tipo e status
+                if tipo == 'admin':
+                    card_class = "card-admin"
+                    icon = "🔐"
+                else:
+                    card_class = "card-user"
+                    icon = "👤"
+                
+                status_text = "✅ Ativo" if ativo else "❌ Inativo"
+                status_color = "#10b981" if ativo else "#ef4444"
+                
+                col_info, col_actions = st.columns([4, 1])
+                
+                with col_info:
+                    st.markdown(f"""
+                    <div style="background: white; border-left: 4px solid {'#3b82f6' if tipo == 'admin' else '#6b7280'}; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h4 style="color: #1f2937; margin: 0; font-size: 1.1rem;">{icon} {nome}</h4>
+                            <span style="background: {status_color}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                {status_text}
+                            </span>
+                        </div>
+                        <div style="color: #374151; font-size: 0.9rem;">
+                            <strong>📧 Email:</strong> {email}<br>
+                            <strong>🏷️ Tipo:</strong> {tipo.title()}<br>
+                            <strong>📅 Último login:</strong> {ultimo_login if ultimo_login else 'Nunca'}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_actions:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if user_id != st.session_state.usuario_id:  # Não pode editar a si mesmo
+                        if st.button("✏️", key=f"edit_user_{user_id}", help="Editar usuário"):
+                            st.info("🚧 Edição em desenvolvimento...")
+                        if st.button("🗑️", key=f"delete_user_{user_id}", help="Excluir usuário"):
+                            st.warning("🚧 Exclusão em desenvolvimento...")
+                    else:
+                        st.info("👤 Você")
 
         elif opcao == "💾 Backup & Restauração":
             
