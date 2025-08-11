@@ -21,69 +21,33 @@ except ImportError as e:
     print(f"❌ Erro nos imports Google: {e}")
 
 
-# NOVO: Sistema de login multi-usuário baseado em banco
-def verificar_autenticacao():
-    """Verifica se usuário está logado e retorna tipo de usuário"""
-    if 'usuario_logado' not in st.session_state:
-        st.session_state.usuario_logado = None
-        st.session_state.usuario_tipo = None
-        st.session_state.usuario_id = None
-    
-    return st.session_state.usuario_logado
-
-def fazer_login(email, senha):
-    """Faz login do usuário"""
-    conn = conectar()
-    c = conn.cursor()
-    
-    try:
-        import hashlib
-        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
-        
-        c.execute("SELECT id, nome, email, tipo, ativo FROM usuarios WHERE email = ? AND senha_hash = ?", 
-                 (email, senha_hash))
-        usuario = c.fetchone()
-        
-        if usuario and usuario[4] == 1:  # ativo = 1
-            st.session_state.usuario_logado = usuario[1]  # nome
-            st.session_state.usuario_tipo = usuario[3]   # tipo
-            st.session_state.usuario_id = usuario[0]     # id
-            st.session_state.usuario_email = usuario[2]  # email
-            
-            # Atualizar último login
-            from datetime import datetime
-            c.execute("UPDATE usuarios SET ultimo_login = ? WHERE id = ?", 
-                     (datetime.now().isoformat(), usuario[0]))
-            conn.commit()
-            
-            return True
-        return False
-        
-    except Exception as e:
-        print(f"Erro no login: {e}")
-        return False
-    finally:
-        conn.close()
-
-def fazer_logout():
-    """Faz logout do usuário"""
-    st.session_state.usuario_logado = None
-    st.session_state.usuario_tipo = None
-    st.session_state.usuario_id = None
-    st.session_state.usuario_email = None
-
-# Verificar autenticação
-usuario_logado = verificar_autenticacao()
-
-# Determinar se é admin baseado no tipo de usuário
-is_admin = (usuario_logado and st.session_state.usuario_tipo == 'admin')
-# NOVO: Verificar também se veio pela URL ?admin (compatibilidade)
+# Verificar se é modo admin (versão dinâmica corrigida)
+is_admin = False
 try:
+    # Primeiro, tentar obter a chave dos secrets
+    try:
+        admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
+    except:
+        admin_key = "desenvolvimento"  # Fallback para desenvolvimento local
+    
+    # Verificar query params (método novo)
     query_params = st.query_params
-    if query_params.get("admin") == "true":
-        is_admin = True
+    is_admin = query_params.get("admin") == admin_key
+    
 except:
-    pass
+    try:
+        # Método antigo (Streamlit Cloud mais antigo)
+        try:
+            admin_key = st.secrets.get("ADMIN_URL_KEY", "desenvolvimento")
+        except:
+            admin_key = "desenvolvimento"
+        
+        query_params = st.experimental_get_query_params()
+        is_admin = query_params.get("admin", [None])[0] == admin_key
+        
+    except:
+        # Fallback final
+        is_admin = False
 
 # Configuração da página (AGORA PODE SER PRIMEIRO!)
 if is_admin:
@@ -430,35 +394,6 @@ def init_config():
             valor TEXT
         )
     ''')
-
-# NOVA: Tabela de usuários para multi-tenant
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            senha_hash TEXT NOT NULL,
-            tipo TEXT DEFAULT 'user',
-            ativo INTEGER DEFAULT 1,
-            criado_em TEXT,
-            ultimo_login TEXT
-        )
-    ''')
-    
-    # Criar usuário admin padrão se não existir
-    c.execute("SELECT COUNT(*) FROM usuarios WHERE tipo = 'admin'")
-    if c.fetchone()[0] == 0:
-        import hashlib
-        senha_admin = "admin123"  # Senha padrão inicial
-        senha_hash = hashlib.sha256(senha_admin.encode()).hexdigest()
-        from datetime import datetime
-        agora = datetime.now().isoformat()
-        
-        c.execute("""INSERT INTO usuarios 
-                    (nome, email, senha_hash, tipo, ativo, criado_em) 
-                    VALUES (?, ?, ?, ?, ?, ?)""",
-                 ("Administrador", "admin@sistema.com", senha_hash, "admin", 1, agora))
-        print("✅ Usuário admin padrão criado: admin@sistema.com / admin123")
 
     try:
         c.execute("SELECT email FROM agendamentos LIMIT 1")
@@ -1506,7 +1441,7 @@ def criar_menu_horizontal():
     """, unsafe_allow_html=True)
     
     # Menu responsivo ATUALIZADO com 6 colunas
-    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
         if st.button("⚙️ **Configurações**", 
@@ -1541,36 +1476,23 @@ def criar_menu_horizontal():
             st.rerun()
     
     with col5:
-        # SÓ MOSTRAR para admins
-        if st.session_state.usuario_tipo == 'admin':
-            if st.button("👥 **Usuários**", 
-                        key="btn_usuarios", 
-                        use_container_width=True,
-                        help="Gerenciar usuários do sistema"):
-                st.session_state.menu_opcao = "👥 Gerenciar Usuários"
-                st.rerun()
-        else:
-            # Botão vazio para manter layout
-            st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
-    
-    with col6:
         if st.button("💾 **Backup**", 
-                    key="btn_backup_novo", 
+                    key="btn_backup", 
                     use_container_width=True,
                     help="Backup e restauração de dados"):
             st.session_state.menu_opcao = "💾 Backup & Restauração"
             st.rerun()
     
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    with col7:
+    with col6:
         if st.button("🚪 **Sair**", 
                     key="btn_sair", 
                     use_container_width=True,
-                    help="Fazer logout do sistema"):
-            fazer_logout()
-            st.session_state.menu_opcao = "⚙️ Configurações Gerais"
+                    help="Fazer logout do painel admin"):
+            st.session_state.authenticated = False
+            st.session_state.menu_opcao = "⚙️ Configurações Gerais"  # Reset
             st.rerun()
+    
+    st.markdown("</div>", unsafe_allow_html=True)
     
     # Mostrar opção atual selecionada
     st.markdown(f"""
@@ -3064,28 +2986,22 @@ if is_admin:
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     
-    if not usuario_logado:
+    if not st.session_state.authenticated:
         
-        st.subheader("🔑 Login do Sistema")
+        st.subheader("🔒 Acesso Restrito")
         
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            email_login = st.text_input("Email:", placeholder="admin@sistema.com")
-            senha_login = st.text_input("Senha:", type="password", placeholder="admin123")
+            senha = st.text_input("Digite a senha de administrador:", type="password")
             
             if st.button("🚪 Entrar", type="primary", use_container_width=True):
-                if email_login and senha_login:
-                    if fazer_login(email_login, senha_login):
-                        st.success(f"✅ Login realizado! Bem-vindo, {st.session_state.usuario_logado}!")
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("❌ Email ou senha incorretos!")
+                if senha == SENHA_CORRETA:
+                    st.session_state.authenticated = True
+                    st.rerun()
                 else:
-                    st.warning("⚠️ Preencha email e senha!")
+                    st.error("❌ Senha incorreta!")
         
         st.markdown('</div>', unsafe_allow_html=True)
-
     else:
         
         # Estatísticas
@@ -4602,114 +4518,6 @@ Sistema de Agendamento Online
                 """, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
-
-        elif opcao == "👥 Gerenciar Usuários":
-            # VERIFICAÇÃO DE SEGURANÇA
-            if st.session_state.usuario_tipo != 'admin':
-                st.error("🚫 Acesso negado! Apenas administradores podem gerenciar usuários.")
-                st.session_state.menu_opcao = "⚙️ Configurações Gerais"
-                st.rerun()
-                st.stop()
-            st.subheader("👥 Gerenciamento de Usuários")
-            
-            # Buscar todos os usuários
-            conn = conectar()
-            c = conn.cursor()
-            c.execute("SELECT id, nome, email, tipo, ativo, criado_em, ultimo_login FROM usuarios ORDER BY tipo, nome")
-            usuarios = c.fetchall()
-            conn.close()
-            
-            # Estatísticas
-            total_usuarios = len(usuarios)
-            usuarios_ativos = len([u for u in usuarios if u[4] == 1])
-            admins = len([u for u in usuarios if u[3] == 'admin'])
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("👥 Total Usuários", total_usuarios)
-            with col2:
-                st.metric("✅ Ativos", usuarios_ativos)
-            with col3:
-                st.metric("🔐 Admins", admins)
-            
-            # Botão para adicionar novo usuário
-            if st.button("➕ Adicionar Novo Usuário", type="primary"):
-                st.session_state.show_add_user = True
-            
-            # Formulário para adicionar usuário
-            if st.session_state.get('show_add_user', False):
-                with st.expander("➕ Adicionar Novo Usuário", expanded=True):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        novo_nome = st.text_input("Nome completo:", placeholder="Dr. João Silva")
-                        novo_email = st.text_input("Email:", placeholder="joao@clinica.com")
-                    
-                    with col2:
-                        nova_senha = st.text_input("Senha:", type="password", placeholder="senha123")
-                        novo_tipo = st.selectbox("Tipo de usuário:", ["user", "admin"])
-                    
-                    col_btn1, col_btn2 = st.columns(2)
-                    
-                    with col_btn1:
-                        if st.button("✅ Criar Usuário", type="primary", use_container_width=True):
-                            if novo_nome and novo_email and nova_senha:
-                                # Função para criar usuário será implementada
-                                st.success("🚧 Funcionalidade em desenvolvimento...")
-                            else:
-                                st.warning("⚠️ Preencha todos os campos!")
-                    
-                    with col_btn2:
-                        if st.button("❌ Cancelar", use_container_width=True):
-                            st.session_state.show_add_user = False
-                            st.rerun()
-            
-            # Lista de usuários
-            st.markdown("---")
-            st.subheader("📋 Lista de Usuários")
-            
-            for usuario in usuarios:
-                user_id, nome, email, tipo, ativo, criado_em, ultimo_login = usuario
-                
-                # Determinar cor do card baseado no tipo e status
-                if tipo == 'admin':
-                    card_class = "card-admin"
-                    icon = "🔐"
-                else:
-                    card_class = "card-user"
-                    icon = "👤"
-                
-                status_text = "✅ Ativo" if ativo else "❌ Inativo"
-                status_color = "#10b981" if ativo else "#ef4444"
-                
-                col_info, col_actions = st.columns([4, 1])
-                
-                with col_info:
-                    st.markdown(f"""
-                    <div style="background: white; border-left: 4px solid {'#3b82f6' if tipo == 'admin' else '#6b7280'}; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <h4 style="color: #1f2937; margin: 0; font-size: 1.1rem;">{icon} {nome}</h4>
-                            <span style="background: {status_color}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
-                                {status_text}
-                            </span>
-                        </div>
-                        <div style="color: #374151; font-size: 0.9rem;">
-                            <strong>📧 Email:</strong> {email}<br>
-                            <strong>🏷️ Tipo:</strong> {tipo.title()}<br>
-                            <strong>📅 Último login:</strong> {ultimo_login if ultimo_login else 'Nunca'}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_actions:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    if user_id != st.session_state.usuario_id:  # Não pode editar a si mesmo
-                        if st.button("✏️", key=f"edit_user_{user_id}", help="Editar usuário"):
-                            st.info("🚧 Edição em desenvolvimento...")
-                        if st.button("🗑️", key=f"delete_user_{user_id}", help="Excluir usuário"):
-                            st.warning("🚧 Exclusão em desenvolvimento...")
-                    else:
-                        st.info("👤 Você")
 
         elif opcao == "💾 Backup & Restauração":
             
